@@ -1,0 +1,30 @@
+results_dir: results
+tables_dir: tables
+output_dir: analysis
+
+model:
+  name: deepseek-r1
+  display: DeepSeek-R1-Think
+
+baseline:
+  name: Qwen3-8B
+  display: Qwen3-8B-Think
+
+dataset: ToMBench
+
+llm:
+  model_name: ""
+  api_key: ""
+  api_url: ""
+  temperature: 0.0
+  max_tokens: 4096
+  max_workers: 1
+  enable_thinking: false
+  system_prompt: ""
+
+bad_cases:
+  n: 5
+  seed: 42
+
+no_llm_analysis: false
+output_report: true

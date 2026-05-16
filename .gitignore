@@ -1,0 +1,73 @@
+TomDatasets/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+
+# Backup and temporary files
+*.bak
+*.tmp
+*.log
+
+# Results directory
+results/
+result/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Local-only (omit from upstream eval_code)
+scripts/
+experiment_configs/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+datasets/
+datasets_examples/
+analysis/
+experiment_config_ds.yaml
+experiment_config_glm5.yaml
+CLAUDE.md
+.claude
+preprocess
+
+# Dataset upload scripts (contains HF token)
+upload_datasets_to_hf.py
+UPLOAD_GUIDE.md
