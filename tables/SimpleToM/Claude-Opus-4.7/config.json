@@ -1,0 +1,37 @@
+{
+  "dataset": "SimpleToM",
+  "model": "claude-opus-4-7",
+  "prompt_method": "v2_generate",
+  "repeats": 1,
+  "dataset_config": {
+    "dataset": "SimpleToM",
+    "path": "SimpleToM/test",
+    "method": "v2_generate",
+    "schema": "MCQAnswer3",
+    "system_prompt": "",
+    "use_llm_judge": null
+  },
+  "experiment_config": {
+    "llm_config": {
+      "model_name": "claude-opus-4-7",
+      "temperature": 0.6,
+      "max_tokens": 32768,
+      "max_workers": 8,
+      "enable_thinking": true,
+      "system_prompt": ""
+    },
+    "repeats": 1,
+    "max_samples": 0,
+    "datasets_path": "datasets",
+    "results_path": "results",
+    "judge_config": {
+      "model_name": "claude-opus-4-7",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "system_prompt": "",
+      "enable_thinking": true,
+      "use_llm_judge": false
+    }
+  },
+  "exp_dir": "exp_20260429_102342"
+}

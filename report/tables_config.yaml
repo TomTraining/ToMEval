@@ -1,0 +1,22 @@
+results_dir: results
+output_dir: tables
+
+# Optional. If empty, use the latest exp_* for each dataset/model.
+exp_suffix:
+
+# Optional. Use a string or a list. If empty, process all datasets.
+dataset:
+  - Belief_R
+  - BigToM
+  - FANToM
+  - FictionalQA
+  - HellaSwag
+  - SimpleTom
+  - SocialIQA
+  - ToMBench
+  - Tomato
+
+# Optional. If empty, process all models found under results/.
+models:
+  - name: Qwen3.5-9B
+    display: Qwen3.5-9B-NoThink
