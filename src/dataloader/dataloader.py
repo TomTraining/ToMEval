@@ -2,11 +2,15 @@
 Dataset Loader
 
 根据名称加载 datasets 目录下的数据集。
+支持 arrow 和 parquet 格式。
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 
 class DataLoader:
@@ -18,28 +22,59 @@ class DataLoader:
     def load(self, subset: str) -> List[Dict[str, Any]]:
         """加载数据集。
 
+        支持从本地加载 arrow 或 parquet 格式。
+
         Args:
-            subset: 子集路径，如 "ExploreToM/SIP/raw"
+            subset: 子集路径，如 "ToMBench/test"
 
         Returns:
             数据列表
         """
-        from datasets import load_from_disk
+        from datasets import load_from_disk, load_dataset as hf_load_dataset
 
         path = self.datasets_root / subset
 
-        # 如果路径下没有 arrow 文件但有子目录，则合并加载所有子目录
-        if not list(path.glob("*.arrow")):
-            arrow_paths = self._find_arrow_paths(path)
-            if arrow_paths:
-                result = []
-                for arrow_path in arrow_paths:
-                    dataset = load_from_disk(str(arrow_path))
-                    result.extend(dataset.to_list())
-                return result
+        # 尝试从本地 arrow 目录加载
+        if path.exists():
+            # 如果路径下没有 arrow 文件但有子目录，则合并加载所有子目录
+            if not list(path.glob("*.arrow")):
+                arrow_paths = self._find_arrow_paths(path)
+                if arrow_paths:
+                    result = []
+                    for arrow_path in arrow_paths:
+                        dataset = load_from_disk(str(arrow_path))
+                        result.extend(dataset.to_list())
+                    return result
 
-        dataset = load_from_disk(str(path))
-        return dataset.to_list()
+            dataset = load_from_disk(str(path))
+            return dataset.to_list()
+
+        # Arrow目录不存在，尝试加载parquet文件
+        # 解析subset: "DatasetName/split" -> 查找 datasets/DatasetName/{split}-*.parquet
+        parts = subset.split("/")
+        if len(parts) >= 2:
+            dataset_name = parts[0]
+            split_name = parts[1]
+            dataset_dir = self.datasets_root / dataset_name
+
+            if dataset_dir.exists():
+                # 查找匹配的parquet文件
+                parquet_files = list(dataset_dir.glob(f"{split_name}-*.parquet"))
+                if parquet_files:
+                    logger.info(f"Loading from parquet: {parquet_files}")
+                    dataset = hf_load_dataset(
+                        'parquet',
+                        data_files=[str(f) for f in parquet_files],
+                        split='train'  # parquet加载后默认是train split
+                    )
+                    return dataset.to_list()
+
+        raise FileNotFoundError(
+            f"Dataset not found: {path}\n"
+            f"Searched for:\n"
+            f"  - Arrow directory: {path}\n"
+            f"  - Parquet files: {self.datasets_root / parts[0] / (parts[1] + '-*.parquet') if len(parts) >= 2 else 'N/A'}"
+        )
 
     def load_all(self, subset_prefix: str = "") -> List[Dict[str, Any]]:
         """加载指定路径下所有的 arrow 数据集并合并。
