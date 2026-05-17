@@ -12,12 +12,12 @@ from typing import Optional
 
 
 DATASETS = [
-    "BigToM",
-    "EmoBench",
-    "FANToM",
-    "HiToM",
-    "SimpleTom",
-    "SocialIQA",
+    # "BigToM",
+    # "EmoBench",
+    # "FANToM",
+    # "HiToM",
+    # "SimpleTom",
+    # "SocialIQA",
     "ToMBench"
 ]
 
