@@ -71,3 +71,5 @@ preprocess
 # Dataset upload scripts (contains HF token)
 upload_datasets_to_hf.py
 UPLOAD_GUIDE.md
+experiment_config_*
+TOMEVAL_VS_TOMTEST.md

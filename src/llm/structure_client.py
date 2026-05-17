@@ -73,7 +73,7 @@ class StructureClient(LLMClient):
         prompt: str,
         response_object: Type[BaseModel],
         max_retry: int = 5,
-        timeout: int = 120,
+        timeout: int = 1200,
     ) -> LLMResponse:
         """使用 parse API 的原生结构化输出。"""
         extra_body = build_extra_body(self.top_k, self.enable_thinking)
@@ -164,7 +164,7 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
                     max_tokens=self.max_tokens,
                     presence_penalty=self.presence_penalty,
                     extra_body=extra_body,
-                    timeout=120,
+                    timeout=1200,
                 )
 
                 latency = time.time() - start
@@ -261,7 +261,7 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
             logging.info("[StructureClient] Testing parse mode with first prompt...")
             # 用最短 probe prompt 快速探测，避免等待完整推理
             probe_prompt = 'Reply with {"ok": true}.'
-            probe_result = self._generate_with_parse(probe_prompt, _ProbeSchema, max_retry=1, timeout=120)
+            probe_result = self._generate_with_parse(probe_prompt, _ProbeSchema, max_retry=1, timeout=1200)
             if probe_result.content is None:
                 self._use_parse_mode = False
                 logging.warning("[StructureClient] Parse mode failed, switching to create mode for all requests")

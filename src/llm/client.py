@@ -109,6 +109,7 @@ class LLMClient:
         logging.getLogger("httpcore").setLevel(logging.WARNING)
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
+        # 保留 OpenAI SDK 的重试日志，方便诊断问题
 
         self.model = model_name
         self.api_key = api_key
@@ -137,7 +138,11 @@ class LLMClient:
     def client(self):
         """延迟初始化 OpenAI 客户端"""
         if self._client is None:
-            self._client = openai.OpenAI(api_key=self.api_key, base_url=self.api_url)
+            self._client = openai.OpenAI(
+                api_key=self.api_key,
+                base_url=self.api_url,
+                timeout=1200.0,  # 设置超时时间
+            )
         return self._client
 
     @classmethod
