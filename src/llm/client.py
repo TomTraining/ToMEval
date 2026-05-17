@@ -141,7 +141,7 @@ class LLMClient:
             self._client = openai.OpenAI(
                 api_key=self.api_key,
                 base_url=self.api_url,
-                timeout=120.0,  # 设置超时时间
+                timeout=1200.0,  # 设置超时时间
             )
         return self._client
 
