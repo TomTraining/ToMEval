@@ -1,15 +1,8 @@
 {
   "dataset": "ToMBench",
-  "model": "claude-opus-4-7",
-  "prompt_method": "VANILLA",
-  "repeats": 1,
   "dataset_config": {
     "dataset": "ToMBench",
-    "path": "ToMBench/test/en",
-    "method": "VANILLA",
-    "schema": "MCQAnswer",
-    "system_prompt": "",
-    "use_llm_judge": null
+    "path": "ToMBench/test"
   },
   "experiment_config": {
     "llm_config": {
@@ -22,16 +15,16 @@
     },
     "repeats": 1,
     "max_samples": 0,
-    "datasets_path": "datasets",
+    "normalized_datasets_path": "datasets",
     "results_path": "results",
     "judge_config": {
-      "model_name": "claude-opus-4-7",
+      "model_name": "Qwen3-8B",
       "temperature": 0.0,
       "max_tokens": 4096,
-      "system_prompt": "",
-      "enable_thinking": true,
-      "use_llm_judge": false
+      "max_workers": 32,
+      "enable_thinking": false,
+      "system_prompt": ""
     }
   },
-  "exp_dir": "exp_20260429_102342"
+  "exp_dir": "exp_20260518_133837"
 }
