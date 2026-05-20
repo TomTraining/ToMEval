@@ -1,0 +1,312 @@
+"""
+从 ToMEval 评估结果加载 bad case。
+
+读取 results/<dataset>/<model>/exp_*/prediction.jsonl（自动取最新 exp_*），
+对配置的多个模型取 bad case 并集，每条 bad case 保留：
+  - row_data: {story, question, correct_answers, wrong_answers, meta, prompt_type}
+  - _actual_prompt: 原始 prompt（来自 prediction）
+  - _wrong_answer: 模型给出的错误答案（raw_prediction letter）
+  - _wrong_reasoning: 模型 reasoning（若有）
+  - _gold_answer: 正确答案 letter（correct_letters[0]）
+  - _hard: bool，≥2 个模型均答错 = True（高价值合成目标）
+
+输出：data_output/bad_cases/<dataset_name>/bad_cases.jsonl
+"""
+
+import json
+import logging
+import re
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+
+def _extract_letter(text: Optional[str]) -> str:
+    """从模型回复中提取答案字母"""
+    if not text:
+        return ""
+    text = str(text).strip()
+    m = re.search(r"\b([A-Oa-o])\b", text)
+    if m:
+        return m.group(1).upper()
+    if text and text[0].isalpha():
+        return text[0].upper()
+    return text.upper()[:1]
+
+
+def _is_correct(raw_prediction: Optional[str], correct_letters: List[str]) -> bool:
+    letter = _extract_letter(raw_prediction)
+    return letter in [c.upper() for c in correct_letters]
+
+
+def _find_prediction_file(results_root: Path, dataset_name: str, model: str, exp: Optional[str] = None) -> Optional[Path]:
+    """在 results/<dataset>/<model>/exp_<tag>/ 下找 prediction.jsonl。
+
+    exp 为 None 或空时自动取最新的 exp_* 目录。
+    """
+    base = results_root / dataset_name / model
+    if not base.exists():
+        return None
+    if exp:
+        tag = exp if exp.startswith("exp_") else f"exp_{exp}"
+        pred = base / tag / "prediction.jsonl"
+        return pred if pred.exists() else None
+    # 自动取最新
+    for exp_dir in reversed(sorted(base.glob("exp_*"))):
+        pred = exp_dir / "prediction.jsonl"
+        if pred.exists():
+            return pred
+    return None
+
+
+def load_bad_cases_from_predictions(
+    dataset_name: str,
+    predictions_root: str,
+    models: List[Dict[str, Any]],
+    max_bad_cases: int = 0,
+    output_dir: str = "data_output/bad_cases",
+) -> Path:
+    """
+    读取多个模型的 prediction.jsonl，取 bad case 并集，写入 bad_cases.jsonl。
+
+    Args:
+        dataset_name:      数据集名称（ToMBench / BigToM / ...）
+        predictions_root:  ToMEval results/ 根目录，布局为 <dataset>/<model>/exp_<tag>/prediction.jsonl
+        models:            模型列表，每项 {"name": str, "exp": str|None}
+        max_bad_cases:     0=不限制，>0=每数据集最多 N 条 bad case
+        output_dir:        输出根目录
+
+    Returns:
+        包含 bad_cases.jsonl 的目录 Path
+    """
+    if not models:
+        raise ValueError("models list must be non-empty; configure models under each dataset in config.yaml")
+
+    results_root = Path(predictions_root)
+    logger.info(f"Loading bad cases for {dataset_name} from {len(models)} models (results_root={results_root})")
+
+    # sample_index → {model_name: [records]}
+    sample_records: Dict[int, Dict[str, List[Dict]]] = {}
+
+    for model_cfg in models:
+        model = model_cfg["name"]
+        exp = model_cfg.get("exp") or None
+        pred_file = _find_prediction_file(results_root, dataset_name, model, exp)
+        if pred_file is None:
+            logger.warning(f"  Missing prediction for {dataset_name}/{model} (exp={exp}) under {results_root}")
+            continue
+        logger.info(f"  {model}: reading {pred_file}")
+
+        model_records: Dict[int, List[Dict]] = {}
+        with open(pred_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                idx = rec.get("sample_index", rec.get("sample_idx", -1))
+                if idx < 0:
+                    continue
+                if idx not in model_records:
+                    model_records[idx] = []
+                model_records[idx].append(rec)
+
+        for idx, recs in model_records.items():
+            if idx not in sample_records:
+                sample_records[idx] = {}
+            sample_records[idx][model] = recs
+
+        logger.info(f"  {model}: {len(model_records)} samples loaded")
+
+    # 对每个样本判断各模型是否有错
+    bad_cases: List[Dict[str, Any]] = []
+
+    for sample_idx in sorted(sample_records.keys()):
+        model_data = sample_records[sample_idx]
+
+        # 取任一模型的第一条记录拿到 row_data
+        first_model = next(iter(model_data))
+        recs = model_data[first_model]
+        ref_rec = recs[0]
+
+        # 判断每个模型是否 any_wrong（多 repeat 中至少一次答错）
+        model_wrong: Dict[str, bool] = {}
+        for model_name, model_recs in model_data.items():
+            correct_letters = model_recs[0].get("correct_letters", [])
+            # 检查每个 repeat
+            any_wrong = False
+            for r in model_recs:
+                raw = r.get("raw_prediction", "")
+                pred_content = r.get("pred", {}).get("content", "")
+                pred_str = str(raw or pred_content or "")
+                if not _is_correct(pred_str, correct_letters):
+                    any_wrong = True
+                    break
+            model_wrong[model_name] = any_wrong
+
+        # 并集：只要有一个模型答错就是 bad case
+        if not any(model_wrong.values()):
+            continue
+
+        n_wrong_models = sum(model_wrong.values())
+        is_hard = n_wrong_models >= 2  # 至少两个模型都错 = 高价值
+
+        # 构建 row_data（与 stage2 期望一致）
+        row_data = {
+            "story":           ref_rec.get("story", ""),
+            "question":        ref_rec.get("question", ""),
+            "correct_answers": ref_rec.get("correct_answers", []),
+            "wrong_answers":   ref_rec.get("wrong_answers", []),
+            "meta":            ref_rec.get("meta", {}),
+            "prompt_type":     ref_rec.get("prompt_type", "mcq_single"),
+        }
+
+        # 找到第一个答错的模型和 repeat 作为 bad case 代表
+        wrong_model = next((m for m, w in model_wrong.items() if w), first_model)
+        wrong_recs = model_data[wrong_model]
+        first_wrong = next(
+            (r for r in wrong_recs if not _is_correct(
+                str(r.get("raw_prediction", "") or r.get("pred", {}).get("content", "")),
+                r.get("correct_letters", [])
+            )),
+            wrong_recs[0],
+        )
+
+        correct_letters = ref_rec.get("correct_letters", [])
+        gold = correct_letters[0] if correct_letters else ""
+
+        bad_case = {
+            "sample_idx":       sample_idx,
+            "dataset":          dataset_name,
+            "row_data":         row_data,
+            "_actual_prompt":   first_wrong.get("prompt", ""),
+            "_wrong_answer":    _extract_letter(
+                str(first_wrong.get("raw_prediction", "") or first_wrong.get("pred", {}).get("content", ""))
+            ),
+            "_wrong_reasoning": str(first_wrong.get("pred", {}).get("reasoning", "") or "").strip(),
+            "_gold_answer":     gold,
+            "_hard":            is_hard,
+            "_n_wrong_models":  n_wrong_models,
+            "_models_wrong":    [m for m, w in model_wrong.items() if w],
+        }
+        bad_cases.append(bad_case)
+
+    total_bad = len(bad_cases)
+    hard_count = sum(1 for c in bad_cases if c["_hard"])
+    logger.info(f"  Total bad cases: {total_bad} (hard={hard_count}, easy={total_bad-hard_count})")
+
+    # 按 hard-first 排序，优先诊断高价值样本
+    bad_cases.sort(key=lambda c: (-c["_n_wrong_models"], c["sample_idx"]))
+
+    if max_bad_cases > 0 and len(bad_cases) > max_bad_cases:
+        # 按通用维度键分层采样：覆盖所有错误类别，避免最难维度独占所有配额
+        # 使用 stage2 的 get_dimension_key（每个数据集自带的维度字段映射）。
+        import collections
+        from .stage2_diagnosis import get_dimension_key
+
+        by_dim: Dict[str, List[Dict]] = collections.defaultdict(list)
+        for bc in bad_cases:
+            dim = get_dimension_key(bc["row_data"].get("meta", {}), dataset_name)
+            by_dim[dim].append(bc)
+
+        full_dist = dict(collections.Counter(
+            get_dimension_key(bc["row_data"].get("meta", {}), dataset_name) for bc in bad_cases
+        ))
+        logger.info(f"  Bad-case distribution before cap: {full_dist}")
+
+        if len(by_dim) > 1:
+            # 按维度 bad case 比例加权分配配额（弱维度 bad case 多 → 合成配额多）
+            total_bad = len(bad_cases)
+            dim_quotas: Dict[str, int] = {}
+            allocated = 0
+            dims_sorted = sorted(by_dim.items())
+            for dim, cases in dims_sorted:
+                q = max(1, round(max_bad_cases * len(cases) / total_bad))
+                dim_quotas[dim] = q
+                allocated += q
+            # 修正舍入误差：多退少补，按维度大小倒序调整
+            diff = allocated - max_bad_cases
+            for dim, _ in sorted(dims_sorted, key=lambda x: -len(x[1])):
+                if diff == 0:
+                    break
+                if diff > 0 and dim_quotas[dim] > 1:
+                    dim_quotas[dim] -= 1
+                    diff -= 1
+                elif diff < 0:
+                    dim_quotas[dim] += 1
+                    diff += 1
+
+            selected: List[Dict[str, Any]] = []
+            remainder_pool: List[Dict[str, Any]] = []
+            for dim, cases in dims_sorted:
+                quota = dim_quotas[dim]
+                take = cases[:quota]
+                selected.extend(take)
+                remainder_pool.extend(cases[quota:])
+            remaining = max_bad_cases - len(selected)
+            if remaining > 0 and remainder_pool:
+                remainder_pool.sort(key=lambda c: (-c["_n_wrong_models"], c["sample_idx"]))
+                selected.extend(remainder_pool[:remaining])
+            bad_cases = selected[:max_bad_cases]
+            cond_dist = dict(collections.Counter(
+                get_dimension_key(bc["row_data"].get("meta", {}), dataset_name) for bc in bad_cases
+            ))
+            logger.info(f"  Dim quotas (weighted): {dim_quotas}")
+            logger.info(f"  Capping to {max_bad_cases} bad cases with proportional sampling: {cond_dist}")
+        else:
+            logger.info(f"  Capping to {max_bad_cases} bad cases (was {len(bad_cases)})")
+            bad_cases = bad_cases[:max_bad_cases]
+
+    # 写输出
+    out_dir = Path(output_dir) / dataset_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "bad_cases.jsonl"
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        for case in bad_cases:
+            f.write(json.dumps(case, ensure_ascii=False) + "\n")
+
+    logger.info(f"  Written {len(bad_cases)} bad cases to {out_path}")
+    return out_dir
+
+
+def load_bad_cases_all_datasets(
+    config: Dict[str, Any],
+    max_bad_cases: int = 0,
+    only_dataset: str = "",
+) -> Dict[str, Path]:
+    """对所有配置数据集加载 bad case"""
+    predictions_root = config.get("predictions_root", "results")
+    output_dir = str(Path(config["output_path"]) / "bad_cases")
+
+    synthesis_datasets = config.get("synthesis_datasets", [])
+    results: Dict[str, Path] = {}
+
+    for dataset_info in synthesis_datasets:
+        dataset_name = dataset_info["name"]
+        if only_dataset and dataset_name != only_dataset:
+            continue
+        models = dataset_info.get("models", [])
+        if not models:
+            logger.warning(f"  {dataset_name}: no models configured, skipping")
+            continue
+        try:
+            out_dir = load_bad_cases_from_predictions(
+                dataset_name=dataset_name,
+                predictions_root=predictions_root,
+                models=models,
+                max_bad_cases=max_bad_cases,
+                output_dir=output_dir,
+            )
+            results[dataset_name] = out_dir
+        except Exception as e:
+            logger.error(f"Failed to load bad cases for {dataset_name}: {e}")
+            import traceback; traceback.print_exc()
+
+    return results
