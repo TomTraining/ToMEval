@@ -1,10 +1,11 @@
 """
-Summary Generator - Pure Markdown Version
+Summary Generator - HTML Version
 
-从 tables/ 目录生成伪合并 Markdown 总览表格 SUMMARY.md。
+从 tables/ 目录生成支持合并单元格的 HTML 总览表格 SUMMARY.md。
 """
 
 import json
+from html import escape
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -137,10 +138,6 @@ def format_accuracy(value: Any) -> str:
     return str(value)
 
 
-def escape_markdown_cell(text: Any) -> str:
-    return str(text).replace("|", "\\|").replace("\n", " ")
-
-
 def generate_summary_table(tables_dir: str) -> str:
     metrics_data = collect_metrics_from_tables(tables_dir)
 
@@ -167,29 +164,44 @@ def generate_summary_table(tables_dir: str) -> str:
     lines = [
         "## 总览表格：Accuracy",
         "",
+        "<table>",
+        "  <thead>",
+        "    <tr>",
+        "      <th>数据集 \\ 模型</th>",
     ]
 
-    header = ["数据集 \\ 模型"] + models
-    separator = ["---"] + ["---:" for _ in models]
+    for model in models:
+        lines.append(f"      <th>{escape(model)}</th>")
 
-    lines.append("| " + " | ".join(escape_markdown_cell(x) for x in header) + " |")
-    lines.append("| " + " | ".join(separator) + " |")
+    lines.extend([
+        "    </tr>",
+        "  </thead>",
+        "  <tbody>",
+    ])
 
-    empty_cells = [""] * len(models)
+    colspan = len(models) + 1
 
     for judge_model in judge_models:
-        judge_row = [f"**Judge: {judge_model}**"] + empty_cells
-        lines.append("| " + " | ".join(escape_markdown_cell(x) for x in judge_row) + " |")
+        lines.append(
+            f'    <tr><td colspan="{colspan}" align="center"><strong>Judge: {escape(judge_model)}</strong></td></tr>'
+        )
 
         for dataset in datasets:
-            row = [dataset]
+            lines.append("    <tr>")
+            lines.append(f"      <td>{escape(dataset)}</td>")
+
             for model in models:
                 value = grouped.get(judge_model, {}).get(dataset, {}).get(model, "-")
-                row.append(value)
+                lines.append(f'      <td align="right">{escape(value)}</td>')
 
-            lines.append("| " + " | ".join(escape_markdown_cell(x) for x in row) + " |")
+            lines.append("    </tr>")
 
-    lines.append("")
+    lines.extend([
+        "  </tbody>",
+        "</table>",
+        "",
+    ])
+
     return "\n".join(lines)
 
 
@@ -207,7 +219,7 @@ def generate_summary(tables_dir: str = "tables", output_file: str = None) -> str
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="从 tables/ 目录生成纯 Markdown 总览汇总表格")
+    parser = argparse.ArgumentParser(description="从 tables/ 目录生成 HTML 总览汇总表格")
     parser.add_argument("--tables-dir", type=str, default="tables")
     parser.add_argument("--output-file", type=str, default=None)
     parser.add_argument("--stdout", action="store_true")
@@ -215,7 +227,7 @@ def main() -> None:
 
     output_file = args.output_file
     if output_file is None:
-        output_file = Path(args.tables_dir) / "SUMMARY.md"
+        output_file = Path(args.tables_dir) / "SUMMARY-html.md"
 
     generate_summary(args.tables_dir, output_file)
 
