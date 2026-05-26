@@ -52,7 +52,7 @@ SYNTHESIS_FORMAT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "meta_required_fields": ["id", "dataset_source", "dimension", "task_type", "difficulty"],
         "description": "3-choice MCQ. Story is a dict with full_story field. Provide exactly 1 Correct_Answer and 2 Wrong_Answer.",
         "complexity_hint": (
-            "SIMPLE everyday scenario. Story: 1-3 short sentences (20-80 words), typically 1-2 agents. "
+            "SIMPLE everyday scenario. Story: 1-2 short sentences (20-50 words), typically 1-2 agents. "
             "NO formal institution names, NO multi-step information chains. "
             "Question: asks what someone would do/want/feel/react next (xWant/xNeed/xReact/xEffect/xAttr/oWant/oReact/oEffect). "
             "Style: casual commonsense, NOT belief-tracking or ToM. "

@@ -10,10 +10,10 @@
 
 用法：
   cd /Users/yangmeili/Downloads/Code/ToMEval
-  python run_data_processing.py --stage all --dataset ToMBench --max-bad-cases 80
-  python run_data_processing.py --stage diagnose --dataset BigToM
-  python run_data_processing.py --stage synth
-  python run_data_processing.py --stage all --iteration 2
+  python run_feedback_synthesis.py --stage all --dataset ToMBench --max-bad-cases 80
+  python run_feedback_synthesis.py --stage diagnose --dataset BigToM
+  python run_feedback_synthesis.py --stage synth
+  python run_feedback_synthesis.py --stage all --iteration 2
 """
 
 import argparse
@@ -125,6 +125,11 @@ def run_pipeline(args):
     max_bad_cases = args.max_bad_cases
     iteration = args.iteration
     stage = args.stage
+    report_source = getattr(args, "report_source", "diagnosis")
+
+    if report_source == "stage5" and stage != "synth":
+        logger.error("--report-source stage5 is only allowed with --stage synth")
+        sys.exit(1)
 
     output_path = Path(config["output_path"])
     synthesis_llm_config = config["synthesis_model"]
@@ -163,7 +168,7 @@ def run_pipeline(args):
     # ── Stage 1: 加载 bad case ───────────────────────────────────────────────
     if stage in ("all", "load"):
         logger.info("\n===== Stage 1: Load Bad Cases =====")
-        from data_processing.stage1_load_predictions import load_bad_cases_from_predictions
+        from feedback_synthesis.stage1_load_predictions import load_bad_cases_from_predictions
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -180,7 +185,8 @@ def run_pipeline(args):
                     output_dir=str(output_path / "bad_cases"),
                 )
                 bc_file = out_dir / "bad_cases.jsonl"
-                n = sum(1 for _ in open(bc_file))
+                with open(bc_file, encoding="utf-8") as f:
+                    n = sum(1 for _ in f)
                 all_stats.setdefault(ds, {})["bad_cases"] = n
                 logger.info(f"  {ds}: {n} bad cases loaded")
             except Exception as e:
@@ -216,7 +222,7 @@ def run_pipeline(args):
     # ── Stage 2: 维度诊断 ─────────────────────────────────────────────────────
     if stage in ("all", "diagnose"):
         logger.info("\n===== Stage 2: Dimension Diagnosis =====")
-        from data_processing.stage2_diagnosis import run_stage2_dimension_diagnosis
+        from feedback_synthesis.stage2_diagnosis import run_stage2_dimension_diagnosis
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -235,7 +241,8 @@ def run_pipeline(args):
                     max_reports=report_quota,
                 )
                 report_file = out_dir / "dimension_reports.jsonl"
-                n_reports = sum(1 for _ in open(report_file))
+                with open(report_file, encoding="utf-8") as f:
+                    n_reports = sum(1 for _ in f)
                 all_stats.setdefault(ds, {})["reports"] = n_reports
                 logger.info(f"  {ds}: {n_reports} dimension reports generated (quota={report_quota})")
             except Exception as e:
@@ -245,7 +252,7 @@ def run_pipeline(args):
     # ── Stage 3: 数据合成 ─────────────────────────────────────────────────────
     if stage in ("all", "synth"):
         logger.info("\n===== Stage 3: Data Synthesis =====")
-        from data_processing.stage3_synthesis import run_stage3_synthesis
+        from feedback_synthesis.stage3_synthesis import run_stage3_synthesis
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -255,9 +262,19 @@ def run_pipeline(args):
                 logger.warning(f"  {ds}: diagnosis_reports dir not found, skipping synthesis")
                 continue
 
-            # 可能在 ds/<split_name>/dimension_reports.jsonl
             report_path = reports_dir / "dimension_reports.jsonl"
-            if not report_path.exists():
+            if report_source == "stage5":
+                if iteration <= 1:
+                    logger.warning(f"  {ds}: stage5 feedback requires iteration > 1, skipping synthesis")
+                    continue
+                feedback_dir = reports_dir / f"stage5_feedback_iter{iteration - 1}"
+                feedback_path = feedback_dir / "dimension_reports.jsonl"
+                if not feedback_path.exists():
+                    logger.warning(f"  {ds}: stage5 feedback not found, skipping synthesis")
+                    continue
+                reports_dir = feedback_dir
+                report_path = feedback_path
+            elif not report_path.exists():
                 sub_dirs = [p for p in reports_dir.iterdir() if p.is_dir()]
                 if sub_dirs:
                     reports_dir = sub_dirs[0]
@@ -269,7 +286,8 @@ def run_pipeline(args):
 
             # 计算该数据集的 samples_per_report（按配额均匀分配到每份报告）
             _, samples_quota = allocations.get(ds, (None, None))
-            n_actual_reports = sum(1 for _ in open(report_path) if _.strip())
+            with open(report_path, encoding="utf-8") as f:
+                n_actual_reports = sum(1 for _ in f if _.strip())
             if samples_quota and n_actual_reports > 0:
                 ds_samples_per_report = max(1, math.ceil(samples_quota / n_actual_reports))
             else:
@@ -292,7 +310,8 @@ def run_pipeline(args):
                     iteration=iteration,
                 )
                 if out_path:
-                    n_synth = sum(1 for _ in open(out_path))
+                    with open(out_path, encoding="utf-8") as f:
+                        n_synth = sum(1 for _ in f)
                     all_stats.setdefault(ds, {})["synthesized_raw"] = n_synth
                     logger.info(f"  {ds}: {n_synth} raw candidates generated → {out_path}")
             except Exception as e:
@@ -302,7 +321,7 @@ def run_pipeline(args):
     # ── Stage 4: 守门员过滤 ───────────────────────────────────────────────────
     if stage in ("all", "synth", "dedupe"):
         logger.info("\n===== Stage 4: LSH Leakage Guard =====")
-        from data_processing.stage4_lsh_filter import run_stage4_lsh_filter
+        from feedback_synthesis.stage4_lsh_filter import run_stage4_lsh_filter
 
         lsh_stats = run_stage4_lsh_filter(config, synthesis_datasets, output_path, iteration)
         for ds, st in lsh_stats.items():
@@ -311,7 +330,7 @@ def run_pipeline(args):
     # ── Stage 5: 难度验证（qwen3-8b 至少错 1 次才保留）─────────────────────────
     if stage in ("all", "synth", "dedupe", "difficulty"):
         logger.info("\n===== Stage 5: Difficulty Filter (qwen3-8b) =====")
-        from data_processing.stage5_difficulty_filter import run_stage5_all_datasets
+        from feedback_synthesis.stage5_difficulty_filter import run_stage5_all_datasets
 
         diff_stats = run_stage5_all_datasets(
             config, only_dataset=only_dataset, iteration=iteration
@@ -320,6 +339,7 @@ def run_pipeline(args):
             ds = key.split("/")[0]
             all_stats.setdefault(ds, {})["difficulty_kept"] = st["kept"]
             all_stats.setdefault(ds, {})["difficulty_dropped_correct"] = st["dropped_all_correct"]
+            all_stats.setdefault(ds, {})["difficulty_dropped_invalid"] = st["dropped_invalid_question"]
             all_stats.setdefault(ds, {})["difficulty_api_fail"] = st["dropped_api_fail"]
 
     # ── 写迭代日志 ────────────────────────────────────────────────────────────
@@ -339,7 +359,7 @@ def run_pipeline(args):
 
 def _write_iteration_log(config, iteration, stage, dataset_names, stats, output_path):
     """追加写入 ITERATION_LOG.md"""
-    log_path = Path(__file__).parent / "data_processing" / "ITERATION_LOG.md"
+    log_path = Path(__file__).parent / "feedback_synthesis" / "ITERATION_LOG.md"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     syn_cfg = config.get("synthesis", {})
@@ -363,7 +383,9 @@ def _write_iteration_log(config, iteration, stage, dataset_names, stats, output_
             f"raw={st.get('synthesized_raw','?')} | "
             f"clean={st.get('synth_clean','?')} | "
             f"dropped={st.get('synth_dropped','?')} | "
-            f"hard={st.get('difficulty_kept','?')}"
+            f"hard={st.get('difficulty_kept','?')} | "
+            f"dropped_correct={st.get('difficulty_dropped_correct','?')} | "
+            f"dropped_invalid={st.get('difficulty_dropped_invalid','?')}"
         )
 
     # 占位符（首次运行后人工填写）
@@ -407,13 +429,19 @@ def main():
     parser.add_argument(
         "--stage",
         choices=["all", "load", "diagnose", "synth", "dedupe", "difficulty"],
-        default="all",
+        default="dedupe",
         help="运行阶段: all=全流程, load=只加载bad case, diagnose=诊断, synth=合成+守门员+难度, difficulty=只跑难度过滤",
     )
-    parser.add_argument("--config", default="data_processing/config.yaml", help="配置文件路径")
-    parser.add_argument("--dataset", default="", help="只运行单个数据集，如 ToMBench")
-    parser.add_argument("--max-bad-cases", type=int, default=0, help="每数据集最多 bad case 数（0=不限）")
-    parser.add_argument("--iteration", type=int, default=1, help="迭代轮次，影响输出文件命名")
+    parser.add_argument("--config", default="feedback_synthesis/config.yaml", help="配置文件路径")
+    parser.add_argument("--dataset", default="HiToM", help="只运行单个数据集，如 ToMBench")
+    parser.add_argument("--max-bad-cases", type=int, default=80, help="每数据集最多 bad case 数（0=不限）")
+    parser.add_argument("--iteration", type=int, default=6, help="迭代轮次，影响输出文件命名")
+    parser.add_argument(
+        "--report-source",
+        choices=["diagnosis", "stage5"],
+        default="diagnosis",
+        help="Stage 3 读取哪类报告：diagnosis=原始 dimension_reports.jsonl，stage5=上一轮 Stage 5 反馈报告",
+    )
     args = parser.parse_args()
 
     run_pipeline(args)

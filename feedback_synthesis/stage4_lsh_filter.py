@@ -9,8 +9,12 @@ Stage 4：LSH 守门员过滤
 import glob
 import json
 import logging
+import hashlib
+import pickle
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
+
+from tqdm import tqdm
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -27,6 +31,7 @@ _THRESHOLD = 0.6
 _KNOWN_TASKS = [
     "BigToM", "EmoBench", "FanToM", "HiToM", "SimpleToM", "SocialIQA", "ToMBench"
 ]
+_CACHE_VERSION = 1
 
 
 # ── 文本工具 ──────────────────────────────────────────────────────────────────
@@ -64,9 +69,72 @@ def _make_minhash(text: str):
     return m
 
 
+def _collect_test_index_meta(test_root: Path, tasks: List[str]) -> Dict[str, Any]:
+    files: List[Dict[str, Any]] = []
+    for task in tasks:
+        for pfile in sorted(glob.glob(str(test_root / task / "*.parquet"))):
+            p = Path(pfile)
+            try:
+                stat = p.stat()
+            except FileNotFoundError:
+                continue
+            files.append(
+                {
+                    "path": str(p.resolve()),
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                }
+            )
+
+    meta = {
+        "version": _CACHE_VERSION,
+        "test_root": str(test_root.resolve()),
+        "tasks": list(tasks),
+        "threshold": _THRESHOLD,
+        "ngram": _NGRAM,
+        "num_perm": _NUM_PERM,
+        "files": files,
+    }
+    meta["signature"] = hashlib.sha256(
+        json.dumps(meta, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    return meta
+
+
+def _load_cached_test_index(cache_path: Path, signature: str):
+    try:
+        with open(cache_path, "rb") as f:
+            payload = pickle.load(f)
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("cache_meta", {}).get("signature") != signature:
+            return None
+        lsh = payload.get("lsh")
+        grams_map = payload.get("grams_map")
+        if lsh is None or grams_map is None:
+            return None
+        logger.info(f"Loaded cached test index from {cache_path}")
+        return lsh, grams_map
+    except Exception as e:
+        logger.warning(f"Failed to load cached test index from {cache_path}: {e}")
+        return None
+
+
+def _save_cached_test_index(cache_path: Path, lsh, grams_map: Dict[str, FrozenSet], cache_meta: Dict[str, Any]) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "cache_meta": cache_meta,
+        "lsh": lsh,
+        "grams_map": grams_map,
+    }
+    with open(cache_path, "wb") as f:
+        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+    logger.info(f"Built and cached test index to {cache_path}")
+
+
 # ── 索引构建 ──────────────────────────────────────────────────────────────────
 
-def build_test_index(test_root: Path, tasks: Optional[List[str]] = None):
+def build_test_index(test_root: Path, tasks: Optional[List[str]] = None, cache_dir: Optional[Path] = None):
     """对所有 test parquet 构建 MinHashLSH 索引。
 
     Returns:
@@ -77,6 +145,13 @@ def build_test_index(test_root: Path, tasks: Optional[List[str]] = None):
 
     if tasks is None:
         tasks = _KNOWN_TASKS
+
+    cache_meta = _collect_test_index_meta(test_root, tasks)
+    cache_path = None if cache_dir is None else cache_dir / f"test_index_{cache_meta['signature']}.pkl"
+    if cache_path is not None and cache_path.exists():
+        cached = _load_cached_test_index(cache_path, cache_meta["signature"])
+        if cached is not None:
+            return cached
 
     lsh = MinHashLSH(threshold=_THRESHOLD, num_perm=_NUM_PERM)
     grams_map: Dict[str, FrozenSet] = {}
@@ -89,7 +164,7 @@ def build_test_index(test_root: Path, tasks: Optional[List[str]] = None):
             continue
         for pfile in parquet_files:
             rows = pq.read_table(pfile).to_pylist()
-            for row in rows:
+            for row in tqdm(rows, desc=f"{task}", leave=False):
                 text = _build_text(row)
                 if not text:
                     continue
@@ -104,6 +179,11 @@ def build_test_index(test_root: Path, tasks: Optional[List[str]] = None):
         logger.info(f"  {task}: indexed")
 
     logger.info(f"Test index built: {total} samples from {len(tasks)} tasks")
+    if cache_path is not None:
+        try:
+            _save_cached_test_index(cache_path, lsh, grams_map, cache_meta)
+        except Exception as e:
+            logger.warning(f"Failed to cache test index to {cache_path}: {e}")
     return lsh, grams_map
 
 
@@ -188,7 +268,10 @@ def run_stage4_lsh_filter(
     if not abs_test_root.is_absolute():
         abs_test_root = (Path(__file__).parent.parent / test_root).resolve()
 
-    lsh, grams_map = build_test_index(abs_test_root)
+    lsh, grams_map = build_test_index(
+        abs_test_root,
+        cache_dir=output_path / "cache" / "stage4_lsh",
+    )
 
     synth_raw_root = output_path / "synth_raw"
     synth_clean_root = output_path / "synth_clean"

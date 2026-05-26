@@ -1,13 +1,13 @@
 # 数据合成模块
 
-本模块实现 Theory-of-Mind 训练数据的合成流水线。入口脚本位于项目根目录 `run_data_processing.py`。
+本模块实现 Theory-of-Mind 训练数据的合成流水线。入口脚本位于项目根目录 `run_feedback_synthesis.py`。
 
 ---
 
 ## 文件结构
 
 ```
-data_processing/
+feedback_synthesis/
 ├── config.yaml                 # 配置（合成模型 / 数据集 / 各阶段参数 / 难度过滤）
 ├── stage1_load_predictions.py  # Stage 1：从已有预测文件加载 bad case（按维度分层抽样）
 ├── stage2_diagnosis.py         # Stage 2：维度批量诊断
@@ -17,7 +17,7 @@ data_processing/
 ├── prompts.py                  # 诊断 / 合成 Prompt 模板
 └── ITERATION_LOG.md            # 每次迭代的统计与 review
 
-run_data_processing.py          # 入口脚本（项目根目录）
+run_feedback_synthesis.py          # 入口脚本（项目根目录）
 ```
 
 > **训练集口径**：进入训练集的样本必须满足 ① LSH 守门员通过（无测试集泄漏）② Stage 5 难度验证通过（qwen3-8b 至少错 1 次）。`synth_clean/*_hard.parquet` 才是最终可用数据，`synth_raw` 和 `synth_clean/*.parquet`（不带 `_hard`）只是中间产物。
@@ -50,19 +50,19 @@ data_output/
 
 ```bash
 # 完整流水线
-python run_data_processing.py --stage all --dataset ToMBench --iteration 1
+python run_feedback_synthesis.py --stage all --dataset ToMBench --iteration 1
 
 # 单阶段
-python run_data_processing.py --stage load --dataset BigToM --max-bad-cases 80
-python run_data_processing.py --stage diagnose --dataset BigToM
-python run_data_processing.py --stage synth
-python run_data_processing.py --stage difficulty --dataset ToMBench --iteration 3
+python run_feedback_synthesis.py --stage load --dataset BigToM --max-bad-cases 80
+python run_feedback_synthesis.py --stage diagnose --dataset BigToM
+python run_feedback_synthesis.py --stage synth
+python run_feedback_synthesis.py --stage difficulty --dataset ToMBench --iteration 3
 ```
 
 | 参数 | 默认值 | 说明 |
 |---|---|---|
 | `--stage` | `all` | `all` / `load` / `diagnose` / `synth` / `dedupe` / `difficulty` |
-| `--config` | `data_processing/config.yaml` | 配置文件路径 |
+| `--config` | `feedback_synthesis/config.yaml` | 配置文件路径 |
 | `--dataset` | `""`（全部） | 只运行指定数据集 |
 | `--max-bad-cases` | `0`（不限） | 每数据集最多 bad case 数 |
 | `--iteration` | `1` | 迭代轮次（影响输出文件命名） |

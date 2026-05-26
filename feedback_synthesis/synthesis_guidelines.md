@@ -2,7 +2,7 @@
 
 本文件是合成数据迭代的"宪法"。每轮合成结束后，对照这 4 条准则核查产出；任一 FAIL 必须按下方"FAIL 行动"调整参数/prompt/配置后再进入下一轮。
 
-> 配套方案：`data_processing/synthesis_plan.md`
+> 配套方案：`feedback_synthesis/synthesis_plan.md`
 
 ---
 
@@ -102,7 +102,7 @@ Stage 4 在写入 `synth_clean` 之前强制过 LSH 守门员，任何未经 Sta
 
 ```
 [轮次 N]
-  python run_data_processing.py --stage all --iteration N
+  python run_feedback_synthesis.py --stage all --iteration N
         │
         ├─ Stage 1: 加载 bad case，输出 bad_cases.jsonl
         ├─ Stage 2: 维度诊断，输出 dimension_reports.jsonl + dimension_coverage.json
