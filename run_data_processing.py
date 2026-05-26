@@ -168,7 +168,7 @@ def run_pipeline(args):
     # ── Stage 1: 加载 bad case ───────────────────────────────────────────────
     if stage in ("all", "load"):
         logger.info("\n===== Stage 1: Load Bad Cases =====")
-        from data_processing.stage1_load_predictions import load_bad_cases_from_predictions
+        from feedback_synthesis.stage1_load_predictions import load_bad_cases_from_predictions
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -222,7 +222,7 @@ def run_pipeline(args):
     # ── Stage 2: 维度诊断 ─────────────────────────────────────────────────────
     if stage in ("all", "diagnose"):
         logger.info("\n===== Stage 2: Dimension Diagnosis =====")
-        from data_processing.stage2_diagnosis import run_stage2_dimension_diagnosis
+        from feedback_synthesis.stage2_diagnosis import run_stage2_dimension_diagnosis
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -252,7 +252,7 @@ def run_pipeline(args):
     # ── Stage 3: 数据合成 ─────────────────────────────────────────────────────
     if stage in ("all", "synth"):
         logger.info("\n===== Stage 3: Data Synthesis =====")
-        from data_processing.stage3_synthesis import run_stage3_synthesis
+        from feedback_synthesis.stage3_synthesis import run_stage3_synthesis
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -321,7 +321,7 @@ def run_pipeline(args):
     # ── Stage 4: 守门员过滤 ───────────────────────────────────────────────────
     if stage in ("all", "synth", "dedupe"):
         logger.info("\n===== Stage 4: LSH Leakage Guard =====")
-        from data_processing.stage4_lsh_filter import run_stage4_lsh_filter
+        from feedback_synthesis.stage4_lsh_filter import run_stage4_lsh_filter
 
         lsh_stats = run_stage4_lsh_filter(config, synthesis_datasets, output_path, iteration)
         for ds, st in lsh_stats.items():
@@ -330,7 +330,7 @@ def run_pipeline(args):
     # ── Stage 5: 难度验证（qwen3-8b 至少错 1 次才保留）─────────────────────────
     if stage in ("all", "synth", "dedupe", "difficulty"):
         logger.info("\n===== Stage 5: Difficulty Filter (qwen3-8b) =====")
-        from data_processing.stage5_difficulty_filter import run_stage5_all_datasets
+        from feedback_synthesis.stage5_difficulty_filter import run_stage5_all_datasets
 
         diff_stats = run_stage5_all_datasets(
             config, only_dataset=only_dataset, iteration=iteration
@@ -359,7 +359,7 @@ def run_pipeline(args):
 
 def _write_iteration_log(config, iteration, stage, dataset_names, stats, output_path):
     """追加写入 ITERATION_LOG.md"""
-    log_path = Path(__file__).parent / "data_processing" / "ITERATION_LOG.md"
+    log_path = Path(__file__).parent / "feedback_synthesis" / "ITERATION_LOG.md"
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     syn_cfg = config.get("synthesis", {})
@@ -429,13 +429,13 @@ def main():
     parser.add_argument(
         "--stage",
         choices=["all", "load", "diagnose", "synth", "dedupe", "difficulty"],
-        default="all",
+        default="dedupe",
         help="运行阶段: all=全流程, load=只加载bad case, diagnose=诊断, synth=合成+守门员+难度, difficulty=只跑难度过滤",
     )
-    parser.add_argument("--config", default="data_processing/config.yaml", help="配置文件路径")
-    parser.add_argument("--dataset", default="FanToM", help="只运行单个数据集，如 ToMBench")
+    parser.add_argument("--config", default="feedback_synthesis/config.yaml", help="配置文件路径")
+    parser.add_argument("--dataset", default="HiToM", help="只运行单个数据集，如 ToMBench")
     parser.add_argument("--max-bad-cases", type=int, default=80, help="每数据集最多 bad case 数（0=不限）")
-    parser.add_argument("--iteration", type=int, default=7, help="迭代轮次，影响输出文件命名")
+    parser.add_argument("--iteration", type=int, default=6, help="迭代轮次，影响输出文件命名")
     parser.add_argument(
         "--report-source",
         choices=["diagnosis", "stage5"],

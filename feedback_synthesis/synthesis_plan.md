@@ -72,13 +72,13 @@ Stage 5: stage5_difficulty_filter.py
 
 | 文件 | 作用 |
 |------|------|
-| `data_processing/stage1_load_predictions.py` | 从预测文件加载 bad case；维度分层抽样；标记 `_hard` |
-| `data_processing/stage2_diagnosis.py` | 按维度分组批量诊断；`get_dimension_key()`；`allocate_batches()`；写 `dimension_coverage.json` |
-| `data_processing/stage3_synthesis.py` | Pydantic schema registry；`synthesize_from_reports()`；`run_stage3_synthesis()` |
-| `data_processing/stage4_lsh_filter.py` | 封装 `merge_and_dedupe` 的 LSH 守门员；写 drop/log 文件 |
-| `data_processing/stage5_difficulty_filter.py` | qwen3-8b 难度验证；复用 `src/evaluation/prompts.py` 同款 prompt |
-| `data_processing/prompts.py` | 诊断 prompt（`build_batch_diagnosis_prompt`）；合成 prompt（`build_stage2_generation_from_report_prompt`）；dataset schema 注册表 |
-| `data_processing/config.yaml` | 所有模型 / 路径 / 阶段参数 |
+| `feedback_synthesis/stage1_load_predictions.py` | 从预测文件加载 bad case；维度分层抽样；标记 `_hard` |
+| `feedback_synthesis/stage2_diagnosis.py` | 按维度分组批量诊断；`get_dimension_key()`；`allocate_batches()`；写 `dimension_coverage.json` |
+| `feedback_synthesis/stage3_synthesis.py` | Pydantic schema registry；`synthesize_from_reports()`；`run_stage3_synthesis()` |
+| `feedback_synthesis/stage4_lsh_filter.py` | 封装 `merge_and_dedupe` 的 LSH 守门员；写 drop/log 文件 |
+| `feedback_synthesis/stage5_difficulty_filter.py` | qwen3-8b 难度验证；复用 `src/evaluation/prompts.py` 同款 prompt |
+| `feedback_synthesis/prompts.py` | 诊断 prompt（`build_batch_diagnosis_prompt`）；合成 prompt（`build_stage2_generation_from_report_prompt`）；dataset schema 注册表 |
+| `feedback_synthesis/config.yaml` | 所有模型 / 路径 / 阶段参数 |
 | `run_data_processing.py` | 入口：解析 `--stage`，顺序调用各阶段 |
 | `scripts/data/merge_and_dedupe.py` | LSH 核心实现（build_test_index / filter_candidates） |
 
@@ -222,7 +222,7 @@ python run_data_processing.py --stage all --iteration 2
 跑完核查：
 1. `data_output/diagnosis_reports/<dataset>/*/dimension_coverage.json` — 确认各维度都有覆盖
 2. `data_output/synth_clean/<dataset>/synthetic_iter{N}_*_hard.parquet` — 最终可用数据行数
-3. `data_processing/ITERATION_LOG.md` — 各阶段统计摘要
+3. `feedback_synthesis/ITERATION_LOG.md` — 各阶段统计摘要
 
 **可接受 kept_rate 范围**：60%–95%。低于 30% 说明合成模型造题过于简单，需加强诊断 prompt 的难度提示。
 

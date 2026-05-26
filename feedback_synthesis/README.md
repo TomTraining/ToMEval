@@ -7,7 +7,7 @@
 ## 文件结构
 
 ```
-data_processing/
+feedback_synthesis/
 ├── config.yaml                 # 配置（合成模型 / 数据集 / 各阶段参数 / 难度过滤）
 ├── stage1_load_predictions.py  # Stage 1：从已有预测文件加载 bad case（按维度分层抽样）
 ├── stage2_diagnosis.py         # Stage 2：维度批量诊断
@@ -62,7 +62,7 @@ python run_data_processing.py --stage difficulty --dataset ToMBench --iteration 
 | 参数 | 默认值 | 说明 |
 |---|---|---|
 | `--stage` | `all` | `all` / `load` / `diagnose` / `synth` / `dedupe` / `difficulty` |
-| `--config` | `data_processing/config.yaml` | 配置文件路径 |
+| `--config` | `feedback_synthesis/config.yaml` | 配置文件路径 |
 | `--dataset` | `""`（全部） | 只运行指定数据集 |
 | `--max-bad-cases` | `0`（不限） | 每数据集最多 bad case 数 |
 | `--iteration` | `1` | 迭代轮次（影响输出文件命名） |
