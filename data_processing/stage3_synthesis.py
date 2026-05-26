@@ -446,7 +446,6 @@ def synthesize_from_reports(
                 if isinstance(meta, dict):
                     meta["id"] = f"synthetic_{dataset_name.lower()}_iter{iteration}_{r_idx:03d}_{s_idx}"
 
-                q_dict["data_source"] = "synthesized"
                 results[pair] = q_dict
                 success_this_round += 1
             else:

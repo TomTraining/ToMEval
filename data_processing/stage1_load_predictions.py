@@ -137,18 +137,21 @@ def load_bad_cases_from_predictions(
 
         # 判断每个模型是否 any_wrong（多 repeat 中至少一次答错）
         model_wrong: Dict[str, bool] = {}
+        model_wrong_count: Dict[str, int] = {} #记录每个模型答错的 repeat 数量
+        model_total_count: Dict[str, int] = {}
         for model_name, model_recs in model_data.items():
             correct_letters = model_recs[0].get("correct_letters", [])
-            # 检查每个 repeat
-            any_wrong = False
+            total_count = len(model_recs)
+            wrong_count = 0
             for r in model_recs:
                 raw = r.get("raw_prediction", "")
                 pred_content = r.get("pred", {}).get("content", "")
                 pred_str = str(raw or pred_content or "")
                 if not _is_correct(pred_str, correct_letters):
-                    any_wrong = True
-                    break
-            model_wrong[model_name] = any_wrong
+                    wrong_count += 1
+            model_total_count[model_name] = total_count
+            model_wrong_count[model_name] = wrong_count
+            model_wrong[model_name] = wrong_count > 0
 
         # 并集：只要有一个模型答错就是 bad case
         if not any(model_wrong.values()):
@@ -181,6 +184,15 @@ def load_bad_cases_from_predictions(
         correct_letters = ref_rec.get("correct_letters", [])
         gold = correct_letters[0] if correct_letters else ""
 
+        # 计算错误率和 error_score 以排序和筛选 bad case（优先诊断高价值样本）
+        total_repeat_count = sum(model_total_count.values())
+        wrong_repeat_count = sum(model_wrong_count.values())
+        wrong_rate = (wrong_repeat_count / total_repeat_count) if total_repeat_count > 0 else 0.0
+        models_present = len(model_data)
+        model_wrong_ratio = (n_wrong_models / models_present) if models_present > 0 else 0.0
+        hard_bonus = 1.0 if is_hard else 0.0
+        error_score = 0.6 * wrong_rate + 0.3 * model_wrong_ratio + 0.1 * hard_bonus
+
         bad_case = {
             "sample_idx":       sample_idx,
             "dataset":          dataset_name,
@@ -194,6 +206,9 @@ def load_bad_cases_from_predictions(
             "_hard":            is_hard,
             "_n_wrong_models":  n_wrong_models,
             "_models_wrong":    [m for m, w in model_wrong.items() if w],
+            "_wrong_repeat_count": wrong_repeat_count,
+            "_wrong_rate":      wrong_rate,
+            "_error_score":     error_score,
         }
         bad_cases.append(bad_case)
 
@@ -201,8 +216,8 @@ def load_bad_cases_from_predictions(
     hard_count = sum(1 for c in bad_cases if c["_hard"])
     logger.info(f"  Total bad cases: {total_bad} (hard={hard_count}, easy={total_bad-hard_count})")
 
-    # 按 hard-first 排序，优先诊断高价值样本
-    bad_cases.sort(key=lambda c: (-c["_n_wrong_models"], c["sample_idx"]))
+    # 按 error_score 排序，优先诊断高价值样本
+    bad_cases.sort(key=lambda c: (-c["_error_score"], -c["_n_wrong_models"], c["sample_idx"]))
 
     if max_bad_cases > 0 and len(bad_cases) > max_bad_cases:
         # 按通用维度键分层采样：覆盖所有错误类别，避免最难维度独占所有配额
@@ -210,10 +225,15 @@ def load_bad_cases_from_predictions(
         import collections
         from .stage2_diagnosis import get_dimension_key
 
+        #按维度分组 bad case
         by_dim: Dict[str, List[Dict]] = collections.defaultdict(list)
         for bc in bad_cases:
             dim = get_dimension_key(bc["row_data"].get("meta", {}), dataset_name)
             by_dim[dim].append(bc)
+
+        #维度内按 error_score 排序，优先选错得更严重的样本
+        for dim in by_dim:
+            by_dim[dim].sort(key=lambda c: (-c["_error_score"], -c["_n_wrong_models"], c["sample_idx"]))
 
         full_dist = dict(collections.Counter(
             get_dimension_key(bc["row_data"].get("meta", {}), dataset_name) for bc in bad_cases
@@ -226,6 +246,8 @@ def load_bad_cases_from_predictions(
             dim_quotas: Dict[str, int] = {}
             allocated = 0
             dims_sorted = sorted(by_dim.items())
+
+            #按配额 score从高到低分配，保证总数不超过 max_bad_cases
             for dim, cases in dims_sorted:
                 q = max(1, round(max_bad_cases * len(cases) / total_bad))
                 dim_quotas[dim] = q
@@ -250,8 +272,8 @@ def load_bad_cases_from_predictions(
                 selected.extend(take)
                 remainder_pool.extend(cases[quota:])
             remaining = max_bad_cases - len(selected)
-            if remaining > 0 and remainder_pool:
-                remainder_pool.sort(key=lambda c: (-c["_n_wrong_models"], c["sample_idx"]))
+            if remaining > 0 and remainder_pool:#如果有剩余配额且有剩余样本，按 error_score 从高到低选剩余样本
+                remainder_pool.sort(key=lambda c: (-c["_error_score"], -c["_n_wrong_models"], c["sample_idx"]))
                 selected.extend(remainder_pool[:remaining])
             bad_cases = selected[:max_bad_cases]
             cond_dist = dict(collections.Counter(
