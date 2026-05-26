@@ -102,7 +102,7 @@ Stage 4 在写入 `synth_clean` 之前强制过 LSH 守门员，任何未经 Sta
 
 ```
 [轮次 N]
-  python run_data_processing.py --stage all --iteration N
+  python run_feedback_synthesis.py --stage all --iteration N
         │
         ├─ Stage 1: 加载 bad case，输出 bad_cases.jsonl
         ├─ Stage 2: 维度诊断，输出 dimension_reports.jsonl + dimension_coverage.json

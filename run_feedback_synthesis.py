@@ -10,10 +10,10 @@
 
 用法：
   cd /Users/yangmeili/Downloads/Code/ToMEval
-  python run_data_processing.py --stage all --dataset ToMBench --max-bad-cases 80
-  python run_data_processing.py --stage diagnose --dataset BigToM
-  python run_data_processing.py --stage synth
-  python run_data_processing.py --stage all --iteration 2
+  python run_feedback_synthesis.py --stage all --dataset ToMBench --max-bad-cases 80
+  python run_feedback_synthesis.py --stage diagnose --dataset BigToM
+  python run_feedback_synthesis.py --stage synth
+  python run_feedback_synthesis.py --stage all --iteration 2
 """
 
 import argparse

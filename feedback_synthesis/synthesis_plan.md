@@ -79,7 +79,7 @@ Stage 5: stage5_difficulty_filter.py
 | `feedback_synthesis/stage5_difficulty_filter.py` | qwen3-8b 难度验证；复用 `src/evaluation/prompts.py` 同款 prompt |
 | `feedback_synthesis/prompts.py` | 诊断 prompt（`build_batch_diagnosis_prompt`）；合成 prompt（`build_stage2_generation_from_report_prompt`）；dataset schema 注册表 |
 | `feedback_synthesis/config.yaml` | 所有模型 / 路径 / 阶段参数 |
-| `run_data_processing.py` | 入口：解析 `--stage`，顺序调用各阶段 |
+| `run_feedback_synthesis.py` | 入口：解析 `--stage`，顺序调用各阶段 |
 | `scripts/data/merge_and_dedupe.py` | LSH 核心实现（build_test_index / filter_candidates） |
 
 ---
@@ -207,16 +207,16 @@ source /Users/yangmeili/Downloads/Code/.venv/bin/activate
 cd /Users/yangmeili/Downloads/Code/ToMEval
 
 # 完整流水线
-python run_data_processing.py --stage all --dataset ToMBench --iteration 1
+python run_feedback_synthesis.py --stage all --dataset ToMBench --iteration 1
 
 # 分阶段调试
-python run_data_processing.py --stage load     --dataset BigToM --max-bad-cases 80
-python run_data_processing.py --stage diagnose --dataset BigToM
-python run_data_processing.py --stage synth    --dataset BigToM --iteration 1
-python run_data_processing.py --stage difficulty --dataset BigToM --iteration 1
+python run_feedback_synthesis.py --stage load     --dataset BigToM --max-bad-cases 80
+python run_feedback_synthesis.py --stage diagnose --dataset BigToM
+python run_feedback_synthesis.py --stage synth    --dataset BigToM --iteration 1
+python run_feedback_synthesis.py --stage difficulty --dataset BigToM --iteration 1
 
 # 全部数据集一次性跑
-python run_data_processing.py --stage all --iteration 2
+python run_feedback_synthesis.py --stage all --iteration 2
 ```
 
 跑完核查：
