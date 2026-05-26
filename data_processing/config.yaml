@@ -95,3 +95,4 @@ difficulty_filter:
   request_interval_seconds: 0.5   # 限速，避免 429
   repeats: 1                      # 推理 1 次，答对则丢弃（SimpleToM/SocialIQA 类简单题不被过杀）
   keep_when_api_fail: false       # API 全部失败的样本不能确认难度，默认丢弃
+  strong_repeats: 1               # 对疑似简单题再推理 1 次，答对则丢弃
