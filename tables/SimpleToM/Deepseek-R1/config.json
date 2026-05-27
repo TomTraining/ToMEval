@@ -1,8 +1,8 @@
 {
-  "dataset": "SocialIQA",
+  "dataset": "SimpleTom",
   "dataset_config": {
-    "dataset": "SocialIQA",
-    "path": "SocialIQA/test"
+    "dataset": "SimpleTom",
+    "path": "SimpleToM/test"
   },
   "experiment_config": {
     "llm_config": {

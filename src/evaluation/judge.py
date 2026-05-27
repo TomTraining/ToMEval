@@ -10,51 +10,57 @@ def judge_prompt(record: Dict[str, Any]) -> str:
     # 始终使用模型的完整原始输出，避免字母提取失败影响正确率。
     model_output = (record.get("pred") or {}).get("content") or ""
 
+    # storyless 版本：不再把 story / question 输入给 judge，
+    # 只给 correct / wrong 答案 + 模型预测，要求 judge 做"参照式"对比判定。
+    correct_answers: List[str] = record.get("correct_answers") or []
+    wrong_answers: List[str] = record.get("wrong_answers") or []
+
     if record["prompt_type"] == "open":
-        return f"""You are grading an open-ended QA response.
-
-Story:
-{record["story"]}
-
-Question:
-{record["question"]}
+        return f"""You are grading a QA response by comparing it against reference answers.
 
 Accepted correct answers:
-{json.dumps(record["correct_answers"], ensure_ascii=False)}
+{json.dumps(correct_answers, ensure_ascii=False)}
+
+Known wrong answers (must NOT match these):
+{json.dumps(wrong_answers, ensure_ascii=False)}
 
 Model response:
 {model_output}
 
 Output ONLY a JSON object: {{"is_correct": true}} or {{"is_correct": false}}
-Mark is_correct as true if the model response semantically matches at least one accepted correct answer. Minor wording differences are acceptable."""
+Mark is_correct as true ONLY if the model response semantically matches at least one accepted correct answer.
+Mark is_correct as false if the model response matches a known wrong answer, contradicts the correct answers, or is irrelevant.
+Minor wording differences are acceptable."""
 
-    # 选择题：同时展示选项字母和对应文本，让 judge 理解语义而非强依赖字母匹配。
-    options: Dict[str, str] = record.get("options") or {}
+    # 选择题：只给选项字母+文本，不给 story/question，避免长 prompt 干扰 judge。
     correct_letters: List[str] = record.get("correct_letters") or []
-    options_block = "\n".join(f"{letter}. {text}" for letter, text in options.items())
-    correct_display = ", ".join(
-        f"{letter}. {options.get(letter, '')}" for letter in correct_letters
-    )
+    wrong_letters: List[str] = record.get("wrong_letters") or []
+    options: Dict[str, str] = record.get("options") or {}
 
-    return f"""You are grading a multiple-choice QA response.
+    def _block(letters: List[str]) -> str:
+        if not letters:
+            return "(none)"
+        return "\n".join(f"{letter}. {options.get(letter, '')}" for letter in letters)
 
-Story:
-{record["story"]}
+    correct_block = _block(correct_letters)
+    wrong_block = _block(wrong_letters)
 
-Question:
-{record["question"]}
+    return f"""You are grading a multiple-choice QA response by comparing it against reference options.
 
-Options:
-{options_block}
+Correct option(s):
+{correct_block}
 
-Correct answer(s): {correct_display}
+Wrong option(s) (must NOT be chosen):
+{wrong_block}
 
 Model response:
 {model_output}
 
 Output ONLY a JSON object: {{"is_correct": true}} or {{"is_correct": false}}
-Mark is_correct as true if the model response correctly identifies the answer, whether expressed as a letter, the option text, or a paraphrase.
-For single-choice, exactly one correct option must be chosen. For multi-choice, all correct options must be identified."""
+Mark is_correct as true ONLY if the model response identifies exactly the correct option(s), expressed as letter(s), option text, or a paraphrase.
+For single-choice: exactly one correct letter / option must be chosen, and it must match the correct option above.
+For multi-choice: all correct letters / options must be chosen, no more, no less.
+If the model picks any wrong option above, mark is_correct as false."""
 
 
 def judge_repeat(records: List[Dict[str, Any]], judge_client: Any) -> List[Dict[str, Any]]:
