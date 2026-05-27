@@ -5,7 +5,7 @@ Structure Client - 负责结构化对象生成
 import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Type
 
 from pydantic import BaseModel
@@ -268,17 +268,20 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
             else:
                 self._use_parse_mode = True
                 logging.info("[StructureClient] Parse mode works, using it for all requests")
-        results = []
+        n = len(prompts)
+        # 按 prompt 长度倒序提交：长样本先 prefill，降低尾延迟；最终结果按原始 index 写回，对调用方完全透明。
+        submit_order = sorted(range(n), key=lambda i: len(prompts[i]), reverse=True)
+        results: List[LLMResponse] = [None] * n  # type: ignore[list-item]
         with ThreadPoolExecutor(self.max_workers) as executor:
-            futures = [
-                executor.submit(self.generate_structure, p, response_object, 5, mode)
-                for p in prompts
-            ]
-
+            future_to_idx = {
+                executor.submit(self.generate_structure, prompts[i], response_object, 5, mode): i
+                for i in submit_order
+            }
             for future in tqdm(
-                futures,
-                total=len(futures),
+                as_completed(future_to_idx),
+                total=n,
                 desc=desc,
             ):
-                results.append(future.result())
+                idx = future_to_idx[future]
+                results[idx] = future.result()
         return results

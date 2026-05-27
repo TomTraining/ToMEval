@@ -1,12 +1,12 @@
 {
-  "dataset": "SocialIQA",
+  "dataset": "SimpleTom",
   "dataset_config": {
-    "dataset": "SocialIQA",
-    "path": "SocialIQA/test"
+    "dataset": "SimpleTom",
+    "path": "SimpleToM/test"
   },
   "experiment_config": {
     "llm_config": {
-      "model_name": "deepseek-r1",
+      "model_name": "gpt-5.5",
       "temperature": 0.6,
       "max_tokens": 32768,
       "max_workers": 8,
@@ -26,5 +26,5 @@
       "system_prompt": ""
     }
   },
-  "exp_dir": "exp_20260518_164428"
+  "exp_dir": "exp_20260517_153748"
 }

@@ -80,7 +80,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = os.environ.get("RUN_TIMESTAMP", "").strip()
+    if not timestamp:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.environ["RUN_TIMESTAMP"] = timestamp
     print(f"Run timestamp: {timestamp}")
     print(f"Experiment config: {args.experiment_config}")

@@ -1,24 +1,22 @@
 llm:
-  model_name: Qwen3-8B
+  model_name: qwen3-14B-tombench-rlvr-stage16-ckpt270
   api_key: not-needed
   api_url: http://0.0.0.0:8000/v1
   temperature: 0.6
   max_tokens: 32768
-  max_workers: 16  # 降低并发，避免服务器过载
+  max_workers: 128
   enable_thinking: true
-  system_prompt: ""
-
+  system_prompt: ''
 judge:
   model_name: Qwen3-8B
   api_key: not-needed
   api_url: http://0.0.0.0:8000/v1
   temperature: 0.0
-  max_tokens: 4096
-  max_workers: 16  # 降低并发，避免服务器过载
-  enable_thinking: false
-  system_prompt: ""
-
+  max_tokens: 8192
+  max_workers: 16
+  enable_thinking: true
+  system_prompt: ''
 repeats: 3
-max_samples: 0
+max_samples: 1000
 normalized_datasets_path: datasets
 results_path: results
