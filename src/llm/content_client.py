@@ -4,7 +4,7 @@ Content Client - 负责文本生成
 
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List
 
 from tqdm import tqdm
@@ -107,29 +107,21 @@ class ContentClient(LLMClient):
             desc: Description for progress bar
 
         Returns:
-            List of LLMResponse，顺序与输入 prompts 严格一致。
+            List of LLMResponse
         """
-        n = len(prompts)
-        if n == 0:
-            return []
-
-        # 按 prompt 长度倒序提交：长样本先进入 vLLM prefill，降低尾延迟与队列空转。
-        # 调度顺序不改变单条请求的返回内容，最终结果按原始 index 写回，对调用方完全透明。
-        submit_order = sorted(range(n), key=lambda i: len(prompts[i]), reverse=True)
-
-        results: List[LLMResponse] = [None] * n  # type: ignore[list-item]
         with ThreadPoolExecutor(self.max_workers) as executor:
-            future_to_idx = {
-                executor.submit(self.generate, prompts[i]): i
-                for i in submit_order
-            }
+            futures = [
+                executor.submit(self.generate, p)
+                for p in prompts
+            ]
+
+            results = []
             for future in tqdm(
-                as_completed(future_to_idx),
-                total=n,
+                futures,
+                total=len(futures),
                 desc=desc,
                 miniters=100,
             ):
-                idx = future_to_idx[future]
-                results[idx] = future.result()
+                results.append(future.result())
 
-        return results
+            return results
