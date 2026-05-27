@@ -1,22 +1,34 @@
 results_dir: results
 output_dir: tables
 
-# Optional. If empty, use the latest exp_* for each dataset/model.
+# Optional global fallback. If a model entry has no exp_suffix, use this value.
+# If both are empty, use the latest exp_* for each dataset/model.
 exp_suffix:
 
 # Optional. Use a string or a list. If empty, process all datasets.
 dataset:
-  - Belief_R
   - BigToM
+  - EmoBench
   - FANToM
-  - FictionalQA
-  - HellaSwag
-  - SimpleTom
+  - HiToM
   - SocialIQA
   - ToMBench
-  - Tomato
+  # - v4
 
 # Optional. If empty, process all models found under results/.
 models:
-  - name: Qwen3.5-9B
-    display: Qwen3.5-9B-NoThink
+  - name: claude-opus-4-7
+    display: Claude-Opus-4.7/Judge-Qwen3-8B-vllm
+    exp_suffix: '20260517_153520'
+  - name: deepseek-r1
+    display: DeepSeek-R1/Judge-Qwen3-8B-vllm
+    exp_suffix: '20260517_153953'
+  - name: deepseek-v4-pro
+    display: DeepSeek-V4-Pro/Judge-Qwen3-8B-vllm
+    exp_suffix: '20260517_233226'
+  - name: gemini-3.1-pro-preview
+    display: Gemini-3.1-Pro-Preview/Judge-Qwen3-8B-vllm
+    exp_suffix: '20260517_153841'
+  - name: gpt-5.5
+    display: GPT-5.5/Judge-Qwen3-8B-vllm
+    exp_suffix: '20260517_153748'

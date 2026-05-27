@@ -96,5 +96,6 @@ def build_extra_body(top_k: int, enable_thinking: bool) -> Dict[str, Any]:
     """
     extra_body: Dict[str, Any] = {"top_k": top_k}
     if not enable_thinking:
+        extra_body["enable_thinking"] = False
         extra_body["chat_template_kwargs"] = {"enable_thinking": False}
     return extra_body
