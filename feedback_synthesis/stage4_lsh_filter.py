@@ -29,7 +29,7 @@ _NUM_PERM = 128
 _THRESHOLD = 0.6
 
 _KNOWN_TASKS = [
-    "BigToM", "EmoBench", "FanToM", "HiToM", "SimpleToM", "SocialIQA", "ToMBench"
+    "BigToM", "EmoBench", "FanToM", "HiToM", "SocialIQA", "ToMBench"
 ]
 _CACHE_VERSION = 1
 
