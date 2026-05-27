@@ -1,75 +1,48 @@
-TomDatasets/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# ── Whitelist: only track repo root layout (GitHub main view) ────────────────
+# Screenshot: docs, report, src, tables, tasks + root configs/scripts.
+# After merge: data_processing → feedback_synthesis,
+#              run_data_processing.py → run_feedback_synthesis.py
+# Everything else (results/, batch/, logs/, backups/, datasets/, …) stays local.
 
-# Editor/IDE files
+# Ignore all top-level entries
+/*
+
+# Root files
+!/.gitignore
+!/LICENSE
+!/README.md
+!/README_CN.md
+!/download_datasets.sh
+!/experiment_config.yaml
+!/requirements.txt
+!/run_all.py
+!/run_feedback_synthesis.py
+
+# Top-level directories (and all contents)
+!/docs/
+!/docs/**
+!/feedback_synthesis/
+!/feedback_synthesis/**
+!/report/
+!/report/**
+!/src/
+!/src/**
+!/tables/
+!/tables/**
+!/tasks/
+!/tasks/**
+
+# ── Junk inside whitelisted trees (still ignored) ───────────────────────────
+**/__pycache__/
+**/*.py[cod]
+**/.ipynb_checkpoints/
+**/.env
+**/.venv/
+**/venv/
+**/*.log
+**/*.bak
+**/*.bak_*
+**/*.tmp
+.DS_Store
 .vscode/
 .idea/
-*.swp
-*.swo
-*.swn
-*~
-.DS_Store
-.project
-.pydevproject
-.settings/
-
-# Backup and temporary files
-*.bak
-*.tmp
-*.log
-
-# Results directory
-results/
-result/
-
-# Jupyter Notebook
-.ipynb_checkpoints/
-*.ipynb
-
-# Environment
-.env
-.venv/
-env/
-venv/
-ENV/
-
-# Local-only (omit from upstream eval_code)
-scripts/
-experiment_configs/
-logs/
-__pycache__/
-*.pyc
-*.pyo
-datasets/
-datasets_examples/
-analysis/
-experiment_config_ds.yaml
-experiment_config_glm5.yaml
-CLAUDE.md
-.claude
-preprocess
-
-# Dataset upload scripts (contains HF token)
-upload_datasets_to_hf.py
-UPLOAD_GUIDE.md
-experiment_config_*
-TOMEVAL_VS_TOMTEST.md
