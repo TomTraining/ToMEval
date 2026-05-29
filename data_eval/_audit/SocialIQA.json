@@ -1,0 +1,107 @@
+{
+  "dataset": "SocialIQA",
+  "total": 1954,
+  "story_len": {
+    "min": 18,
+    "p50": 73,
+    "p90": 103,
+    "max": 223,
+    "mean": 76
+  },
+  "question_len": {
+    "min": 18,
+    "p50": 32,
+    "p90": 39,
+    "max": 49,
+    "mean": 31
+  },
+  "prompt_type_counts": {
+    "open": 0,
+    "mcq_single": 1954,
+    "mcq_multi": 0
+  },
+  "num_options_distribution": {
+    "3": 1954
+  },
+  "correct_count_distribution": {
+    "1": 1954
+  },
+  "meta": {
+    "dimension": {
+      "xWant": 338,
+      "xAttr": 287,
+      "xIntent": 238,
+      "oWant": 230,
+      "xNeed": 228,
+      "xReact": 223,
+      "oReact": 192,
+      "oEffect": 119,
+      "xEffect": 99
+    }
+  },
+  "skeletons": {
+    "dimension=xWant": {
+      "count": 338,
+      "sample_questions": [
+        "What will Kendall want to do next?",
+        "What will Taylor want to do next?"
+      ]
+    },
+    "dimension=xAttr": {
+      "count": 287,
+      "sample_questions": [
+        "How would you describe Sydney?",
+        "How would you describe Kendall?"
+      ]
+    },
+    "dimension=xIntent": {
+      "count": 238,
+      "sample_questions": [
+        "Why did Kendall do this?",
+        "Why did Austin do this?"
+      ]
+    },
+    "dimension=oWant": {
+      "count": 230,
+      "sample_questions": [
+        "What will patients want to do next?",
+        "Why did Alex do this?"
+      ]
+    },
+    "dimension=xNeed": {
+      "count": 228,
+      "sample_questions": [
+        "What does Tracy need to do before this?",
+        "What does Riley need to do before this?"
+      ]
+    },
+    "dimension=xReact": {
+      "count": 223,
+      "sample_questions": [
+        "How would Jordan feel afterwards?",
+        "How would Robin feel afterwards?"
+      ]
+    },
+    "dimension=oReact": {
+      "count": 192,
+      "sample_questions": [
+        "How would the parents feel as a result?",
+        "How would Kai feel as a result?"
+      ]
+    },
+    "dimension=oEffect": {
+      "count": 119,
+      "sample_questions": [
+        "What will happen to Others?",
+        "What will happen to Others?"
+      ]
+    },
+    "dimension=xEffect": {
+      "count": 99,
+      "sample_questions": [
+        "What will happen to Carson?",
+        "What will happen to Jordan?"
+      ]
+    }
+  }
+}
