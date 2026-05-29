@@ -1,0 +1,64 @@
+# data_eval 评估模块配置
+
+# ── 评估模型（F039：显式区分 strong/simple） ────────────────────────────────
+# strong：F035 强模型 0-5 难度打分、F036 阶段 B/C、F037 代表性打分
+# simple：F035 简模型 repeat=5（answerability 阶段 A 不重跑，从 F035 产物读）
+eval_model:
+  strong:
+    api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: <YOUR_API_KEY>
+    model_name: deepseek-v4-flash
+    max_workers: 8
+    temperature: 0.6
+    max_tokens: 8192
+  simple:
+    api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: <YOUR_API_KEY>
+    model_name: qwen3-8b
+    max_workers: 8
+    temperature: 0.6
+    max_tokens: 8192
+
+# ── 报告生成模型（F040） ──────────────────────────────────────────────────────
+# data_eval/report.py 用此模型对四指标汇总做"详细分析 + 修复建议"自然语言归纳。
+# 仅承担文本生成，不参与打分。
+report_model:
+  api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: <YOUR_API_KEY>
+  model_name: deepseek-v4-flash
+  max_workers: 4
+  temperature: 0.6
+  max_tokens: 8192
+
+# ── 数据集列表 ────────────────────────────────────────────────────────────────
+datasets:
+  - BigToM
+  - EmoBench
+  - FanToM
+  - HiToM
+  - SocialIQA
+  - ToMBench
+
+# ── LLM 评估采样行数（F041） ───────────────────────────────────────────────────
+# difficulty / answerability / representativeness 三项 LLM 评估的每子集采样上限。
+# per_dataset 缺失即回落 default；format 评估走全行，不受此配置控制。
+sample_rows:
+  default: 50
+  per_dataset: {}
+    # BigToM: 30
+    # FanToM: 20
+
+# ── 运行参数（F042：run_eval.py 不再接 CLI，全部从这里读） ─────────────────────
+paths:
+  train_root: train_datasets
+  output_root: train_eval_output
+  audit_root: data_eval/_audit
+  report_path: docs/train_data_quality_report.md
+
+run:
+  # null 或 []=用顶层 datasets 全量；非空时必须 ⊆ 顶层 datasets
+  datasets: null
+  # true：跳过评估，仅基于已有 output_root/<DS>/*.json 重渲 markdown
+  report_only: false
+  # true：跑评估但不生成 markdown 报告
+  no_report: false

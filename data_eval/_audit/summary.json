@@ -1,0 +1,75 @@
+{
+  "datasets": {
+    "BigToM": {
+      "total": 5000,
+      "prompt_type_counts": {
+        "open": 0,
+        "mcq_single": 5000,
+        "mcq_multi": 0
+      },
+      "num_skeletons": 4
+    },
+    "EmoBench": {
+      "total": 1200,
+      "prompt_type_counts": {
+        "open": 0,
+        "mcq_single": 1200,
+        "mcq_multi": 0
+      },
+      "num_skeletons": 8
+    },
+    "FanToM": {
+      "total": 11292,
+      "prompt_type_counts": {
+        "open": 7378,
+        "mcq_single": 2410,
+        "mcq_multi": 1504
+      },
+      "num_skeletons": 7
+    },
+    "HiToM": {
+      "total": 1200,
+      "prompt_type_counts": {
+        "open": 0,
+        "mcq_single": 1200,
+        "mcq_multi": 0
+      },
+      "num_skeletons": 5
+    },
+    "SimpleToM": {
+      "total": 1724,
+      "prompt_type_counts": {
+        "open": 0,
+        "mcq_single": 1724,
+        "mcq_multi": 0
+      },
+      "num_skeletons": 15
+    },
+    "SocialIQA": {
+      "total": 1954,
+      "prompt_type_counts": {
+        "open": 0,
+        "mcq_single": 1954,
+        "mcq_multi": 0
+      },
+      "num_skeletons": 9
+    },
+    "ToMBench": {
+      "total": 2860,
+      "prompt_type_counts": {
+        "open": 0,
+        "mcq_single": 2860,
+        "mcq_multi": 0
+      },
+      "num_skeletons": 37
+    }
+  },
+  "totals": {
+    "total_samples": 25230,
+    "prompt_type_counts": {
+      "open": 7378,
+      "mcq_single": 16348,
+      "mcq_multi": 1504
+    }
+  }
+}

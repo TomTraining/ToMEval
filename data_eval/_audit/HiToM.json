@@ -1,0 +1,78 @@
+{
+  "dataset": "HiToM",
+  "total": 1200,
+  "story_len": {
+    "min": 577,
+    "p50": 1185,
+    "p90": 1900,
+    "max": 2116,
+    "mean": 1253
+  },
+  "question_len": {
+    "min": 25,
+    "p50": 52,
+    "p90": 79,
+    "max": 90,
+    "mean": 53
+  },
+  "prompt_type_counts": {
+    "open": 0,
+    "mcq_single": 1200,
+    "mcq_multi": 0
+  },
+  "num_options_distribution": {
+    "15": 1200
+  },
+  "correct_count_distribution": {
+    "1": 1200
+  },
+  "meta": {
+    "order": {
+      "0": 240,
+      "1": 240,
+      "2": 240,
+      "3": 240,
+      "4": 240
+    },
+    "dimension": {
+      "belief": 1200
+    }
+  },
+  "skeletons": {
+    "order=0 :: Where is the <object> really?": {
+      "count": 240,
+      "sample_questions": [
+        "Where is the lettuce really?",
+        "Where is the tomato really?"
+      ]
+    },
+    "order=1 :: Where does <P1> the <object> is?": {
+      "count": 240,
+      "sample_questions": [
+        "Where does Avery really think the lettuce is?",
+        "Where does Jacob really think the tomato is?"
+      ]
+    },
+    "order=2 :: Where does <P1> thinks <P2> the <object> is?": {
+      "count": 240,
+      "sample_questions": [
+        "Where does Charlotte think Avery thinks the lettuce is?",
+        "Where does Hannah think Jacob thinks the tomato is?"
+      ]
+    },
+    "order=3 :: Where does <P1> thinks <P2> thinks <P3> the <object> is?": {
+      "count": 240,
+      "sample_questions": [
+        "Where does Owen think Charlotte thinks Avery thinks the lettuce is?",
+        "Where does Isabella think Hannah thinks Jacob thinks the tomato is?"
+      ]
+    },
+    "order=4 :: Where does <P1> thinks <P2> thinks <P3> thinks <P4> the <object> is?": {
+      "count": 240,
+      "sample_questions": [
+        "Where does Isabella think Owen thinks Charlotte thinks Avery thinks the lettuce is?",
+        "Where does Elizabeth think Isabella thinks Hannah thinks Jacob thinks the tomato is?"
+      ]
+    }
+  }
+}
