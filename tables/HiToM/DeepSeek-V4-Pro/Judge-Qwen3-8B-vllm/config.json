@@ -1,0 +1,32 @@
+{
+  "dataset": "HiToM",
+  "dataset_config": {
+    "dataset": "HiToM",
+    "path": "HiToM/test"
+  },
+  "experiment_config": {
+    "llm_config": {
+      "model_name": "deepseek-v4-pro",
+      "temperature": 0.6,
+      "max_tokens": 32768,
+      "max_workers": 8,
+      "enable_thinking": true,
+      "system_prompt": ""
+    },
+    "repeats": 1,
+    "max_samples": 0,
+    "normalized_datasets_path": "datasets",
+    "results_path": "results",
+    "judge_config": {
+      "model_name": "qwen3-8b",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "max_workers": 16,
+      "enable_thinking": true,
+      "system_prompt": ""
+    }
+  },
+  "exp_dir": "exp_20260526_171036",
+  "model_dir": "deepseek-v4-pro",
+  "table_display": "DeepSeek-V4-Pro/Judge-Qwen3-8B-vllm"
+}
