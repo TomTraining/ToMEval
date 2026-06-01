@@ -1,0 +1,46 @@
+# filter 评估模块配置（V3 数据飞轮）
+
+# ── 数据集配置 ────────────────────────────────────────────────────────────────
+datasets:
+  - BigToM
+  # - EmoBench
+  # - FanToM
+  # - HiToM
+  # - SocialIQA
+  # - ToMBench
+
+# ── 模型配置 ──────────────────────────────────────────────────────────────────
+# strong: 强模型，用于 answerability 判断和 repair
+# simple: 弱模型，用于 pass@k 评估
+models:
+  strong:
+    api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: <YOUR_API_KEY>
+    model_name: deepseek-v4-flash
+    max_workers: 2
+    temperature: 0.6
+    max_tokens: 8192
+  simple:
+    api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: <YOUR_API_KEY>
+    model_name: qwen3-8b
+    max_workers: 2
+    temperature: 0.6
+    max_tokens: 8192
+
+# ── 数据路径 ──────────────────────────────────────────────────────────────────
+paths:
+  # 输入：待评估数据根目录，期望结构 {input_root}/{dataset}/synthetic.parquet
+  input_root: train_datasets
+  # 输出：评估结果根目录，输出结构 {output_root}/{dataset}/eval_iter{N}/...
+  output_root: filter_output
+
+# ── 采样控制（可选）──────────────────────────────────────────────────────────
+# 默认全量评估；如果数据量大可以开启采样
+sampling:
+  enabled: true           # true=采样，false=全量
+  max_samples: 10         # 每个数据集最多评估多少条（仅当 enabled=true 时生效）
+
+# ── 修复迭代控制 ──────────────────────────────────────────────────────────────
+max_iter: 2               # 修复迭代上限（含第一轮）；超过仍未修好 → unfixable
+

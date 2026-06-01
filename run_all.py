@@ -16,7 +16,6 @@ DATASETS = [
     "EmoBench",
     "FANToM",
     "HiToM",
-    "SimpleTom",
     "SocialIQA",
     "ToMBench"
 ]

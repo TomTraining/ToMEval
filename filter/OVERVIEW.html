@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>filter — 一份给新人看的模块导览</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+            line-height: 1.75;
+            color: #2d3748;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            padding: 28px 16px;
+        }
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            color: #fff;
+            padding: 56px 48px 48px;
+        }
+        .header .tag {
+            display: inline-block;
+            background: rgba(255,255,255,0.12);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.82em;
+            letter-spacing: 0.05em;
+            margin-bottom: 18px;
+        }
+        .header h1 { font-size: 2.1em; margin-bottom: 14px; letter-spacing: -0.02em; }
+        .header .lead { font-size: 1.1em; opacity: 0.86; max-width: 720px; }
+        .content { padding: 48px; }
+        .section { margin-bottom: 56px; }
+        .section:last-child { margin-bottom: 0; }
+        h2 {
+            color: #0f3460;
+            font-size: 1.45em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 5px;
+            height: 1.2em;
+            background: #0f3460;
+            border-radius: 3px;
+        }
+        h3 { color: #1a365d; font-size: 1.08em; margin: 22px 0 10px; }
+        p { color: #4a5568; margin-bottom: 14px; }
+
+        .lede {
+            font-size: 1.04em;
+            color: #2d3748;
+            background: #f7fafc;
+            border-left: 4px solid #0f3460;
+            padding: 18px 22px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 24px;
+        }
+
+        .pain-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-top: 20px;
+        }
+        .pain-card {
+            background: #fff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 18px;
+            position: relative;
+        }
+        .pain-card .badge {
+            display: inline-block;
+            font-size: 0.78em;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 999px;
+            margin-bottom: 10px;
+        }
+        .pain-card.easy .badge   { background: #fef3c7; color: #92400e; }
+        .pain-card.short .badge  { background: #ffedd5; color: #9a3412; }
+        .pain-card.bad .badge    { background: #fee2e2; color: #991b1b; }
+        .pain-card .title { font-weight: 600; color: #1a202c; margin-bottom: 6px; }
+        .pain-card .desc  { font-size: 0.92em; color: #4a5568; }
+
+        .analogy {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            border-radius: 12px;
+            padding: 22px 26px;
+            margin: 18px 0;
+        }
+        .analogy strong { color: #0c4a6e; }
+
+        /* 竖向决策树流程图 */
+        .pipeline {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+            margin-top: 22px;
+        }
+        .pipe-input {
+            background: #1e293b;
+            color: #fff;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 0.92em;
+            font-weight: 600;
+        }
+        .pipe-arrow {
+            width: 2px;
+            height: 26px;
+            background: #94a3b8;
+            position: relative;
+        }
+        .pipe-arrow::after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid #94a3b8;
+        }
+        .pipe-stage {
+            width: 100%;
+            background: #fff;
+            border: 2px solid #0f3460;
+            border-radius: 12px;
+            padding: 18px 22px;
+            box-shadow: 0 2px 8px rgba(15, 52, 96, 0.08);
+        }
+        .pipe-stage .ps-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .pipe-stage .ps-num {
+            background: #0f3460;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+        .pipe-stage .ps-name {
+            font-weight: 700;
+            color: #0f3460;
+            font-size: 1.02em;
+        }
+        .pipe-stage .ps-desc {
+            color: #4a5568;
+            font-size: 0.9em;
+            margin-bottom: 12px;
+            padding-left: 42px;
+        }
+        .pipe-stage .ps-branches {
+            display: grid;
+            gap: 10px;
+            padding-left: 42px;
+        }
+        .pipe-stage .ps-branches.cols-2 { grid-template-columns: 1fr 1fr; }
+        .pipe-stage .ps-branches.cols-3 { grid-template-columns: repeat(3, 1fr); }
+        .branch {
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.86em;
+            border: 1.5px solid;
+            background: #fff;
+        }
+        .branch .b-cond {
+            font-weight: 700;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            letter-spacing: 0.02em;
+        }
+        .branch .b-out {
+            font-size: 0.85em;
+            color: #4a5568;
+        }
+        .branch.b-keep { border-color: #059669; background: #d1fae5; }
+        .branch.b-keep .b-cond { color: #047857; }
+        .branch.b-fix-easy { border-color: #d97706; background: #fef3c7; }
+        .branch.b-fix-easy .b-cond { color: #92400e; }
+        .branch.b-fix-bad  { border-color: #b91c1c; background: #fee2e2; }
+        .branch.b-fix-bad  .b-cond { color: #991b1b; }
+        .branch.b-fix-sc   { border-color: #c2410c; background: #ffedd5; }
+        .branch.b-fix-sc   .b-cond { color: #9a3412; }
+        .branch.b-next { border-color: #1d4ed8; background: #dbeafe; border-style: dashed; }
+        .branch.b-next .b-cond { color: #1e40af; }
+        .pipe-stage.repair {
+            background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+            border-color: #d97706;
+        }
+        .pipe-stage.repair .ps-num { background: #d97706; }
+        .pipe-stage.repair .ps-name { color: #92400e; }
+        .pipe-loop {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: #faf5ff;
+            border: 1px dashed #c084fc;
+            border-radius: 8px;
+            font-size: 0.86em;
+            color: #6b21a8;
+            text-align: center;
+        }
+
+        .phase-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .phase {
+            display: grid;
+            grid-template-columns: 64px 1fr;
+            gap: 18px;
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px 22px;
+            border: 1px solid #e2e8f0;
+        }
+        .phase .num {
+            background: #0f3460;
+            color: #fff;
+            border-radius: 50%;
+            width: 48px; height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.05em;
+        }
+        .phase .pname { font-weight: 700; color: #0f3460; font-size: 1.08em; margin-bottom: 6px; }
+        .phase .pwhy  { font-size: 0.93em; color: #2d3748; margin-bottom: 8px; }
+        .phase .pmeta {
+            font-size: 0.85em;
+            color: #4a5568;
+            background: #edf2f7;
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+        }
+
+        .label-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .label-card {
+            border-radius: 8px;
+            padding: 16px 18px;
+            font-size: 0.94em;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 14px;
+            align-items: start;
+        }
+        .label-card .name {
+            font-family: ui-monospace, Menlo, monospace;
+            font-weight: 700;
+            font-size: 1em;
+        }
+        .label-card .desc { color: #2d3748; }
+        .label-hard      { background: #d1fae5; border-left: 4px solid #059669; }
+        .label-medium    { background: #d1fae5; border-left: 4px solid #059669; }
+        .label-easy      { background: #fef3c7; border-left: 4px solid #d97706; }
+        .label-shortcut  { background: #ffedd5; border-left: 4px solid #c2410c; }
+        .label-bad       { background: #fee2e2; border-left: 4px solid #b91c1c; }
+        .label-unfixable { background: #f1f5f9; border-left: 4px solid #64748b; }
+
+        .why-three {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-top: 16px;
+        }
+        .why-card {
+            background: #fafafa;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .why-card .name {
+            font-family: ui-monospace, Menlo, monospace;
+            font-weight: 700;
+            color: #c2410c;
+            margin-bottom: 8px;
+        }
+        .why-card .what { font-size: 0.92em; color: #2d3748; margin-bottom: 6px; }
+        .why-card .find { font-size: 0.86em; color: #6b7280; }
+
+        .roles {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+            font-size: 0.94em;
+        }
+        .roles th {
+            background: #0f3460;
+            color: #fff;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .roles td {
+            padding: 11px 14px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .roles tr:last-child td { border-bottom: none; }
+        .roles code {
+            background: #edf2f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.92em;
+        }
+
+        /* 迭代闭环流程图 */
+        .iter-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 18px;
+        }
+        .iter-step {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 14px;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+        .iter-step .is-label {
+            background: #0f3460;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.88em;
+            text-align: center;
+        }
+        .iter-step .is-desc {
+            color: #334155;
+            font-size: 0.9em;
+        }
+        .iter-step .is-desc .arr { color: #94a3b8; margin: 0 6px; }
+        .iter-step .is-desc .out { color: #059669; font-weight: 600; }
+        .iter-step.final {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border-color: #059669;
+        }
+        .iter-step.final .is-label { background: #059669; }
+
+        .relation {
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            border: 1px solid #d8b4fe;
+            border-radius: 12px;
+            padding: 24px 28px;
+        }
+        .relation .row {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 14px;
+            align-items: center;
+            margin-top: 12px;
+        }
+        .relation .box {
+            background: #fff;
+            border: 1.5px solid #c084fc;
+            border-radius: 10px;
+            padding: 14px 16px;
+            text-align: center;
+            font-size: 0.93em;
+        }
+        .relation .box strong { color: #6b21a8; display: block; margin-bottom: 4px; }
+        .relation .arr { color: #9333ea; font-size: 1.4em; font-weight: bold; }
+
+        .cmd {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            border-radius: 10px;
+            padding: 18px 22px;
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 0.9em;
+            line-height: 1.9;
+        }
+        .cmd .cmt { color: #6c7086; font-style: italic; }
+        .cmd .opt { color: #f9c74f; }
+
+        .footnote {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.85em;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        @media (max-width: 720px) {
+            .pain-grid, .why-three { grid-template-columns: 1fr; }
+            .label-grid { grid-template-columns: 1fr; }
+            .relation .row { grid-template-columns: 1fr; }
+            .relation .arr { transform: rotate(90deg); }
+            .content { padding: 28px 22px; }
+            .header { padding: 36px 24px; }
+            .ps-branches.cols-2, .ps-branches.cols-3 { grid-template-columns: 1fr !important; }
+            .iter-step { grid-template-columns: 1fr; }
+            .iter-step .is-label { text-align: left; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <span class="tag">filter · 数据质量评估模块</span>
+        <h1>给合成训练数据做"体检"的流水线</h1>
+        <p class="lead">合成数据看起来都长得差不多,但训练价值千差万别。这个模块的工作就是 —— 在数据进入训练之前,自动识别哪些样本是宝、哪些是渣,把渣修好或者扔掉。</p>
+    </div>
+
+    <div class="content">
+
+        <!-- 1. 为什么要做这件事 -->
+        <div class="section">
+            <h2>为什么要做这件事</h2>
+            <p>用大模型合成训练数据已经成了主流做法。但合成出来的题目,直接拿去训练往往会让模型变得"会猜不会想"。原因是合成数据天然带着三类毛病:</p>
+
+            <div class="pain-grid">
+                <div class="pain-card easy">
+                    <span class="badge">毛病一</span>
+                    <div class="title">太简单</div>
+                    <div class="desc">小模型不需要思考就能答对。这种题训练时白白消耗算力,模型学不到新东西。</div>
+                </div>
+                <div class="pain-card short">
+                    <span class="badge">毛病二</span>
+                    <div class="title">藏着捷径</div>
+                    <div class="desc">不看故事、不看问题,光看选项就能猜出来。模型学到的是"怎么钻空子",不是"怎么推理"。</div>
+                </div>
+                <div class="pain-card bad">
+                    <span class="badge">毛病三</span>
+                    <div class="title">题目本身有问题</div>
+                    <div class="desc">前提矛盾、答案歧义、逻辑不自洽。这种题进了训练集就是噪声,把模型带歪。</div>
+                </div>
+            </div>
+
+            <p style="margin-top: 22px;">一个好的训练样本应该是:<strong>题目本身成立 → 不能靠捷径答对 → 难度对模型有挑战</strong>。filter 就是按这三条标准,给每条样本"过堂"。</p>
+        </div>
+
+        <!-- 2. 设计理念 -->
+        <div class="section">
+            <h2>设计理念:像医院分诊台一样工作</h2>
+
+            <div class="analogy">
+                <p>想象一家医院的急诊室。如果对每个病人都做全套检查 —— CT、抽血、心电图全上 —— 既慢又贵。聪明的做法是 <strong>按症状分流</strong>:先量个体温,体温正常的病人直接走绿色通道;体温异常的再做下一步检查。</p>
+                <p style="margin-bottom: 0;">filter 用的就是这个思路。我们 <strong>不对每条样本做全量检查</strong>,而是先做一个最便宜的初筛,根据初筛结果把样本分到不同的"诊室",每条样本只走自己该走的那条路径。这样在保证覆盖度的前提下,大幅省掉了不必要的强模型调用。</p>
+            </div>
+
+            <h3>核心思路</h3>
+            <p>把质量评估拆成 <strong>四个阶段</strong>,每个阶段只回答一个简单的问题:</p>
+            <ul style="margin-left: 24px; color: #4a5568;">
+                <li><strong>难不难?</strong> 让弱模型跑几遍,看它能不能做对。</li>
+                <li><strong>题目本身成立吗?</strong> 让强模型当裁判,判断前提是否自洽、答案是否唯一。</li>
+                <li><strong>有没有藏捷径?</strong> 把题目"挖掉一部分"再让模型做,看它是不是不靠完整信息也能答对。</li>
+                <li><strong>有问题的能不能救?</strong> 让强模型按"病因"重写,救不回来的就丢掉。</li>
+            </ul>
+        </div>
+
+        <!-- 3. 决策树流程 -->
+        <div class="section">
+            <h2>整体流程:决策树式分流</h2>
+            <p>下面是一条样本从进入流水线到拿到最终标签的完整路径。粗体箭头是"留下来进训练池",普通箭头是"进修复车间":</p>
+
+            <div class="pipeline">
+                <div class="pipe-input">输入:一批合成样本</div>
+                <div class="pipe-arrow"></div>
+
+                <!-- 阶段 B -->
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">B</div>
+                        <div class="ps-name">让弱模型做 k 次</div>
+                    </div>
+                    <div class="ps-desc">用同一道题让弱模型反复做 k 次(每次打乱选项),看它能答对几次</div>
+                    <div class="ps-branches cols-2">
+                        <div class="branch b-fix-easy">
+                            <div class="b-cond">全做对(k/k)</div>
+                            <div class="b-out">→ 标 easy,送修复</div>
+                        </div>
+                        <div class="branch b-next">
+                            <div class="b-cond">部分对 / 全错</div>
+                            <div class="b-out">→ 进入下一阶段</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <!-- 阶段 C -->
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">C</div>
+                        <div class="ps-name">让强模型当裁判,问"这题成立吗?"</div>
+                    </div>
+                    <div class="ps-desc">把故事、问题、选项、标准答案都给强模型,判断题目本身有没有问题</div>
+                    <div class="ps-branches cols-2">
+                        <div class="branch b-fix-bad">
+                            <div class="b-cond">不成立</div>
+                            <div class="b-out">→ 标 bad,送修复</div>
+                        </div>
+                        <div class="branch b-next">
+                            <div class="b-cond">成立</div>
+                            <div class="b-out">→ 继续分流</div>
+                        </div>
+                    </div>
+                    <div class="ps-branches cols-2" style="margin-top: 10px;">
+                        <div class="branch b-keep">
+                            <div class="b-cond">✓ 全错 + 可答</div>
+                            <div class="b-out">→ 标 hard,保留</div>
+                        </div>
+                        <div class="branch b-next">
+                            <div class="b-cond">部分对 + 可答</div>
+                            <div class="b-out">→ 进入下一阶段</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <!-- 阶段 D -->
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">D</div>
+                        <div class="ps-name">挖掉部分内容,看模型还能答对吗?</div>
+                    </div>
+                    <div class="ps-desc">三维探测:去故事 / 去问题 / 去选项,任一维度异常就判定有捷径</div>
+                    <div class="ps-branches cols-2">
+                        <div class="branch b-fix-sc">
+                            <div class="b-cond">有捷径</div>
+                            <div class="b-out">→ 标 shortcut,送修复</div>
+                        </div>
+                        <div class="branch b-keep">
+                            <div class="b-cond">✓ 无捷径</div>
+                            <div class="b-out">→ 标 medium,保留</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <!-- 阶段 E -->
+                <div class="pipe-stage repair">
+                    <div class="ps-head">
+                        <div class="ps-num">E</div>
+                        <div class="ps-name">自动修复:让强模型对症下药</div>
+                    </div>
+                    <div class="ps-desc">把上面打了"修复"标签的样本(easy / bad / shortcut)送到强模型,按病因重写</div>
+                    <div class="pipe-loop">
+                        修复完的样本 → 重新进入阶段 B,再走一遍分诊流程<br>
+                        如果几轮下来还是救不回来,就标 unfixable 丢弃
+                    </div>
+                </div>
+            </div>
+
+            <p style="margin-top: 18px;">这个分流的核心是 <strong>"先做最便宜的检查,再做贵的"</strong> —— 弱模型跑 k 次也比一次强模型调用便宜,所以放在最前面;强模型只在真正需要它做精细判断的环节出场。</p>
+        </div>
+
+        <!-- 4. 四个阶段详解 -->
+        <div class="section">
+            <h2>四个阶段在做什么</h2>
+
+            <div class="phase-list">
+                <div class="phase">
+                    <div class="num">B</div>
+                    <div>
+                        <div class="pname">pass@k:让弱模型多跑几次,看难度</div>
+                        <div class="pwhy">用同一道题让弱模型反复做 k 次(每次打乱选项)。如果它每次都对,这题对它就是太简单;如果它怎么做都做不对,这题对它就是真有挑战;部分对部分错就是中等难度。<br>用弱模型而不是强模型,是因为强模型能秒杀大部分题,反而看不出区分度。弱模型的失败模式才反映"这题有没有训练价值"。</div>
+                        <div class="pmeta">关键产出:每条样本的 pass 次数 + 对应分桶</div>
+                    </div>
+                </div>
+
+                <div class="phase">
+                    <div class="num">C</div>
+                    <div>
+                        <div class="pname">answerability:让强模型当裁判,看题目本身成不成立</div>
+                        <div class="pwhy">把"故事 + 问题 + 选项 + 标准答案"都给强模型,问它一个问题:<em>这题本身有没有问题?</em><br>如果前提互相矛盾、标注答案不唯一、或者根本没法从故事推出来,那就标 bad。这一步是过滤掉合成时的"翻车样本"。<br>注意:全做对的样本不需要做这一步 —— 既然弱模型都能做对,题目肯定是成立的。</div>
+                        <div class="pmeta">关键产出:is_answerable + 不可答时的原因</div>
+                    </div>
+                </div>
+
+                <div class="phase">
+                    <div class="num">D</div>
+                    <div>
+                        <div class="pname">三维 shortcut 探测:挖掉一部分,看模型还能不能答对</div>
+                        <div class="pwhy">这是这个模块最有意思的设计。我们故意"残缺地"问模型 —— 把题目的一部分挖掉,如果模型还能答对,说明它根本没用到那部分信息,题目里就藏着捷径。</div>
+                        <div class="why-three" style="margin-top: 12px;">
+                            <div class="why-card">
+                                <div class="name">挖掉故事</div>
+                                <div class="what">只留问题和选项</div>
+                                <div class="find">还能答对 → 答案就藏在问题或选项的字面里</div>
+                            </div>
+                            <div class="why-card">
+                                <div class="name">挖掉问题</div>
+                                <div class="what">只留故事和选项</div>
+                                <div class="find">还能答对 → 模型在靠故事词汇匹配选项</div>
+                            </div>
+                            <div class="why-card">
+                                <div class="name">挖掉选项</div>
+                                <div class="what">让它直接生成答案</div>
+                                <div class="find">反而答错 → 原题靠的是排除法,不是真的理解</div>
+                            </div>
+                        </div>
+                        <div class="pmeta" style="margin-top: 10px;">三个维度任意一个出现"异常",就判定有捷径</div>
+                    </div>
+                </div>
+
+                <div class="phase">
+                    <div class="num">E</div>
+                    <div>
+                        <div class="pname">自动修复:让强模型对症下药</div>
+                        <div class="pwhy">不是所有有问题的样本都直接扔掉,合成数据本来就贵,能救一个是一个。修复用的是"对症下药"的思路 —— 不同病因走不同的修复 prompt:</div>
+                        <ul style="margin: 8px 0 8px 22px; color: #4a5568; font-size: 0.93em;">
+                            <li><strong>太简单</strong> → 让强模型把题目改难,加干扰、加多步推理</li>
+                            <li><strong>有 bug</strong> → 修正前提矛盾或者答案歧义</li>
+                            <li><strong>藏捷径</strong> → 重写故事,让选项无法靠字面匹配</li>
+                        </ul>
+                        <div class="pwhy">修复后的样本不是直接放行,而是 <strong>重新走一遍分诊流程</strong>。如果连续几轮都改不好,就标 unfixable 丢掉。</div>
+                        <div class="pmeta">关键产出:repaired.parquet,作为下一轮的输入</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 六种标签 -->
+        <div class="section">
+            <h2>每条样本最终会拿到一个标签</h2>
+            <p>走完一轮分诊,每条样本都会被打上其中一个标签。绿色是"留下来",黄/橙/红是"需要处理":</p>
+
+            <div class="label-grid">
+                <div class="label-card label-hard">
+                    <div class="name">hard ✓</div>
+                    <div class="desc">题目成立,但弱模型做 k 次都没做对。这是训练价值最高的样本,优先保留。</div>
+                </div>
+                <div class="label-card label-medium">
+                    <div class="name">medium ✓</div>
+                    <div class="desc">题目成立,弱模型部分能做对,挖掉信息后做不对。中等难度但货真价实,保留。</div>
+                </div>
+                <div class="label-card label-easy">
+                    <div class="name">easy</div>
+                    <div class="desc">弱模型每次都做对,送去强模型加难度。</div>
+                </div>
+                <div class="label-card label-shortcut">
+                    <div class="name">shortcut</div>
+                    <div class="desc">藏着捷径,送去强模型重写故事或选项。</div>
+                </div>
+                <div class="label-card label-bad">
+                    <div class="name">bad</div>
+                    <div class="desc">题目本身有问题,送去强模型修逻辑或改标签。</div>
+                </div>
+                <div class="label-card label-unfixable">
+                    <div class="name">unfixable</div>
+                    <div class="desc">几轮修复都没救活,扔掉。</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. 模型分工 -->
+        <div class="section">
+            <h2>为什么强弱模型搭配着用</h2>
+            <p>这个模块用了两个模型 —— 一个弱(便宜、快)、一个强(贵、准)。每个阶段为什么用哪个,都是有设计理由的:</p>
+            <table class="roles">
+                <thead>
+                    <tr><th>阶段</th><th>用什么模型</th><th>为什么</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>阶段 B 测难度</td>
+                        <td>弱模型</td>
+                        <td>强模型几乎做啥都对,看不出题目难度。只有弱模型的失败才有信息量。</td>
+                    </tr>
+                    <tr>
+                        <td>阶段 C 判可答</td>
+                        <td>强模型</td>
+                        <td>判断"题目逻辑自不自洽"需要深度理解,弱模型容易自己判错。</td>
+                    </tr>
+                    <tr>
+                        <td>阶段 D 测捷径</td>
+                        <td>弱模型</td>
+                        <td>"捷径"指的是"不用真推理就能答对",所以要看的是弱模型在残缺信息下的表现。强模型即使没捷径也常能猜对,反而失真。</td>
+                    </tr>
+                    <tr>
+                        <td>阶段 E 修题</td>
+                        <td>强模型</td>
+                        <td>修复要生成高质量新题,只有强模型扛得住。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 7. 迭代闭环 -->
+        <div class="section">
+            <h2>迭代:让数据越来越干净</h2>
+            <p>一轮分诊不是终点。修复后的样本要重新评估,因为修复也可能改坏。整个流程是一个螺旋上升的过程:</p>
+
+            <div class="iter-flow">
+                <div class="iter-step">
+                    <div class="is-label">第 1 轮</div>
+                    <div class="is-desc">评估原始数据 <span class="arr">→</span> 打标签 <span class="arr">→</span> 修复 <span class="arr">→</span> <span class="out">repaired_1.parquet</span></div>
+                </div>
+                <div class="iter-step">
+                    <div class="is-label">第 2 轮</div>
+                    <div class="is-desc">只评估上一轮修复过的样本 <span class="arr">→</span> 打标签 <span class="arr">→</span> 修复 <span class="arr">→</span> <span class="out">repaired_2.parquet</span></div>
+                </div>
+                <div class="iter-step">
+                    <div class="is-label">...</div>
+                    <div class="is-desc" style="color: #94a3b8; font-style: italic;">继续迭代,直到达到 max_iter 上限</div>
+                </div>
+                <div class="iter-step">
+                    <div class="is-label">第 N 轮</div>
+                    <div class="is-desc">最后一轮只评估、不修复,救不回来的标 unfixable</div>
+                </div>
+                <div class="iter-step final">
+                    <div class="is-label">合并</div>
+                    <div class="is-desc">把每一轮产出的 hard + medium 攒起来 <span class="arr">→</span> <span class="out">final/train_set.parquet</span></div>
+                </div>
+            </div>
+
+            <p style="margin-top: 16px;">已经被标为 hard 或 medium 的样本不会重复评估 —— 它们直接进了"留用池",省掉无谓的算力。</p>
+        </div>
+
+        <!-- 8. 与 feedback 的关系 -->
+        <div class="section">
+            <h2>这个模块在数据飞轮中的位置</h2>
+            <p>filter 不是一个孤岛,它是 ToMEval 整个 <strong>数据飞轮</strong> 的下半场。上半场是 feedback(从模型错题中合成新题),下半场是 filter(把合成的新题筛干净):</p>
+
+            <div class="relation">
+                <div class="row">
+                    <div class="box">
+                        <strong>feedback</strong>
+                        <span>从模型错题中<br>合成新训练数据</span>
+                    </div>
+                    <div class="arr">→</div>
+                    <div class="box">
+                        <strong>filter(本模块)</strong>
+                        <span>给新数据做体检,<br>留下能用的、修可以修的、扔不能用的</span>
+                    </div>
+                </div>
+                <p style="margin-top: 16px; font-size: 0.93em; color: #581c87; text-align: center;">两个模块职责清晰:<strong>一个负责"造",一个负责"检"</strong>,中间通过 <code style="background:#fff;padding:1px 6px;border-radius:4px;">synthetic.parquet</code> 这个文件衔接。</p>
+            </div>
+        </div>
+
+        <!-- 9. 入口命令 -->
+        <div class="section">
+            <h2>怎么用起来</h2>
+            <div class="cmd">
+<span class="cmt"># 完整跑一遍:评估 + 修复迭代 + 合并最终训练集</span>
+python run_eval.py
+
+<span class="cmt"># 只跑评估和修复,不合并(可以用于调参)</span>
+python run_eval.py <span class="opt">--eval</span> filter <span class="opt">--dataset</span> BigToM <span class="opt">--max-iter</span> 3
+
+<span class="cmt"># 已经评估完了,只把 hard + medium 合并成最终训练集</span>
+python run_eval.py <span class="opt">--eval</span> finalize <span class="opt">--dataset</span> BigToM
+            </div>
+
+            <p style="margin-top: 16px; font-size: 0.93em;">运行完成后,产出会落在 <code style="background:#edf2f7;padding:2px 6px;border-radius:4px;">filter_output/&lt;数据集名&gt;/</code> 目录下,包括每一轮的中间结果和最终的 <code style="background:#edf2f7;padding:2px 6px;border-radius:4px;">final/train_set.parquet</code>。</p>
+        </div>
+
+        <div class="footnote">
+            想了解每个阶段的实现细节?可以看 <code style="background:#edf2f7;padding:1px 6px;border-radius:4px;">filter/README.md</code> 和 <code style="background:#edf2f7;padding:1px 6px;border-radius:4px;">docs/data_flywheel_v3.md</code>。
+        </div>
+
+    </div>
+</div>
+</body>
+</html>
