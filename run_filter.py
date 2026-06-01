@@ -37,8 +37,8 @@ def _setup_logging() -> None:
 
 
 def main() -> int:
-    from new_sub.ToMEval.filter.run_filter import load_filter_config, run_filter_loop_all_splits, run_finalize
-    from new_sub.ToMEval.filter.report_summary import save_summary_report
+    from filter.run_filter import load_filter_config, run_filter_loop_all_splits, run_finalize
+    from filter.report_summary import save_summary_report
     import yaml
     from pathlib import Path
 
