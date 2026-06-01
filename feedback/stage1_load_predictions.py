@@ -18,7 +18,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,34 @@ def _find_prediction_file(results_root: Path, dataset_name: str, model: str, exp
     return None
 
 
+def _find_metrics_file(pred_file: Path) -> Optional[Path]:
+    """返回与 prediction.jsonl 同目录的 metrics.json，不存在则返回 None。"""
+    m = pred_file.parent / "metrics.json"
+    return m if m.exists() else None
+
+
+def _load_judge_results(metrics_file: Path) -> Dict[Tuple[str, int], bool]:
+    """从 metrics.json 加载 judge model 的判断结果。
+
+    返回 {(sample_id_str, repeat): is_correct} 字典。
+    当同一 (sample_id, repeat) 在多个 run 中出现时，任一 run 判为错误即视为错误
+    （与 bad case 取并集的语义一致）。
+    """
+    with open(metrics_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    results: Dict[Tuple[str, int], bool] = {}
+    for run in data.get("all_metrics", []):
+        for r in run.get("per_sample_results", []):
+            key = (str(r["sample_id"]), int(r.get("repeat", 0)))
+            # 任一 run 答错则标记为错误
+            if not r.get("is_correct", True):
+                results[key] = False
+            elif key not in results:
+                results[key] = True
+    return results
+
+
 def load_bad_cases_from_predictions(
     dataset_name: str,
     predictions_root: str,
@@ -87,6 +115,8 @@ def load_bad_cases_from_predictions(
 
     # sample_index → {model_name: [records]}
     sample_records: Dict[int, Dict[str, List[Dict]]] = {}
+    # model_name → judge 查找表 {(sample_id_str, repeat): is_correct}
+    judge_tables: Dict[str, Dict[Tuple[str, int], bool]] = {}
 
     for model_cfg in models:
         model = model_cfg["name"]
@@ -96,6 +126,14 @@ def load_bad_cases_from_predictions(
             logger.warning(f"    ⚠️  找不到预测文件: {model} (exp={exp})")
             continue
         logger.info(f"    📄 读取: {pred_file.relative_to(results_root)}")
+
+        # 加载 judge model 判断结果（metrics.json 与 prediction.jsonl 同目录）
+        metrics_file = _find_metrics_file(pred_file)
+        if metrics_file is not None:
+            judge_tables[model] = _load_judge_results(metrics_file)
+            logger.info(f"       ✓ 加载 judge 结果: {metrics_file.name} ({len(judge_tables[model])} 条)")
+        else:
+            logger.warning(f"       ⚠️  未找到 metrics.json，将用规则判断对错: {pred_file.parent}")
 
         model_records: Dict[int, List[Dict]] = {}
         with open(pred_file, encoding="utf-8") as f:
@@ -121,6 +159,18 @@ def load_bad_cases_from_predictions(
     # 对每个样本，把所有答错的 (model, repeat) 各自产生一条 bad case
     bad_cases: List[Dict[str, Any]] = []
 
+    def _judge_is_wrong(model_name: str, rec: Dict) -> bool:
+        """优先用 metrics.json 的 judge 结果，没有则 fallback 到规则判断。"""
+        judge = judge_tables.get(model_name)
+        if judge is not None:
+            key = (str(rec.get("sample_id", rec.get("sample_index", ""))), int(rec.get("repeat", 0)))
+            is_correct = judge.get(key)
+            if is_correct is not None:
+                return not is_correct
+        # fallback：规则判断
+        pred_str = str(rec.get("raw_prediction", "") or rec.get("pred", {}).get("content", "") or "")
+        return not _is_correct(pred_str, rec.get("correct_letters", []))
+
     for sample_idx in sorted(sample_records.keys()):
         model_data = sample_records[sample_idx]
 
@@ -142,10 +192,9 @@ def load_bad_cases_from_predictions(
 
         # 统计该 sample 跨所有模型的总答错 repeat 数，作为难度评级
         total_wrong_count = 0
-        for model_recs in model_data.values():
+        for model_name, model_recs in model_data.items():
             for r in model_recs:
-                pred_str = str(r.get("raw_prediction", "") or r.get("pred", {}).get("content", "") or "")
-                if not _is_correct(pred_str, correct_letters):
+                if _judge_is_wrong(model_name, r):
                     total_wrong_count += 1
 
         if total_wrong_count == 0:
@@ -154,9 +203,9 @@ def load_bad_cases_from_predictions(
         # 每个答错的 repeat 单独产生一条 bad case，_difficulty = 总答错次数
         for model_name, model_recs in model_data.items():
             for r in model_recs:
-                pred_str = str(r.get("raw_prediction", "") or r.get("pred", {}).get("content", "") or "")
-                if _is_correct(pred_str, correct_letters):
+                if not _judge_is_wrong(model_name, r):
                     continue
+                pred_str = str(r.get("raw_prediction", "") or r.get("pred", {}).get("content", "") or "")
                 bad_case = {
                     "sample_idx":       sample_idx,
                     "dataset":          dataset_name,
@@ -254,11 +303,8 @@ def load_bad_cases_from_predictions(
         dim_total[dim] = dim_total.get(dim, 0) + 1
         correct_letters = ref_rec.get("correct_letters", [])
         has_wrong = any(
-            not _is_correct(
-                str(r.get("raw_prediction", "") or r.get("pred", {}).get("content", "") or ""),
-                correct_letters,
-            )
-            for recs in model_data.values()
+            _judge_is_wrong(model_name, r)
+            for model_name, recs in model_data.items()
             for r in recs
         )
         if has_wrong:

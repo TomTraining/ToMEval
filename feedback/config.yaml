@@ -47,7 +47,7 @@ synthesis_datasets:
     target_samples: 50
     samples_per_report: 5
     models:
-      - name: HardToM_GRPO_synthetic_20260515_hf
+      - name: NewBase0528-8B-badcaseNseedGRPO-2epoch-0529NanJing
         exp: ~          # ~ 表示自动取最新
       # - name: HardToM_GRPO_synthetic_20260515_hf_3epoch
       #   exp: ~
