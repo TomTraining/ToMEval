@@ -25,15 +25,24 @@ from .prompts import (
     SYNTHESIS_FORMAT_REGISTRY,
     DATASET_SKILL_REGISTRY,
 )
-from .stage2_diagnosis import _extract_json, _batch_generate_json
 
-# 配置日志
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-)
 logger = logging.getLogger(__name__)
+
+
+def _parse_options_from_question(q_text: str, correct_letter: str):
+    """从内嵌选项的 question 文本中解析正确答案和错误答案文本。
+
+    支持 'A. ...' 或 'A．...' 格式（中英文句点）。
+    返回 (correct_text, wrong_texts)。
+    """
+    correct_letter = correct_letter.strip().upper()
+    options_map: dict = {}
+    pattern = re.compile(r'(?<![A-Za-z])([A-D])[.．]\s*(.*?)(?=\s*[A-D][.．]|$)', re.DOTALL)
+    for m in pattern.finditer(q_text):
+        options_map[m.group(1)] = m.group(2).strip()
+    correct_text = options_map.get(correct_letter, correct_letter)
+    wrong_texts = [v for k, v in sorted(options_map.items()) if k != correct_letter]
+    return correct_text, wrong_texts
 
 
 # ============ 数据合成Schema ============
@@ -57,19 +66,8 @@ class ToMBenchQuestionFlat(BaseModel):
     )
 
     def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
-        q_text = self.question  # 包含 A. B. C. D. 的完整 question
-
-        # 解析选项：支持中英文（不用 \b，改用负向后行断言排除字母前缀）
-        correct_letter = self.correct_letter.strip().upper()
-        options_map: dict = {}
-        import re
-        pattern = re.compile(r'(?<![A-Za-z])([A-D])[.．]\s*(.*?)(?=\s*[A-D][.．]|$)', re.DOTALL)
-        for m in pattern.finditer(q_text):
-            options_map[m.group(1)] = m.group(2).strip()
-
-        correct_text = options_map.get(correct_letter, correct_letter)
-        wrong_texts = [v for k, v in sorted(options_map.items()) if k != correct_letter]
-
+        q_text = self.question
+        correct_text, wrong_texts = _parse_options_from_question(q_text, self.correct_letter)
         return {
             "story": self.story,
             "question": q_text,
@@ -308,43 +306,6 @@ class HiToMSynthesisOutput(BaseModel):
     questions: List[HiToMQuestionFlat]
 
 
-# ---- SimpleToM ----
-class SimpleToMQuestionFlat(BaseModel):
-    story_full: str = Field(description="Full story text")
-    story_summary: str = Field(
-        default="", description="Story summary (can be empty string)"
-    )
-    story_background: str = Field(
-        default="", description="Background context (can be empty string)"
-    )
-    question: str = Field(description="Social inference question (3-choice)")
-    correct_answer: str = Field(description="Correct answer text")
-    wrong_answer: str = Field(
-        description="One wrong answer text. A third option 'Empty' is added automatically."
-    )
-    meta_id: str = Field(description="Unique identifier, e.g. 'synthetic_0001'")
-    meta_dimension: str = Field(
-        description="Social dimension, e.g. 'social_exchange', 'false_belief'"
-    )
-    meta_difficulty: str = Field(description="Difficulty level: easy, medium, or hard")
-
-    def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
-        return {
-            "story": self.story_full,
-            "question": self.question,
-            "answer": {
-                "correct_answers": [self.correct_answer],
-                "wrong_answers": [self.wrong_answer],
-            },
-            "meta": {
-                "id": self.meta_id,
-                "condition_type": "",
-                "dimension": [self.meta_dimension],
-            },
-        }
-
-class SimpleToMSynthesisOutput(BaseModel):
-    questions: List[SimpleToMQuestionFlat]
 
 
 SYNTHESIS_SCHEMA_REGISTRY: Dict[str, Any] = {
@@ -354,7 +315,6 @@ SYNTHESIS_SCHEMA_REGISTRY: Dict[str, Any] = {
     "EmoBench": EmoBenchSynthesisOutput,
     "FanToM": FanToMSynthesisOutput,
     "HiToM": HiToMSynthesisOutput,
-    "SimpleToM": SimpleToMSynthesisOutput,
 }
 
 # 通用 fallback schema
@@ -370,7 +330,6 @@ def synthesize_from_reports(
     synthesis_llm_config: Dict[str, Any],
     samples_per_report: int = 2,
     max_retries: int = 3,
-    iteration: int = 1,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """从维度级诊断报告合成新样本，每份报告生成 samples_per_report 条题目。
 
@@ -382,7 +341,6 @@ def synthesize_from_reports(
         synthesis_llm_config: 合成模型配置
         samples_per_report: 每份报告生成的样本数
         max_retries: 生成失败时最多重试次数
-        iteration: 迭代轮次（用于 meta_id 命名）
 
     Returns:
         (synthesized_data, stats) 元组
@@ -423,16 +381,17 @@ def synthesize_from_reports(
             )
             for (r_idx, s_idx) in pending_pairs
         ]
-        gen_results = _batch_generate_json(
-            gen_prompts, output_schema, synthesis_llm_config,
+        gen_results_raw = runner.create_llm_client(synthesis_llm_config, None).batch_generate_structure(
+            gen_prompts, output_schema,
             desc=f"Synthesizing {dataset_name}"
         )
 
         success_this_round = 0
-        for pair, r in zip(pending_pairs, gen_results):
+        for pair, resp in zip(pending_pairs, gen_results_raw):
             r_idx, s_idx = pair
             generation_attempts[pair] = generation_attempts.get(pair, 0) + 1
-            # r 是 Pydantic 对象或 None（来自 _batch_generate_json）
+            r = resp.content if resp else None
+            # r 是 Pydantic 对象或 None
             if r is not None and hasattr(r, 'questions') and r.questions:
                 q = r.questions[0]
                 if hasattr(q, "to_storage_dict"):
@@ -444,7 +403,8 @@ def synthesize_from_reports(
                 # 强制覆盖 meta_id，确保全局唯一
                 meta = q_dict.get("meta", {})
                 if isinstance(meta, dict):
-                    meta["id"] = f"synthetic_{dataset_name.lower()}_iter{iteration}_{r_idx:03d}_{s_idx}"
+                    meta["id"] = f"synthetic_{dataset_name.lower()}_{r_idx:03d}_{s_idx}"
+                    meta.setdefault("history", [])
 
                 results[pair] = q_dict
                 success_this_round += 1
@@ -474,7 +434,6 @@ def save_synthesized_data(
     dataset_name: str,
     output_path: str = "data_output/synth_raw",
     model_name: str = "unknown_model",
-    iteration: int = 1,
 ) -> Path:
     """保存合成数据为 JSONL（守门员过滤前的 raw 候选）
 
@@ -483,7 +442,6 @@ def save_synthesized_data(
         dataset_name: 数据集名称
         output_path: 输出目录
         model_name: 合成模型名称
-        iteration: 迭代轮次
 
     Returns:
         输出文件路径
@@ -492,7 +450,7 @@ def save_synthesized_data(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     safe_model = model_name.replace("/", "_").replace(":", "_").replace(" ", "_")
-    output_file = output_dir / f"candidates_iter{iteration}_{safe_model}.jsonl"
+    output_file = output_dir / f"candidates_{safe_model}.jsonl"
 
     with open(output_file, "w", encoding="utf-8") as f:
         for item in synthesized:
@@ -514,7 +472,6 @@ def run_stage3_synthesis(
     max_retries: int = 3,
     output_dir: str = "data_output/synth_raw",
     model_name: str = "unknown_model",
-    iteration: int = 1,
 ) -> Optional[Path]:
     """从维度诊断报告（dimension_reports.jsonl）生成并保存原始候选数据
 
@@ -526,7 +483,6 @@ def run_stage3_synthesis(
         max_retries:           生成失败最多重试次数
         output_dir:            输出根目录（synth_raw，守门员过滤前）
         model_name:            合成模型名称
-        iteration:             迭代轮次
 
     Returns:
         保存候选数据的文件 Path；若无报告则返回 None
@@ -560,7 +516,6 @@ def run_stage3_synthesis(
         synthesis_llm_config=synthesis_llm_config,
         samples_per_report=samples_per_report,
         max_retries=max_retries,
-        iteration=iteration,
     )
 
     if not synthesized:
@@ -572,7 +527,6 @@ def run_stage3_synthesis(
         dataset_name=dataset_name,
         output_path=output_dir,
         model_name=model_name,
-        iteration=iteration,
     )
 
     logger.info(f"Stage 3 done: {len(synthesized)}/{stats['total_target']} questions saved to {out_path}")

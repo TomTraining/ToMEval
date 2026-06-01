@@ -218,38 +218,6 @@ SYNTHESIS_FORMAT_REGISTRY: Dict[str, Dict[str, Any]] = {
             }]
         },
     },
-    "SimpleToM": {
-        "story_structure": "dict_full_story",
-        "options_in_question": False,
-        "n_correct": 1,
-        "n_wrong": 2,
-        "answer_key": "Correct_Answer",
-        "schema": "MCQAnswer3",
-        "meta_ability_field": "dimension",
-        "meta_required_fields": ["id", "dataset_source", "dimension", "difficulty"],
-        "description": "3-choice MCQ. One wrong answer is always 'Empty' (representing N/A). Story can have full_story + summary + background fields. Provide 1 correct_answer and 1 wrong_answer (the third option 'Empty' is added automatically).",
-        "complexity_hint": (
-            "Story: 3-8 sentences (80-250 words), 2-3 agents, everyday social situations. "
-            "Covers: behavior prediction (what will X do), mental state awareness (what does X know/think), "
-            "moral judgment (was X's action appropriate). "
-            "Style: natural prose, clear causal chain. "
-            "Wrong answer: a plausible but incorrect prediction or judgment. "
-            "Note: a third option 'Empty' (meaning none/N/A) is added automatically — your wrong_answer should NOT be the 'Empty' option."
-        ),
-        "json_skeleton": {
-            "questions": [{
-                "story_full": "<story text>",
-                "story_summary": "",
-                "story_background": "",
-                "question": "<social inference question>",
-                "correct_answer": "<correct answer>",
-                "wrong_answer": "<wrong answer>",
-                "meta_id": "synthetic_0001",
-                "meta_dimension": "social_exchange",
-                "meta_difficulty": "medium",
-            }]
-        },
-    },
 }
 
 
@@ -274,11 +242,6 @@ DATASET_SKILL_REGISTRY: Dict[str, str] = {
         "Emotion attribution: identify the specific emotion an agent feels given a situation "
         "and their goal. Covers cause (why does X feel Y), reaction (how does X feel about Z), "
         "desire (what does X want after Y)."
-    ),
-    "SimpleToM": (
-        "Social behavior prediction and moral judgment in simple everyday scenarios. "
-        "1-2 agents, covers: what will X do next, what does X know/think, "
-        "was X's action socially appropriate."
     ),
     "HiToM": (
         "Higher-order recursive belief (order 1-4): A thinks B thinks C thinks D thinks... "
@@ -307,11 +270,6 @@ A language model failed on the following {K} questions from the **{dimension}** 
 {bad_cases_section}
 
 ## Your Task: Cross-Case Pattern Analysis
-
-Analyze these {K} failures AS A BATCH to identify the STRUCTURAL ERROR PATTERN that explains why the model systematically failed — not the specific content of any single question.
-
-Key principle: Patterns appearing in 2+ cases reveal systematic cognitive weaknesses worth targeting for data synthesis. Single-case errors may be noise.
-
 ## Output Requirements
 1. Use ONLY abstract placeholders: "Agent A/B/C", "Object X/Y", "Location X/Y" — ZERO original names/content from the questions above
 2. Describe COGNITIVE OPERATIONS and structural patterns, not surface features

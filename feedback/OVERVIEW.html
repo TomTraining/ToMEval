@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>feedback — 一份给新人看的模块导览</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+            line-height: 1.75;
+            color: #2d3748;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            padding: 28px 16px;
+        }
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 56px 48px 48px;
+        }
+        .header .tag {
+            display: inline-block;
+            background: rgba(255,255,255,0.16);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.82em;
+            letter-spacing: 0.05em;
+            margin-bottom: 18px;
+        }
+        .header h1 { font-size: 2.1em; margin-bottom: 14px; letter-spacing: -0.02em; }
+        .header .lead { font-size: 1.1em; opacity: 0.9; max-width: 720px; }
+        .content { padding: 48px; }
+        .section { margin-bottom: 56px; }
+        .section:last-child { margin-bottom: 0; }
+        h2 {
+            color: #5b21b6;
+            font-size: 1.45em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 5px;
+            height: 1.2em;
+            background: #7c3aed;
+            border-radius: 3px;
+        }
+        h3 { color: #4c1d95; font-size: 1.08em; margin: 22px 0 10px; }
+        p { color: #4a5568; margin-bottom: 14px; }
+
+        .lede {
+            font-size: 1.04em;
+            color: #2d3748;
+            background: #faf5ff;
+            border-left: 4px solid #7c3aed;
+            padding: 18px 22px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 24px;
+        }
+
+        .compare {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .compare .col {
+            border-radius: 10px;
+            padding: 20px 22px;
+            border: 1.5px solid #e2e8f0;
+        }
+        .compare .col.bad   { background: #fef2f2; border-color: #fecaca; }
+        .compare .col.good  { background: #f0fdf4; border-color: #bbf7d0; }
+        .compare .col h4 {
+            font-size: 1em;
+            margin-bottom: 10px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .compare .col.bad h4  { color: #b91c1c; }
+        .compare .col.good h4 { color: #15803d; }
+        .compare .col p       { font-size: 0.93em; margin-bottom: 0; }
+
+        .analogy {
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            border: 1px solid #d8b4fe;
+            border-radius: 12px;
+            padding: 22px 26px;
+            margin: 18px 0;
+        }
+        .analogy strong { color: #6b21a8; }
+
+        /* 竖向流程图 */
+        .pipeline {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+            margin-top: 22px;
+        }
+        .pipe-input {
+            background: #5b21b6;
+            color: #fff;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 0.92em;
+            font-weight: 600;
+        }
+        .pipe-arrow {
+            width: 2px;
+            height: 26px;
+            background: #a78bfa;
+            position: relative;
+        }
+        .pipe-arrow::after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid #a78bfa;
+        }
+        .pipe-stage {
+            width: 100%;
+            background: #fff;
+            border: 2px solid #7c3aed;
+            border-radius: 12px;
+            padding: 18px 22px;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
+        }
+        .pipe-stage .ps-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .pipe-stage .ps-num {
+            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+        .pipe-stage .ps-name {
+            font-weight: 700;
+            color: #6b21a8;
+            font-size: 1.02em;
+        }
+        .pipe-stage .ps-desc {
+            color: #4a5568;
+            font-size: 0.9em;
+            padding-left: 42px;
+        }
+        .pipe-output {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border: 2px solid #059669;
+            color: #047857;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 0.92em;
+            font-weight: 600;
+        }
+
+        .stage-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .stage {
+            display: grid;
+            grid-template-columns: 64px 1fr;
+            gap: 18px;
+            background: #faf5ff;
+            border-radius: 10px;
+            padding: 22px 24px;
+            border: 1px solid #e9d5ff;
+        }
+        .stage .num {
+            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+            color: #fff;
+            border-radius: 50%;
+            width: 48px; height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.05em;
+        }
+        .stage .sname {
+            font-weight: 700;
+            color: #6b21a8;
+            font-size: 1.08em;
+            margin-bottom: 6px;
+        }
+        .stage .swhy {
+            font-size: 0.94em;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        .stage .smeta {
+            font-size: 0.85em;
+            color: #4a5568;
+            background: #ede9fe;
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+        }
+
+        .sample-box {
+            background: #fff;
+            border: 1px dashed #c4b5fd;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin: 10px 0;
+            font-size: 0.88em;
+            font-family: ui-monospace, Menlo, monospace;
+            color: #4a5568;
+            line-height: 1.85;
+        }
+        .sample-box .k { color: #7c3aed; font-weight: 600; }
+
+        table.roles {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92em;
+            margin-top: 14px;
+        }
+        table.roles th {
+            background: #5b21b6;
+            color: #fff;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        table.roles td {
+            padding: 11px 14px;
+            border-bottom: 1px solid #e9d5ff;
+            color: #2d3748;
+        }
+        table.roles tr:hover td { background: #faf5ff; }
+
+        code {
+            font-family: ui-monospace, Menlo, monospace;
+            background: #f3e8ff;
+            color: #6b21a8;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .ds-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .ds-card {
+            background: #faf5ff;
+            border: 1px solid #e9d5ff;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: 0.88em;
+        }
+        .ds-card .ds-name {
+            font-weight: 700;
+            color: #6b21a8;
+            margin-bottom: 4px;
+        }
+        .ds-card .ds-dim { color: #4a5568; font-size: 0.92em; }
+
+        .relation {
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            border: 1px solid #d8b4fe;
+            border-radius: 12px;
+            padding: 24px 28px;
+        }
+        .relation .row {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 14px;
+            align-items: center;
+            margin-top: 12px;
+        }
+        .relation .box {
+            background: #fff;
+            border: 1.5px solid #c084fc;
+            border-radius: 10px;
+            padding: 14px 16px;
+            text-align: center;
+            font-size: 0.93em;
+        }
+        .relation .box strong { color: #6b21a8; display: block; margin-bottom: 4px; }
+        .relation .arr { color: #9333ea; font-size: 1.4em; font-weight: bold; }
+
+        .cmd {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            border-radius: 10px;
+            padding: 18px 22px;
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 0.9em;
+            line-height: 1.9;
+        }
+        .cmd .cmt { color: #6c7086; font-style: italic; }
+        .cmd .opt { color: #f9c74f; }
+
+        .footnote {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.85em;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        @media (max-width: 720px) {
+            .compare { grid-template-columns: 1fr; }
+            .relation .row { grid-template-columns: 1fr; }
+            .relation .arr { transform: rotate(90deg); }
+            .content { padding: 28px 22px; }
+            .header { padding: 36px 24px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <span class="tag">feedback · 数据合成模块</span>
+        <h1>从模型的错题里学习,定向制造高质量训练数据</h1>
+        <p class="lead">不是凭空造题,而是先看模型在哪里栽了跟头,然后专门生产同类型的难题。这个模块的目标是把"造数据"从盲打变成有的放矢。</p>
+    </div>
+
+    <div class="content">
+
+        <!-- 1. 为什么要做这件事 -->
+        <div class="section">
+            <h2>为什么要做这件事</h2>
+            <p>训练一个 ToM(心智理论)模型,你需要大量高质量的训练数据。直接让一个大模型"随便造一万道题",看起来高效,但实际效果往往很差 —— 造出来的题大多是模型已经会的,真正能让它进步的难题反而没几道。</p>
+
+            <div class="compare">
+                <div class="col bad">
+                    <h4>❌ 随机生成的问题</h4>
+                    <p>不知道模型现在哪里弱,生成出来的题大多重复模型已经擅长的能力。算力花了,模型却几乎没提升。</p>
+                </div>
+                <div class="col good">
+                    <h4>✓ 这个模块的思路</h4>
+                    <p>先用 ToMEval 跑出模型的错题清单,分析它在哪些能力维度上集中翻车,然后只针对这些薄弱维度合成新题。</p>
+                </div>
+            </div>
+
+            <p style="margin-top: 22px;">这个思路在教育界已经被验证过 —— <strong>错题本是最高效的学习材料</strong>。模型学习也一样:已经做对的题,再做一万遍也没用;反复练那些做错的题,才会真正提高。</p>
+        </div>
+
+        <!-- 2. 设计理念 -->
+        <div class="section">
+            <h2>设计理念:像人类老师备课一样工作</h2>
+
+            <div class="analogy">
+                <p>想象一位老师在期中考试后给学生出补强练习。一个粗糙的做法是:把所有错题原样复印一份让学生再做一遍。但好老师不会这样 —— 她会先 <strong>看一摞错题归纳出共性</strong>:"这一批学生在‘逆否命题’上集中翻车","那一批是‘函数定义域’没掌握"。然后她针对这些共性,出新的、不同情境的题目,让学生在同一个能力点上反复练习。</p>
+                <p style="margin-bottom: 0;">feedback 用的就是这个备课思路。从找错题、归纳病因,到出新题、去重过滤,每一步都对应老师备课的一个动作。</p>
+            </div>
+
+            <h3>核心思路</h3>
+            <p>整个流程就是把"老师备课"自动化:</p>
+            <ul style="margin-left: 24px; color: #4a5568;">
+                <li><strong>第一步:翻错题本。</strong> 从 ToMEval 的评估结果里,把模型们做错的题挑出来。</li>
+                <li><strong>第二步:找共性。</strong> 把同一能力维度的错题打包给强模型,让它归纳"这批错题反映出什么能力短板"。</li>
+                <li><strong>第三步:对症出题。</strong> 按归纳出的诊断报告,生成新的同类型难题。</li>
+                <li><strong>第四步:去重把关。</strong> 防止合成的题和测试集太像、合成题之间互相重复。</li>
+            </ul>
+        </div>
+
+        <!-- 3. 整体流程 -->
+        <div class="section">
+            <h2>整体流程一览</h2>
+            <p>从 ToMEval 的评估结果到一份干净的训练数据,要经过这四个阶段:</p>
+
+            <div class="pipeline">
+                <div class="pipe-input">ToMEval 评估结果(prediction.jsonl)</div>
+                <div class="pipe-arrow"></div>
+
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">1</div>
+                        <div class="ps-name">挑错题</div>
+                    </div>
+                    <div class="ps-desc">从多个模型的评估结果中,找出它们都答错的题 → 这些是高价值目标<br>给每条错题打上能力维度标签(如"错误信念"、"视角转换")</div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">2</div>
+                        <div class="ps-name">按维度归纳病因</div>
+                    </div>
+                    <div class="ps-desc">把同维度的错题 K 条一组,让强模型总结<br>输出结构化的"诊断报告":共性错误模式、建议合成主题、难度分布</div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">3</div>
+                        <div class="ps-name">按诊断报告造新题</div>
+                    </div>
+                    <div class="ps-desc">读取阶段二的诊断报告,按报告里的建议主题、难度比例生成新题<br>按各维度错误占比分配合成量,错得多的维度补得多</div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <div class="pipe-stage">
+                    <div class="ps-head">
+                        <div class="ps-num">4</div>
+                        <div class="ps-name">去重过滤(LSH 守门员)</div>
+                    </div>
+                    <div class="ps-desc">① 和测试集去重 → 防止数据泄漏<br>② 合成题之间去重 → 防止冗余<br>使用 MinHash LSH 算法,快速找出"长得很像"的文本</div>
+                </div>
+                <div class="pipe-arrow"></div>
+
+                <div class="pipe-output">synthetic.parquet ✓</div>
+                <div style="text-align: center; color: #6b7280; font-size: 0.86em; margin-top: 8px;">
+                    交给 filter 做质量评估
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 四阶段详解 -->
+        <div class="section">
+            <h2>四个阶段在做什么</h2>
+
+            <div class="stage-list">
+                <!-- Stage 1 -->
+                <div class="stage">
+                    <div class="num">1</div>
+                    <div>
+                        <div class="sname">挑错题:从评估结果中找"高价值目标"</div>
+                        <div class="swhy">同一道题,如果只有一个模型答错,可能是这个模型本身的瑕疵;但如果好几个模型都答错,那大概率是这道题代表的能力是当前模型们的共同短板。</div>
+                        <div class="swhy">所以这一步做两件事:</div>
+                        <ul style="margin: 6px 0 8px 22px; color: #4a5568; font-size: 0.93em;">
+                            <li><strong>多模型并集</strong>:任意一个模型答错就纳入候选。</li>
+                            <li><strong>标重点</strong>:有两个或更多模型同时答错的题,会被打上"hard"标记 —— 它们是后续合成时最重要的参考样本。</li>
+                        </ul>
+                        <div class="swhy">每条错题还会带上它来自哪个能力维度(比如"错误信念"、"视角转换"),这是阶段二分组归纳的依据。</div>
+                        <div class="smeta">关键产出:一份带维度标注的错题清单</div>
+                    </div>
+                </div>
+
+                <!-- Stage 2 -->
+                <div class="stage">
+                    <div class="num">2</div>
+                    <div>
+                        <div class="sname">按维度归纳病因:让强模型当"教研组长"</div>
+                        <div class="swhy">最朴素的合成做法是:对每条错题单独生成一道改写题。但这样合成出来的题往往只是"换皮"原题,缺乏新鲜感,而且模型可能只是把同一个错误又犯了一遍。</div>
+                        <div class="swhy">这里改用 <strong>批量归纳</strong>的思路:把同一能力维度下的 K 条错题打包丢给强模型,问它一个问题:<em>这批错题反映出模型在这个维度上有什么共同的弱点?应该从哪些角度补强?</em></div>
+                        <div class="swhy">强模型会输出一份结构化的"诊断报告",大致长这样:</div>
+                        <div class="sample-box">
+<span class="k">能力维度</span>:错误信念<br>
+<span class="k">共性错误模式</span>:模型在事件未被目击时,没能正确更新角色的信念<br>
+<span class="k">核心认知操作</span>:信念状态更新<br>
+<span class="k">建议合成主题</span>:图书馆场景、惊喜派对、隔间换位…<br>
+<span class="k">难度分布建议</span>:简单 20% / 中等 50% / 困难 30%
+                        </div>
+                        <div class="swhy">这一步把零散的错题提炼成 <strong>可复用的"出题指令"</strong>,是整个模块最关键的智力步骤。</div>
+                        <div class="smeta">关键产出:每个维度一份诊断报告</div>
+                    </div>
+                </div>
+
+                <!-- Stage 3 -->
+                <div class="stage">
+                    <div class="num">3</div>
+                    <div>
+                        <div class="sname">按报告造新题:让强模型"对症出题"</div>
+                        <div class="swhy">读取阶段二的诊断报告,按报告里的建议主题、难度比例去生成新题。</div>
+                        <div class="swhy">这一步有两个值得注意的设计:</div>
+                        <ul style="margin: 6px 0 8px 22px; color: #4a5568; font-size: 0.93em;">
+                            <li><strong>按目标量分配</strong>:想合成多少题、每份报告产出多少题,这两个数字决定了用多少份诊断报告;同时按各维度的错误占比,分配每个维度的合成量 —— 错得多的维度补得多。</li>
+                            <li><strong>严格遵守原数据集格式</strong>:每个数据集有自己的格式约定(ToMBench 是 4 选 1、BigToM 是 2 选 1、SocialIQA 是 3 选 1),合成时按数据集的 schema 约束输出,避免格式错位。</li>
+                        </ul>
+                        <div class="smeta">关键产出:候选合成题(还未去重)</div>
+                    </div>
+                </div>
+
+                <!-- Stage 4 -->
+                <div class="stage">
+                    <div class="num">4</div>
+                    <div>
+                        <div class="sname">去重过滤:LSH 守门员</div>
+                        <div class="swhy">合成的数据要进训练集之前,必须做两轮去重:</div>
+                        <ul style="margin: 6px 0 8px 22px; color: #4a5568; font-size: 0.93em;">
+                            <li><strong>和测试集去重</strong>:把合成题和测试集逐条比相似度,过于相似的丢掉。这一步极其重要 —— 如果合成题和测试集"长得很像",训练后模型在测试集上的高分就是假的(数据泄漏)。</li>
+                            <li><strong>合成题之间去重</strong>:防止两份诊断报告生成出非常像的两道题,浪费训练资源。</li>
+                        </ul>
+                        <div class="swhy">具体用的是 <strong>MinHash LSH</strong>(局部敏感哈希)算法 —— 一种快速找出"长得很像的文本"的标准技术。它不需要 LLM,纯算法就能跑,速度快、效果稳定。</div>
+                        <div class="smeta">关键产出:synthetic.parquet,可以交给 filter 评估了</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 模型分工 -->
+        <div class="section">
+            <h2>每个阶段用什么模型,为什么</h2>
+            <table class="roles">
+                <thead>
+                    <tr><th>阶段</th><th>用什么</th><th>为什么</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>阶段一 挑错题</td>
+                        <td>不需要模型</td>
+                        <td>只是从 ToMEval 现成的 prediction.jsonl 里筛错题,纯文件操作。</td>
+                    </tr>
+                    <tr>
+                        <td>阶段二 归纳病因</td>
+                        <td>强模型</td>
+                        <td>跨样本归纳抽象能力是核心,弱模型容易就事论事说不到点子上。</td>
+                    </tr>
+                    <tr>
+                        <td>阶段三 合成新题</td>
+                        <td>强模型</td>
+                        <td>合成质量直接决定训练效果,这一步省钱省错地方。</td>
+                    </tr>
+                    <tr>
+                        <td>阶段四 去重</td>
+                        <td>不需要模型</td>
+                        <td>MinHash LSH 是确定性算法,效果稳、速度快、零调用成本。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 6. 支持的数据集 -->
+        <div class="section">
+            <h2>支持哪些数据集</h2>
+            <p>每个数据集有自己定义"能力维度"的字段(用来给阶段二做归纳分组),目前已支持的有:</p>
+            <div class="ds-grid">
+                <div class="ds-card">
+                    <div class="ds-name">ToMBench</div>
+                    <div class="ds-dim">维度:错误信念、视角转换、失态识别…</div>
+                </div>
+                <div class="ds-card">
+                    <div class="ds-name">BigToM</div>
+                    <div class="ds-dim">维度:真信念 / 错误信念</div>
+                </div>
+                <div class="ds-card">
+                    <div class="ds-name">SocialIQA</div>
+                    <div class="ds-dim">维度:want / need / react / effect</div>
+                </div>
+                <div class="ds-card">
+                    <div class="ds-name">EmoBench</div>
+                    <div class="ds-dim">维度:情绪归因相关</div>
+                </div>
+                <div class="ds-card">
+                    <div class="ds-name">FanToM</div>
+                    <div class="ds-dim">维度:信念追踪相关</div>
+                </div>
+                <div class="ds-card">
+                    <div class="ds-name">HiToM</div>
+                    <div class="ds-dim">维度:信念阶数(一阶 / 二阶)</div>
+                </div>
+            </div>
+            <p style="margin-top: 16px; font-size: 0.93em;">想接入新数据集,只要补上"哪个字段是能力维度"以及"输出的 schema 长什么样"就行。</p>
+        </div>
+
+        <!-- 7. 与 filter 的关系 -->
+        <div class="section">
+            <h2>这个模块在数据飞轮中的位置</h2>
+            <p>feedback 是 ToMEval <strong>数据飞轮</strong>的上半场,职责是"造";下半场是 <code>filter</code>,职责是"检"。两者明确分工,互不重叠:</p>
+
+            <div class="relation">
+                <div class="row">
+                    <div class="box">
+                        <strong>feedback(本模块)</strong>
+                        <span>从模型错题中<br>合成定向训练数据</span>
+                    </div>
+                    <div class="arr">→</div>
+                    <div class="box">
+                        <strong>filter</strong>
+                        <span>给合成数据做体检,<br>留下能用的、修可以修的</span>
+                    </div>
+                </div>
+                <p style="margin-top: 16px; font-size: 0.93em; color: #581c87; text-align: center;">中间通过 <code>synthetic.parquet</code> 这个文件衔接。本模块只管"造得好",不管"造得够不够难" —— 难度验证在 <code>filter</code> 里完成。</p>
+            </div>
+
+            <p style="margin-top: 16px;">为什么要这样拆?早期版本里"造"和"检"放在同一个模块,结果就是修复逻辑、难度验证、合成主体逻辑混在一起,谁也改不动。拆开之后,每个模块只关心一件事,迭代起来轻得多。</p>
+        </div>
+
+        <!-- 8. 入口命令 -->
+        <div class="section">
+            <h2>怎么用起来</h2>
+            <div class="cmd">
+<span class="cmt"># 完整跑一遍:挑错题 → 归纳 → 合成 → 去重</span>
+python run_feedback.py <span class="opt">--stage</span> all <span class="opt">--dataset</span> ToMBench
+
+<span class="cmt"># 也可以单跑某一阶段(比如想重新调阶段三的合成 prompt)</span>
+python run_feedback.py <span class="opt">--stage</span> load     <span class="opt">--dataset</span> BigToM <span class="opt">--max-bad-cases</span> 80
+python run_feedback.py <span class="opt">--stage</span> diagnose <span class="opt">--dataset</span> BigToM
+python run_feedback.py <span class="opt">--stage</span> synth
+python run_feedback.py <span class="opt">--stage</span> dedupe
+            </div>
+
+            <p style="margin-top: 16px; font-size: 0.93em;">运行完成后,产出会落在 <code>data_output/</code> 目录下,最终交付物是 <code>data_output/synth_clean/&lt;数据集&gt;/synthetic.parquet</code>,直接喂给 <code>filter</code> 做下一步质量评估。</p>
+        </div>
+
+        <div class="footnote">
+            想了解每个阶段的实现细节?可以看 <code>feedback/README.md</code> 和 <code>docs/data_flywheel_v3.md</code>。
+        </div>
+
+    </div>
+</div>
+</body>
+</html>
