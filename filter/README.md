@@ -55,7 +55,7 @@ max_iter: 3
 ### 3. 运行评估
 
 ```bash
-python run_eval.py
+python run_filter.py
 ```
 
 就这么简单！程序会自动：

@@ -165,6 +165,11 @@ def run_pipeline(config_path: str):
                 logger.warning(f"  ⚠️  [{ds}] 未找到诊断报告目录，跳过合成")
                 continue
 
+            # 诊断报告路径查找逻辑：
+            # 1. 优先查找 reports_dir/bad_cases/dimension_reports.jsonl
+            # 2. 其次查找 reports_dir/dimension_reports.jsonl
+            # 3. 如果都不存在，查找 reports_dir 下的第一个子目录
+            # 这样处理是为了兼容不同版本的输出结构
             report_path = reports_dir / "bad_cases" / "dimension_reports.jsonl"
             if not report_path.exists():
                 report_path = reports_dir / "dimension_reports.jsonl"

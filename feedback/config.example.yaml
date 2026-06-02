@@ -1,0 +1,56 @@
+# 数据合成流水线配置示例
+# 使用方法：
+#   1. 复制此文件为 config.yaml
+#   2. 填入你的 API key 和模型配置
+#   3. 根据需要调整数据集和参数
+
+stage: all            # all / load / diagnose / synth / dedupe
+max_bad_cases: 0      # 每数据集最多 bad case 数（0=不限）
+
+synthesis_model:
+  api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: ${DASHSCOPE_API_KEY}  # 推荐使用环境变量，或直接填写 API key
+  model_name: qwen-max
+  temperature: 0.6
+  max_tokens: 32768
+  max_workers: 16
+  enable_thinking: false
+  system_prompt: ""
+  request_interval_seconds: 1
+
+output_path: feedback_output
+predictions_root: results
+
+leakage_guard:
+  test_root: ./datasets
+  threshold: 0.6
+  internal_threshold: 0.85
+  num_perm: 128
+  ngram: 4
+
+synthesis:
+  max_retries_per_diagnosis: 3
+  bad_cases_per_report: 1
+
+synthesis_datasets:
+  - name: ToMBench
+    target_samples: 50          # 目标合成样本数
+    samples_per_report: 5       # 每个诊断报告合成的样本数
+    models:
+      - name: YourModelName     # 替换为你的模型名称
+        exp: ~                  # ~ 表示自动取最新实验
+
+  # 其他数据集示例（取消注释以启用）
+  # - name: BigToM
+  #   target_samples: 100
+  #   samples_per_report: 10
+  #   models:
+  #     - name: YourModelName
+  #       exp: ~
+
+  # - name: FanToM
+  #   target_samples: 80
+  #   samples_per_report: 8
+  #   models:
+  #     - name: YourModelName
+  #       exp: ~

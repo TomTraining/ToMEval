@@ -1,6 +1,6 @@
 # 新增模型测试指南
 
-本指南介绍如何在 TomTest 框架中使用新模型进行评测，以及评测后如何查看结果。
+本指南介绍如何在 ToMEval 框架中使用新模型进行评测，以及评测后如何查看结果。
 
 ## 目录
 
@@ -19,7 +19,7 @@
 
 ## 概述
 
-TomTest 支持任何兼容 OpenAI API 的模型（包括本地 vLLM、DeepSeek、OpenAI、通义千问等）。
+ToMEval 支持任何兼容 OpenAI API 的模型（包括本地 vLLM、DeepSeek、OpenAI、通义千问等）。
 
 测试新模型只需：
 
@@ -33,7 +33,7 @@ TomTest 支持任何兼容 OpenAI API 的模型（包括本地 vLLM、DeepSeek�
 
 ## 步骤 1：配置 experiment_config.yaml
 
-`experiment_config.yaml` 位于 TomTest 根目录，是所有实验的统一配置文件。
+`experiment_config.yaml` 位于 ToMEval 根目录，是所有实验的统一配置文件。
 
 ```yaml
 # ============================
@@ -50,7 +50,7 @@ llm:
   system_prompt: ""             # 系统 Prompt（留空则不设置）
 
 # ============================
-# Judge 模型配置（可选）
+# Judge 模型配置（用于判断答案正确性）
 # ============================
 judge:
   model_name: MyNewModel
@@ -60,7 +60,6 @@ judge:
   max_tokens: 4096
   enable_thinking: false
   system_prompt: ""
-  use_llm_judge: false          # 只有 ToMQA 等开放式问答数据集需要设为 true
 
 # ============================
 # 实验参数
@@ -84,17 +83,17 @@ results_path: results
 ### 运行全部数据集
 
 ```bash
-cd /path/to/TomTest
+cd /path/to/ToMEval
 python run_all.py
 ```
 
-这会依次运行 `run_all.py` 中 `DATASETS` 列表里所有启用的数据集（当前 7 个：BigToM, EmoBench, FANToM, HiToM, SimpleTom, SocialIQA, ToMBench）。
+这会依次运行 `run_all.py` 中 `DATASETS` 列表里所有启用的数据集（当前 6 个：BigToM, EmoBench, FanToM, HiToM, SocialIQA, ToMBench）。
 
 ### 运行单个数据集
 
 ```bash
 python tasks/ToMBench/run.py
-python tasks/ToMChallenges/run.py
+python tasks/HiToM/run.py
 python tasks/SocialIQA/run.py
 ```
 
@@ -208,7 +207,7 @@ for f in glob.glob('results/*/*/exp_*/metrics.json'):
 评测完成后，使用 `report/` 下的脚本生成对比表格：
 
 ```bash
-cd /path/to/TomTest
+cd /path/to/ToMEval
 
 # 4.1 生成各数据集详细表格（写入 tables/ 目录）
 python report/generate_dataset_tables.py
@@ -332,7 +331,6 @@ python run_all.py
 
 | 参数 | 说明 | 建议值 |
 |---|---|---|
-| `use_llm_judge` | 是否启用 LLM Judge | `false`（MCQ），`true`（开放式问答） |
 | `temperature` | Judge 温度 | `0.0`（确定性输出） |
 | `max_tokens` | Judge 输出长度 | `4096` |
 

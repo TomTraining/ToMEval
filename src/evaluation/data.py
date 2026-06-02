@@ -30,7 +30,7 @@ def normalize_text_list(value: Any) -> List[str]:
     return [text] if text else []
 
 
-# FANToM 原始数据里，answerability/info_accessibility 类问题的 correct_answers
+# FanToM 原始数据里，answerability/info_accessibility 类问题的 correct_answers
 # 形如 ['yes'] / ['no'] / ['no:long']，且 wrong_answers 为空。直接走 open 题型时：
 #   1) judge 看到字面 'no:long' 容易把它当成必须出现的子串而误杀；
 #   2) 字符串匹配在 short/long 标注形式不一致时也会漏判。
@@ -108,8 +108,8 @@ def load_standardized_data(
     )
     samples = [normalize_sample(row, index) for index, row in enumerate(rows)]
 
-    # 数据集级 fixup：FANToM 的 yes/no 二元题统一收口为 mcq_single
-    if str(dataset_config.get("dataset")) == "FANToM":
+    # 数据集级 fixup：FanToM 的 yes/no 二元题统一收口为 mcq_single
+    if str(dataset_config.get("dataset")) == "FanToM":
         samples = [_fantom_binarize(s) for s in samples]
 
     return samples

@@ -101,7 +101,7 @@ results_path: results
 python run_all.py
 ```
 
-当前共 7 个数据集：`BigToM` / `EmoBench` / `FANToM` / `HiToM` / `SimpleTom` / `SocialIQA` / `ToMBench`
+当前共 6 个数据集：`BigToM` / `EmoBench` / `FanToM` / `HiToM` / `SocialIQA` / `ToMBench`
 
 ### 只跑某一个数据集
 

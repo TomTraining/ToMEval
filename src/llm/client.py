@@ -85,7 +85,7 @@ class LLMClient:
         top_p: float = 0.95,
         top_k: int = 20,
         presence_penalty: float = 2,
-        enable_thinking: bool = True,
+        enable_thinking: bool = False,
         max_workers: int = 32,
         system_prompt: str = "",
     ):

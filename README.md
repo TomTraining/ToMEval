@@ -1,4 +1,4 @@
-# TomTest
+# ToMEval
 
 Standardized QA evaluation framework for Theory-of-Mind and related benchmarks.
 
@@ -52,9 +52,8 @@ Dataset-specific logic stays in `tasks/<dataset>/metrics.py`.
 
 - `BigToM`
 - `EmoBench`
-- `FANToM`
+- `FanToM`
 - `HiToM`
-- `SimpleTom`
 - `SocialIQA`
 - `ToMBench`
 
@@ -70,11 +69,13 @@ For choice QA, prediction records include the shuffled option mapping and gold l
 ## Repo Layout
 
 ```text
-TomTest/
+ToMEval/
 |-- experiment_config.yaml
 |-- run_all.py
+|-- run_feedback.py
+|-- run_filter.py
+|-- requirements.txt
 |-- src/
-|   |-- runner.py
 |   |-- evaluation/
 |   |   |-- __init__.py
 |   |   |-- pipeline.py
@@ -88,15 +89,36 @@ TomTest/
 |   |   |-- metrics.py
 |   |   |-- task_metrics.py
 |   |   `-- types.py
-|   `-- llm/
+|   |-- llm/
+|   |   |-- client.py
+|   |   `-- ...
+|   `-- dataloader/
 |-- tasks/
 |   `-- <dataset>/
 |       |-- config.yaml
 |       |-- metrics.py
 |       `-- run.py
-|-- report/
-|-- docs/
-`-- tests/
+|-- datasets/                  # 标准化后的测试数据集
+|-- train_datasets/            # 合成的训练数据集
+|-- feedback/                  # 数据合成模块（bad case → 诊断 → 合成）
+|   |-- config.yaml
+|   |-- README.md
+|   `-- ...
+|-- filter/                    # 数据质量评估模块（V3 飞轮）
+|   |-- config.yaml
+|   |-- README.md
+|   |-- eval/
+|   |-- repair/
+|   `-- ...
+|-- report/                    # 报告生成脚本
+|   |-- config.yaml
+|   |-- generate_dataset_tables.py
+|   |-- generate_summary.py
+|   `-- generate_html_report.py
+|-- tables/                    # 生成的表格和报告
+|-- results/                   # 评测结果
+|-- docs/                      # 文档
+`-- logs/                      # 日志文件
 ```
 
 ## Quick Start
@@ -116,7 +138,7 @@ python run_all.py
 Or run one dataset:
 
 ```bash
-python tasks/ToMQA/run.py
+python tasks/BigToM/run.py
 ```
 
 Run only prediction:

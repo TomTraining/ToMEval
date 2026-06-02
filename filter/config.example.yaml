@@ -1,0 +1,44 @@
+# Filter 评估模块配置示例（V3 数据飞轮）
+# 使用方法：
+#   1. 复制此文件为 config.yaml
+#   2. 填入你的 API keys
+#   3. 选择要评估的数据集
+
+datasets:
+  - BigToM
+  # - EmoBench
+  # - FanToM
+  # - HiToM
+  # - SocialIQA
+  # - ToMBench
+
+models:
+  strong:
+    api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: ${DASHSCOPE_API_KEY}  # 推荐使用环境变量
+    model_name: qwen-max
+    max_workers: 2
+    temperature: 0.6
+    max_tokens: 8192
+    enable_thinking: false
+    system_prompt: ""
+
+  simple:
+    api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: ${DASHSCOPE_API_KEY}  # 推荐使用环境变量
+    model_name: qwen-turbo
+    max_workers: 2
+    temperature: 0.6
+    max_tokens: 8192
+    enable_thinking: false
+    system_prompt: ""
+
+paths:
+  input_root: train_datasets      # 输入数据集根目录
+  output_root: filter_output      # 输出结果根目录
+
+sampling:
+  enabled: true                   # 是否启用采样
+  max_samples: 10                 # 最大采样数（调试时使用，生产环境设为 0 或更大值）
+
+max_iter: 2                       # 最大迭代次数

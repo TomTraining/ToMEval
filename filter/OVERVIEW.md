@@ -147,11 +147,11 @@ V2 是串行流水线（answerability 全量 → pass@k → shortcut 单维度�
 
 ```bash
 # 完整流程（评估 + 修复迭代 + 合并）
-python run_eval.py
+python run_filter.py
 
 # 只跑评估+修复，不合并
-python run_eval.py --eval filter --dataset BigToM --max-iter 3
+python run_filter.py --eval filter --dataset BigToM --max-iter 3
 
 # 只合并最终训练集
-python run_eval.py --eval finalize --dataset BigToM
+python run_filter.py --eval finalize --dataset BigToM
 ```

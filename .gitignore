@@ -1,4 +1,3 @@
-TomDatasets/
 __pycache__/
 *.pyc
 *.pyo
@@ -70,3 +69,4 @@ preprocess
 
 # Dataset upload scripts (contains HF token)
 train_datasets
+AGENTS.md
