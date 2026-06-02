@@ -14,7 +14,7 @@ from typing import Optional
 DATASETS = [
     "BigToM",
     "EmoBench",
-    "FANToM",
+    "FanToM",
     "HiToM",
     "SocialIQA",
     "ToMBench"

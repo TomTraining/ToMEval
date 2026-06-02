@@ -7,4 +7,4 @@ from src.evaluation import run_standardized_qa_task
 
 
 if __name__ == "__main__":
-    run_standardized_qa_task("tasks/FANToM/config.yaml")
+    run_standardized_qa_task("tasks/FanToM/config.yaml")

@@ -17,7 +17,11 @@
         ↓ 最后一轮修复产出 → 额外纯评估轮（不修复）
 
     [输出] filter_output/{dataset}/split_{stem}/
-              eval_iter{N}/{passk,answerability,shortcut,labels,repaired}.parquet
+              eval_iter{N}/passk.parquet
+              eval_iter{N}/answerability.parquet
+              eval_iter{N}/shortcut.parquet
+              eval_iter{N}/labels.parquet
+              eval_iter{N}/repaired.parquet
               eval_iter{N}/summary.json
               sampled_input.parquet   ← iter=1 采样后保存，finalize 用
            filter_output/{dataset}/final/train_set.parquet

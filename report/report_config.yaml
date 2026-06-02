@@ -1,19 +1,26 @@
+# 坏案例分析配置
+# 说明：此配置用于对比两个模型在特定数据集上的表现差异
+#       需要根据实际评测结果修改 model/baseline/dataset 字段
+
 results_dir: results
 tables_dir: tables
 output_dir: analysis
 
+# 主要分析的模型
 model:
-  name: deepseek-r1
+  name: deepseek-r1          # 修改为你要分析的模型名称（需在 results/ 目录中存在）
   display: DeepSeek-R1-Think
 
+# 基线对比模型
 baseline:
-  name: Qwen3-8B
+  name: Qwen3-8B              # 修改为基线模型名称（需在 results/ 目录中存在）
   display: Qwen3-8B-Think
 
-dataset: ToMBench
+dataset: ToMBench             # 修改为要分析的数据集名称
 
+# LLM 分析配置（用于生成 bad case 分析报告）
 llm:
-  model_name: ""
+  model_name: ""              # 留空则不使用 LLM 分析
   api_key: ""
   api_url: ""
   temperature: 0.0
@@ -23,8 +30,8 @@ llm:
   system_prompt: ""
 
 bad_cases:
-  n: 5
-  seed: 42
+  n: 5                        # 每类抽取的 bad case 数量
+  seed: 42                    # 随机种子，保证可复现
 
-no_llm_analysis: false
-output_report: true
+no_llm_analysis: false        # true=跳过 LLM 分析，只生成统计
+output_report: true           # true=生成 Markdown 报告

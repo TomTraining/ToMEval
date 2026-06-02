@@ -40,6 +40,7 @@ def generate_summary_report(
         )
 
     # 合成样本文件统计
+    # 输出路径：{output_path}/synth_clean/{dataset}/synthetic*.parquet
     lines.append("\n## 合成输出文件\n")
     synth_clean_root = output_path / "synth_clean"
     any_file = False
