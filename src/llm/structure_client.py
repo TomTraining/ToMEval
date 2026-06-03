@@ -238,7 +238,7 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
         response_object: Type[BaseModel],
         mode: str = "auto",
         desc: str = "Judging",
-    ) -> List[LLMResponse]:
+    ) -> List[Any]:
         """
         批量调用 LLM，返回 Pydantic 对象列表。
 
@@ -259,7 +259,6 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
         # 仅在本 session 第一次调用时探测 parse 模式
         if mode == "auto" and self._use_parse_mode is None:
             logging.info("[StructureClient] Testing parse mode with first prompt...")
-            # 用最短 probe prompt 快速探测，避免等待完整推理
             probe_prompt = 'Reply with {"ok": true}.'
             probe_result = self._generate_with_parse(probe_prompt, _ProbeSchema, max_retry=1, timeout=1200)
             if probe_result.content is None:

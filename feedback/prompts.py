@@ -117,7 +117,7 @@ SYNTHESIS_FORMAT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "schema": "OpenAnswer",
         "meta_ability_field": "coarse_category",
         "meta_required_fields": ["id", "subset", "language", "question_subtype", "coarse_category", "finegrained_category", "dimension", "choice_texts"],
-        "description": "Emotion reasoning. Story is dict with full_story. Answer uses text match (not letter). Correct_Answer is the exact emotion text.",
+        "description": "Emotion reasoning. Story is dict with full_story. Answer uses text match (not letter). Correct_Answer is the exact emotion text. Provide 2-5 wrong emotion options (wrong_answer_1 through wrong_answer_5); leave unused slots as empty string.",
         "complexity_hint": (
             "Story: 2-5 sentences (50-200 words), 1-2 agents. "
             "Describes a situation with a clear emotional trigger (goal blocked/achieved, social event, loss/gain). "
@@ -133,7 +133,9 @@ SYNTHESIS_FORMAT_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "correct_answer": "<correct emotion text>",
                 "wrong_answer_1": "<wrong emotion 1>",
                 "wrong_answer_2": "<wrong emotion 2>",
-                "wrong_answer_3": "",
+                "wrong_answer_3": "<wrong emotion 3 or empty string>",
+                "wrong_answer_4": "<wrong emotion 4 or empty string>",
+                "wrong_answer_5": "<wrong emotion 5 or empty string>",
                 "meta_id": "synthetic_0001",
                 "meta_question_subtype": "cause",
                 "meta_coarse_category": "<emotion category>",
@@ -145,35 +147,56 @@ SYNTHESIS_FORMAT_REGISTRY: Dict[str, Dict[str, Any]] = {
     "FanToM": {
         "story_structure": "dict_full_story",
         "options_in_question": False,
-        "n_correct": 1,
-        "n_wrong": 1,
+        "n_correct": "varies",
+        "n_wrong": "varies",
         "answer_key": "Correct_Answer",
-        "schema": "MCQAnswer2",
+        "schema": "FanToMAnswer",
         "meta_ability_field": "question_type",
         "meta_required_fields": ["id", "question_type"],
         "description": (
             "Belief QA in multi-party conversation context. Story is dict with full_story and summary. "
-            "question_type must be one of: beliefQAs, factQA, answerabilityQAs_binary, infoAccessibilityQAs_binary. "
-            "Provide 1 Correct_Answer and 1 Wrong_Answer."
+            "question_type must be one of: beliefQAs, factQA, answerabilityQAs_binary, infoAccessibilityQAs_binary, "
+            "answerabilityQA_list, infoAccessibilityQA_list. "
+            "Answer structure depends on question_type:\n"
+            "  - binary types (beliefQAs, factQA, answerabilityQAs_binary, infoAccessibilityQAs_binary): "
+            "1 Correct_Answer + 1 Wrong_Answer.\n"
+            "  - list types (answerabilityQA_list, infoAccessibilityQA_list): "
+            "2-4 correct character names + 2-4 wrong character names (characters NOT in the story)."
         ),
         "complexity_hint": (
             "Story: multi-party conversation (3-6 participants), 200-600 words. "
             "Some participants join or leave mid-conversation, creating partial information access. "
-            "Question types: beliefQAs (what does X believe), factQA (factual recall), "
-            "answerabilityQAs_binary (can X answer question Y), infoAccessibilityQAs_binary (did X hear info Z). "
+            "Question types:\n"
+            "  - beliefQAs: what does character X believe about topic Y (binary answer)\n"
+            "  - factQA: factual recall about conversation content (binary answer)\n"
+            "  - answerabilityQAs_binary: can character X answer a specific question? (yes/no)\n"
+            "  - infoAccessibilityQAs_binary: did character X hear/know a specific piece of info? (yes/no)\n"
+            "  - answerabilityQA_list: list ALL characters who can answer a question (multiple names)\n"
+            "  - infoAccessibilityQA_list: list ALL characters who know a piece of info (multiple names)\n"
             "Style: realistic dialogue with clear speaker turns. "
             "The key challenge: participants differ in what parts of the conversation they witnessed."
         ),
         "json_skeleton": {
-            "questions": [{
-                "story_full": "<full conversation story>",
-                "story_summary": "<brief summary>",
-                "question": "<question about what someone believes>",
-                "correct_answer": "<correct answer>",
-                "wrong_answer": "<wrong answer>",
-                "meta_id": "synthetic_001__beliefQAs__1",
-                "meta_question_type": "beliefQAs",
-            }]
+            "questions": [
+                {
+                    "story_full": "<full conversation story>",
+                    "story_summary": "<brief summary>",
+                    "question": "<binary question, e.g. 'Does X know this info?'>",
+                    "correct_answer": "<'yes' or 'no'>",
+                    "wrong_answer": "<opposite: 'no' or 'yes'>",
+                    "meta_id": "synthetic_001__infoAccessibilityQAs_binary__1",
+                    "meta_question_type": "infoAccessibilityQAs_binary",
+                },
+                {
+                    "story_full": "<full conversation story>",
+                    "story_summary": "<brief summary>",
+                    "question": "<list question, e.g. 'List all characters who know this info.'>",
+                    "correct_names": ["<name1>", "<name2>"],
+                    "wrong_names": ["<name3>", "<name4>"],
+                    "meta_id": "synthetic_002__infoAccessibilityQA_list__1",
+                    "meta_question_type": "infoAccessibilityQA_list",
+                },
+            ]
         },
     },
     "HiToM": {
@@ -185,14 +208,17 @@ SYNTHESIS_FORMAT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "schema": "MCQAnswer15",
         "meta_ability_field": "order",
         "meta_required_fields": ["id", "order"],
-        "description": "15-choice MCQ testing higher-order ToM. Story is dict with full_story. Provide exactly 1 correct_answer and 14 wrong options (wrong_1 through wrong_14). meta_order indicates ToM depth (1-4).",
+        "description": "15-choice MCQ testing higher-order ToM. Story is dict with full_story. Provide exactly 1 correct_answer and 14 wrong options (wrong_1 through wrong_14). meta_order indicates ToM depth (1-4). Each answer option must be a plain location/state name with NO parentheses, NO explanations, and NO annotations. All 15 options must be DISTINCT strings. No wrong answer may equal the correct_answer.",
         "complexity_hint": (
             "Story: exactly 5 named agents, 10-20 numbered action steps (e.g. '1. Avery enters the room.'). "
             "Each step records who is present and who observes each object move. "
             "Object is moved multiple times; each agent's belief depends on which steps they witnessed. "
             "meta_order (1-4) = recursion depth of the belief question. "
             "Style: structured numbered narrative, NOT prose. "
-            "15 answer options = all possible locations/states the object could be in from any agent's perspective."
+            "15 answer options = all possible locations/states the object could be in from any agent's perspective. "
+            "CRITICAL: Answer values must be bare location names (e.g. 'green_drawer', 'shelf', 'bathtub'). "
+            "NEVER add parenthetical notes like '(what X believes)' or '(but X thinks...)'. "
+            "All 15 options must be unique. No wrong answer may duplicate the correct_answer."
         ),
         "json_skeleton": {
             "questions": [{
