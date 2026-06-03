@@ -173,7 +173,15 @@ class EmoBenchQuestionFlat(BaseModel):
     wrong_answer_2: str = Field(description="Second wrong emotion option text")
     wrong_answer_3: str = Field(
         default="",
-        description="Third wrong option (leave empty string if only 2 wrong answers needed)"
+        description="Third wrong option (leave empty string if not needed)"
+    )
+    wrong_answer_4: str = Field(
+        default="",
+        description="Fourth wrong option (leave empty string if not needed)"
+    )
+    wrong_answer_5: str = Field(
+        default="",
+        description="Fifth wrong option (leave empty string if not needed)"
     )
     meta_id: str = Field(description="Unique identifier, e.g. 'synthetic_0001'")
     meta_question_subtype: str = Field(
@@ -191,8 +199,9 @@ class EmoBenchQuestionFlat(BaseModel):
 
     def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
         wrong_answers = [self.wrong_answer_1, self.wrong_answer_2]
-        if self.wrong_answer_3.strip():
-            wrong_answers.append(self.wrong_answer_3)
+        for w in [self.wrong_answer_3, self.wrong_answer_4, self.wrong_answer_5]:
+            if w.strip():
+                wrong_answers.append(w)
         return {
             "story": self.story_full,
             "question": self.question,
@@ -212,6 +221,12 @@ class EmoBenchSynthesisOutput(BaseModel):
 
 
 # ---- FanToM ----
+_FANTOM_BINARY_TYPES = {
+    "beliefQAs", "factQA", "answerabilityQAs_binary", "infoAccessibilityQAs_binary"
+}
+_FANTOM_LIST_TYPES = {"answerabilityQA_list", "infoAccessibilityQA_list"}
+
+
 class FanToMQuestionFlat(BaseModel):
     story_full: str = Field(description="Full conversation story text with multiple speakers")
     story_summary: str = Field(
@@ -221,31 +236,59 @@ class FanToMQuestionFlat(BaseModel):
     question: str = Field(
         description="Question about what a character knows or believes"
     )
-    correct_answer: str = Field(description="Correct answer text")
-    wrong_answer: str = Field(description="Exactly 1 wrong answer text")
+    # binary types: use correct_answer + wrong_answer
+    correct_answer: str = Field(
+        default="",
+        description="For binary types: single correct answer text. For list types: leave empty."
+    )
+    wrong_answer: str = Field(
+        default="",
+        description="For binary types: single wrong answer text. For list types: leave empty."
+    )
+    # list types: use correct_names + wrong_names
+    correct_names: List[str] = Field(
+        default_factory=list,
+        description="For list types (answerabilityQA_list / infoAccessibilityQA_list): "
+                    "list of character names who CAN answer / DO know the info. "
+                    "For binary types: leave empty."
+    )
+    wrong_names: List[str] = Field(
+        default_factory=list,
+        description="For list types: character names who CANNOT answer / do NOT know the info. "
+                    "For binary types: leave empty."
+    )
     meta_id: str = Field(
         description="ID in format '{topic}__{question_type}__{index}', "
-                    "e.g. 'synthetic_001__beliefQAs__1'. "
+                    "e.g. 'synthetic_001__infoAccessibilityQA_list__1'. "
                     "question_type must be one of: beliefQAs, factQA, "
-                    "answerabilityQAs_binary, infoAccessibilityQAs_binary"
+                    "answerabilityQAs_binary, infoAccessibilityQAs_binary, "
+                    "answerabilityQA_list, infoAccessibilityQA_list"
     )
     meta_question_type: str = Field(
         description="Question type: beliefQAs, factQA, answerabilityQAs_binary, "
-                    "or infoAccessibilityQAs_binary"
+                    "infoAccessibilityQAs_binary, answerabilityQA_list, or infoAccessibilityQA_list"
     )
 
     def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
+        if self.meta_question_type in _FANTOM_LIST_TYPES:
+            answer = {
+                "correct_answers": self.correct_names,
+                "wrong_answers": self.wrong_names,
+            }
+        else:
+            answer = {
+                "correct_answers": [self.correct_answer] if self.correct_answer else [],
+                "wrong_answers": [self.wrong_answer] if self.wrong_answer else [],
+            }
         return {
             "story": self.story_full,
             "question": self.question,
-            "answer": {
-                "correct_answers": [self.correct_answer],
-                "wrong_answers": [self.wrong_answer],
-            },
+            "answer": answer,
             "meta": {
                 "id": self.meta_id,
                 "condition_type": "",
-                "dimension": [],
+                "dimension": [self.meta_question_type],
+                "question_type": self.meta_question_type,
             },
         }
 
@@ -282,18 +325,31 @@ class HiToMQuestionFlat(BaseModel):
     )
 
     def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
-        wrong_list = [
+        def _clean(text: str) -> str:
+            # 去除括号注释，如 "shelf (what X believes)" -> "shelf"
+            return re.sub(r'\s*\(.*?\)', '', text).strip()
+
+        correct = _clean(self.correct_answer)
+        raw_wrong = [
             self.wrong_1, self.wrong_2, self.wrong_3, self.wrong_4,
             self.wrong_5, self.wrong_6, self.wrong_7, self.wrong_8,
             self.wrong_9, self.wrong_10, self.wrong_11, self.wrong_12,
             self.wrong_13, self.wrong_14,
         ]
+        seen: set = set()
+        deduped = []
+        for w in raw_wrong:
+            cleaned = _clean(w)
+            if cleaned and cleaned != correct and cleaned not in seen:
+                seen.add(cleaned)
+                deduped.append(cleaned)
+
         return {
             "story": self.story_full,
             "question": self.question,
             "answer": {
-                "correct_answers": [self.correct_answer],
-                "wrong_answers": wrong_list,
+                "correct_answers": [correct],
+                "wrong_answers": deduped,
             },
             "meta": {
                 "id": self.meta_id,
@@ -330,6 +386,9 @@ def synthesize_from_reports(
     synthesis_llm_config: Dict[str, Any],
     samples_per_report: int = 2,
     max_retries: int = 3,
+    existing_pairs: Optional[set] = None,
+    batch_size: int = 10,
+    output_file: Optional[Path] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """从维度级诊断报告合成新样本，每份报告生成 samples_per_report 条题目。
 
@@ -341,6 +400,8 @@ def synthesize_from_reports(
         synthesis_llm_config: 合成模型配置
         samples_per_report: 每份报告生成的样本数
         max_retries: 生成失败时最多重试次数
+        batch_size: 每批并发请求数，每批完成后立即写盘
+        output_file: 若提供，每批完成后追加写入该文件
 
     Returns:
         (synthesized_data, stats) 元组
@@ -356,11 +417,13 @@ def synthesize_from_reports(
         f"{total_target} target questions, schema={output_schema.__name__}"
     )
 
-    # pending_pairs: list of (report_idx, sample_idx)
+    # pending_pairs: list of (report_idx, sample_idx)，跳过已生成的 pair
+    _skip = existing_pairs or set()
     pending_pairs: List[Tuple[int, int]] = [
         (r_idx, s_idx)
         for r_idx in range(len(reports))
         for s_idx in range(samples_per_report)
+        if (r_idx, s_idx) not in _skip
     ]
     results: Dict[Tuple[int, int], Dict[str, Any]] = {}
     last_failed: Dict[Tuple[int, int], Dict[str, Any]] = {}
@@ -381,35 +444,48 @@ def synthesize_from_reports(
             )
             for (r_idx, s_idx) in pending_pairs
         ]
-        gen_results_raw = runner.create_llm_client(synthesis_llm_config, None).batch_generate_structure(
-            gen_prompts, output_schema,
-            desc=f"Synthesizing {dataset_name}"
-        )
 
         success_this_round = 0
-        for pair, resp in zip(pending_pairs, gen_results_raw):
-            r_idx, s_idx = pair
-            generation_attempts[pair] = generation_attempts.get(pair, 0) + 1
-            r = resp.content if resp else None
-            # r 是 Pydantic 对象或 None
-            if r is not None and hasattr(r, 'questions') and r.questions:
-                q = r.questions[0]
-                if hasattr(q, "to_storage_dict"):
-                    q_dict = q.to_storage_dict()
+        client = runner.create_llm_client(synthesis_llm_config, None)
+        for batch_start in range(0, len(gen_prompts), batch_size):
+            batch_prompts = gen_prompts[batch_start: batch_start + batch_size]
+            batch_pairs = pending_pairs[batch_start: batch_start + batch_size]
+
+            gen_results_raw = client.batch_generate_structure(
+                batch_prompts, output_schema,
+                desc=f"Synthesizing {dataset_name}"
+            )
+
+            batch_new: List[Dict[str, Any]] = []
+            for pair, resp in zip(batch_pairs, gen_results_raw):
+                r_idx, s_idx = pair
+                generation_attempts[pair] = generation_attempts.get(pair, 0) + 1
+                r = resp.content if resp else None
+                if r is not None and hasattr(r, 'questions') and r.questions:
+                    q = r.questions[0]
+                    if hasattr(q, "to_storage_dict"):
+                        q_dict = q.to_storage_dict()
+                    else:
+                        q_dict = q if isinstance(q, dict) else dict(q)
+                        q_dict.setdefault("meta", {})
+
+                    meta = q_dict.get("meta", {})
+                    if isinstance(meta, dict):
+                        meta["id"] = f"synthetic_{dataset_name.lower()}_{r_idx:03d}_{s_idx}"
+                        meta.setdefault("history", [])
+
+                    results[pair] = q_dict
+                    batch_new.append(q_dict)
+                    success_this_round += 1
                 else:
-                    q_dict = q if isinstance(q, dict) else dict(q)
-                    q_dict.setdefault("meta", {})
+                    last_failed[pair] = {}
 
-                # 强制覆盖 meta_id，确保全局唯一
-                meta = q_dict.get("meta", {})
-                if isinstance(meta, dict):
-                    meta["id"] = f"synthetic_{dataset_name.lower()}_{r_idx:03d}_{s_idx}"
-                    meta.setdefault("history", [])
-
-                results[pair] = q_dict
-                success_this_round += 1
-            else:
-                last_failed[pair] = {}
+            if output_file is not None and batch_new:
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(output_file, "a", encoding="utf-8") as _f:
+                    for item in batch_new:
+                        clean = {k: v for k, v in item.items() if not k.startswith("_")}
+                        _f.write(json.dumps(clean, ensure_ascii=False) + "\n")
 
         logger.info(f"  Round {round_idx + 1}: {success_this_round}/{len(pending_pairs)} generated")
         pending_pairs = [p for p in pending_pairs if p not in results]
@@ -472,6 +548,7 @@ def run_stage3_synthesis(
     max_retries: int = 3,
     output_dir: str = "data_output/synth_raw",
     model_name: str = "unknown_model",
+    batch_size: int = 10,
 ) -> Optional[Path]:
     """从维度诊断报告（dimension_reports.jsonl）生成并保存原始候选数据
 
@@ -510,25 +587,47 @@ def run_stage3_synthesis(
 
     logger.info(f"  Loaded {len(reports)} dimension reports")
 
+    # 读取已有候选文件，提取已完成的 (r_idx, s_idx) 对
+    safe_model = model_name.replace("/", "_").replace(":", "_").replace(" ", "_")
+    output_file = Path(output_dir) / dataset_name / f"candidates_{safe_model}.jsonl"
+    existing_pairs: set = set()
+    if output_file.exists():
+        with open(output_file, encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    item = json.loads(line)
+                    mid = item.get("meta", {}).get("id", "")
+                    m = re.match(r'synthetic_\w+_(\d+)_(\d+)$', mid)
+                    if m:
+                        existing_pairs.add((int(m.group(1)), int(m.group(2))))
+                except Exception:
+                    pass
+        if existing_pairs:
+            logger.info(f"  ⏭️  已有 {len(existing_pairs)} 条候选，只生成缺失的")
+
+    total_target = len(reports) * samples_per_report
+    if len(existing_pairs) >= total_target:
+        logger.info(f"  ⏭️  [{dataset_name}] 所有 {total_target} 条已生成，跳过合成")
+        return output_file
+
     synthesized, stats = synthesize_from_reports(
         reports=reports,
         dataset_name=dataset_name,
         synthesis_llm_config=synthesis_llm_config,
         samples_per_report=samples_per_report,
         max_retries=max_retries,
+        existing_pairs=existing_pairs,
+        batch_size=batch_size,
+        output_file=output_file,
     )
 
     if not synthesized:
-        logger.warning("  No synthesized questions produced")
-        return None
+        logger.warning("  No new synthesized questions produced")
+        return output_file if output_file.exists() else None
 
-    out_path = save_synthesized_data(
-        synthesized=synthesized,
-        dataset_name=dataset_name,
-        output_path=output_dir,
-        model_name=model_name,
-    )
-
-    logger.info(f"Stage 3 done: {len(synthesized)}/{stats['total_target']} questions saved to {out_path}")
-    return out_path
+    total_written = len(existing_pairs) + len(synthesized)
+    logger.info(f"Stage 3 done: {len(synthesized)} new + {len(existing_pairs)} existing = {total_written}/{total_target} saved to {output_file}")
+    return output_file
 

@@ -440,59 +440,79 @@ def run_single_iteration(
     input_df = input_df.reset_index(drop=True)
 
     # ── Phase B：pass@k 全量 ────────────────────────────────────────────────
-    logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={_PASS_K})")
-    passk_df = run_passk_on_df(input_df, dataset, k=_PASS_K, simple_client=clients["simple"])
-    write_passk_parquet(passk_df, out_dir / "passk.parquet")
+    passk_path = out_dir / "passk.parquet"
+    if passk_path.exists():
+        passk_df = pd.read_parquet(passk_path)
+        logger.info(f"[iter{iter_n}] ⏭️  Phase B: 读取已有结果 ({len(passk_df)} rows)")
+    else:
+        logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={_PASS_K})")
+        passk_df = run_passk_on_df(input_df, dataset, k=_PASS_K, simple_client=clients["simple"])
+        write_passk_parquet(passk_df, passk_path)
 
     # ── Phase C：answerability（仅 partial + all_failed）─────────────────────
-    logger.info(f"[iter{iter_n}] 🔍 Phase C: answerability 判断")
-    if _SKIP_ANSWERABILITY_ON_ALL_PASSED:
-        ans_target_mask = passk_df["bucket"].isin([_BUCKET_PARTIAL, _BUCKET_ALL_FAILED])
+    ans_path = out_dir / "answerability.parquet"
+    if ans_path.exists():
+        ans_df = pd.read_parquet(ans_path)
+        logger.info(f"[iter{iter_n}] ⏭️  Phase C: 读取已有结果 ({len(ans_df)} rows)")
     else:
-        ans_target_mask = pd.Series([True] * len(passk_df))
-    ans_target_idx = passk_df.index[ans_target_mask].tolist()
-    if len(ans_target_idx) > 0:
-        ans_subset = input_df.iloc[ans_target_idx].reset_index(drop=True)
-        ans_df = run_answerability_on_df(ans_subset, dataset, strong_client=clients["strong"])
-    else:
-        ans_df = pd.DataFrame(columns=["sample_id", "label", "reason", "answerable"])
-        logger.info(f"[iter{iter_n}] ⏭️  跳过 answerability (all_passed)")
-    write_answerability_parquet(ans_df, out_dir / "answerability.parquet")
+        logger.info(f"[iter{iter_n}] 🔍 Phase C: answerability 判断")
+        if _SKIP_ANSWERABILITY_ON_ALL_PASSED:
+            ans_target_mask = passk_df["bucket"].isin([_BUCKET_PARTIAL, _BUCKET_ALL_FAILED])
+        else:
+            ans_target_mask = pd.Series([True] * len(passk_df))
+        ans_target_idx = passk_df.index[ans_target_mask].tolist()
+        if len(ans_target_idx) > 0:
+            ans_subset = input_df.iloc[ans_target_idx].reset_index(drop=True)
+            ans_df = run_answerability_on_df(ans_subset, dataset, strong_client=clients["strong"])
+        else:
+            ans_df = pd.DataFrame(columns=["sample_id", "label", "reason", "answerable"])
+            logger.info(f"[iter{iter_n}] ⏭️  跳过 answerability (all_passed)")
+        write_answerability_parquet(ans_df, ans_path)
 
     # ── Phase D：shortcut 三探测（仅 partial + answerable）────────────────────
-    logger.info(f"[iter{iter_n}] 🎯 Phase D: shortcut 检测")
-    if _SHORTCUT_ENABLED and not ans_df.empty:
-        partial_ids = set(passk_df.loc[passk_df["bucket"] == _BUCKET_PARTIAL, "sample_id"])
-        answerable_ids = set(ans_df.loc[ans_df["answerable"] == True, "sample_id"])  # noqa: E712
-        target_ids = partial_ids & answerable_ids
-        if len(target_ids) > 0:
-            mask = passk_df["sample_id"].isin(target_ids)
-            sc_subset = input_df.iloc[passk_df.index[mask].tolist()].reset_index(drop=True)
-            shortcut_df = run_shortcut_on_df(
-                sc_subset,
-                dataset,
-                k=_PASS_K,
-                threshold=_SHORTCUT_THRESHOLD,
-                simple_client=clients["simple"],
-                judge_client=clients["judge"],
-                dimensions=_SHORTCUT_DIMENSIONS,
-            )
+    shortcut_path = out_dir / "shortcut.parquet"
+    if shortcut_path.exists():
+        shortcut_df = pd.read_parquet(shortcut_path)
+        logger.info(f"[iter{iter_n}] ⏭️  Phase D: 读取已有结果 ({len(shortcut_df)} rows)")
+    else:
+        logger.info(f"[iter{iter_n}] 🎯 Phase D: shortcut 检测")
+        if _SHORTCUT_ENABLED and not ans_df.empty:
+            partial_ids = set(passk_df.loc[passk_df["bucket"] == _BUCKET_PARTIAL, "sample_id"])
+            answerable_ids = set(ans_df.loc[ans_df["answerable"] == True, "sample_id"])  # noqa: E712
+            target_ids = partial_ids & answerable_ids
+            if len(target_ids) > 0:
+                mask = passk_df["sample_id"].isin(target_ids)
+                sc_subset = input_df.iloc[passk_df.index[mask].tolist()].reset_index(drop=True)
+                shortcut_df = run_shortcut_on_df(
+                    sc_subset,
+                    dataset,
+                    k=_PASS_K,
+                    threshold=_SHORTCUT_THRESHOLD,
+                    simple_client=clients["simple"],
+                    judge_client=clients["judge"],
+                    dimensions=_SHORTCUT_DIMENSIONS,
+                )
+            else:
+                shortcut_df = pd.DataFrame(columns=[
+                    "sample_id", "no_story_pass", "no_question_pass", "no_options_pass", "is_shortcut",
+                ])
+                logger.info(f"[iter{iter_n}] ⏭️  跳过 shortcut (无 partial+answerable)")
         else:
             shortcut_df = pd.DataFrame(columns=[
                 "sample_id", "no_story_pass", "no_question_pass", "no_options_pass", "is_shortcut",
             ])
-            logger.info(f"[iter{iter_n}] ⏭️  跳过 shortcut (无 partial+answerable)")
-    else:
-        shortcut_df = pd.DataFrame(columns=[
-            "sample_id", "no_story_pass", "no_question_pass", "no_options_pass", "is_shortcut",
-        ])
-        logger.info(f"[iter{iter_n}] ⏭️  跳过 shortcut (已禁用或无数据)")
-    write_shortcut_parquet(shortcut_df, out_dir / "shortcut.parquet")
+            logger.info(f"[iter{iter_n}] ⏭️  跳过 shortcut (已禁用或无数据)")
+        write_shortcut_parquet(shortcut_df, shortcut_path)
 
     # ── 决策树打标 ──────────────────────────────────────────────────────────
-    logger.info(f"[iter{iter_n}] 🏷️  决策树打标")
-    labels_df = assign_labels(input_df, passk_df, ans_df, shortcut_df, iter_n)
-    labels_df.to_parquet(out_dir / "labels.parquet", index=False)
+    labels_path = out_dir / "labels.parquet"
+    if labels_path.exists():
+        labels_df = pd.read_parquet(labels_path)
+        logger.info(f"[iter{iter_n}] ⏭️  决策树打标: 读取已有结果 ({len(labels_df)} rows)")
+    else:
+        logger.info(f"[iter{iter_n}] 🏷️  决策树打标")
+        labels_df = assign_labels(input_df, passk_df, ans_df, shortcut_df, iter_n)
+        labels_df.to_parquet(labels_path, index=False)
 
     if len(labels_df) != len(input_df):
         logger.error(
@@ -506,18 +526,24 @@ def run_single_iteration(
     logger.info(f"[iter{iter_n}] ✅ 保留样本: {len(keep_df)} 条 (hard + medium)")
 
     # ── Phase E：repair ──────────────────────────────────────────────────────
+    repaired_path = out_dir / "repaired.parquet"
     if repair_enabled:
-        logger.info(f"[iter{iter_n}] 🔧 Phase E: 修复样本")
-        repaired_df = repair_samples(
-            input_df,
-            labels_df,
-            dataset,
-            iter_n,
-            repair_client=clients["repair"],
-            enabled_types=_REPAIR_ENABLED_TYPES,
-        )
-        repaired_df = normalize_df(repaired_df) if not repaired_df.empty else repaired_df
-        write_repaired_parquet(repaired_df, out_dir / "repaired.parquet")
+        if repaired_path.exists():
+            repaired_df = pd.read_parquet(repaired_path)
+            repaired_df = normalize_df(repaired_df) if not repaired_df.empty else repaired_df
+            logger.info(f"[iter{iter_n}] ⏭️  Phase E: 读取已有结果 ({len(repaired_df)} rows)")
+        else:
+            logger.info(f"[iter{iter_n}] 🔧 Phase E: 修复样本")
+            repaired_df = repair_samples(
+                input_df,
+                labels_df,
+                dataset,
+                iter_n,
+                repair_client=clients["repair"],
+                enabled_types=_REPAIR_ENABLED_TYPES,
+            )
+            repaired_df = normalize_df(repaired_df) if not repaired_df.empty else repaired_df
+            write_repaired_parquet(repaired_df, repaired_path)
     else:
         repaired_df = pd.DataFrame()
         logger.info(f"[iter{iter_n}] ⏭️  跳过 Phase E（纯评估轮）")
@@ -599,11 +625,39 @@ def run_filter_loop(
         logger.info(f"🔄 [{dataset}/{split_stem}] iter={iter_n}/{max_iter}")
         logger.info(f"{'='*60}")
 
+        out_dir = _iter_dir(split_root, iter_n)
+        summary_path = out_dir / "summary.json"
+
+        # iter 级断点：整轮已完成，跳过
+        if summary_path.exists():
+            with open(summary_path, encoding="utf-8") as _f:
+                cached_summary = json.load(_f)
+            iters_run += 1
+            label_counts_by_iter.append({
+                "iter": iter_n,
+                "total": cached_summary.get("total", 0),
+                "label_counts": cached_summary.get("label_counts", {}),
+            })
+            total_keep += int(cached_summary.get("keep_pool_count", 0))
+            labels_path = out_dir / "labels.parquet"
+            last_labels_df = pd.read_parquet(labels_path) if labels_path.exists() else pd.DataFrame()
+            last_out_dir = out_dir
+            repaired_path = out_dir / "repaired.parquet"
+            if repaired_path.exists():
+                _rep = normalize_df(pd.read_parquet(repaired_path))
+                current_input_df = _rep if not _rep.empty else None
+            else:
+                current_input_df = None
+            if current_input_df is None:
+                logger.info(f"⏭️  [loop] iter={iter_n} 已完成（无修复产出），提前终止")
+                break
+            logger.info(f"⏭️  [loop] iter={iter_n} 已完成，跳过，传递 {len(current_input_df)} 条修复样本")
+            continue
+
         if current_input_df is None or current_input_df.empty:
             logger.info(f"⚠️  [loop] iter={iter_n} 无输入，提前终止")
             break
 
-        out_dir = _iter_dir(split_root, iter_n)
         labels_df, keep_df, repaired_df = run_single_iteration(
             dataset, iter_n, current_input_df, out_dir, clients, repair_enabled=True,
         )
@@ -680,6 +734,20 @@ def run_filter_loop_all_splits(
     split_summaries: List[Dict[str, Any]] = []
 
     for split_file in split_files:
+        split_root = _split_dir(config["output_root"], dataset, split_file.stem)
+        split_summary_path = split_root / "filter_summary.json"
+        # split 级断点：整个 split 已完成，跳过
+        if split_summary_path.exists():
+            try:
+                with open(split_summary_path, encoding="utf-8") as _f:
+                    cached_split = json.load(_f)
+                splits_run += 1
+                total_keep += cached_split.get("total_keep_pool", 0)
+                split_summaries.append(cached_split)
+                logger.info(f"⏭️  [{split_file.stem}] 已完成，跳过")
+                continue
+            except Exception:
+                pass  # 读取失败则重新跑该 split
         try:
             split_summary = run_filter_loop(dataset, split_file, max_iter, config, clients)
             splits_run += 1

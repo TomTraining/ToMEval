@@ -34,6 +34,8 @@ leakage_guard:
 synthesis:
   max_retries_per_diagnosis: 3    # 生成失败时最多重试次数
   bad_cases_per_report: 1         # 每个诊断报告输入几条 bad case（越多报告越综合，越少越针对单条）
+  diagnosis_batch_size: 10        # stage2 每批诊断报告数，完成后立即写盘
+  synthesis_batch_size: 20        # stage3 每批合成数据数，完成后立即写盘
 
 # ── 数据集列表 ───────────────────────────────────────────────────────────────
 # 每个数据集指定：
@@ -43,7 +45,7 @@ synthesis:
 #   - samples_per_report: 每个诊断报告生成几条数据（如 5）
 #   报告数 = target_samples / samples_per_report，按维度错误比例分配
 synthesis_datasets:
-  - name: ToMBench
+  - name: HiToM
     target_samples: 50
     samples_per_report: 5
     models:

@@ -74,6 +74,8 @@ def run_pipeline(config_path: str):
     syn_config = config.get("synthesis", {})
     max_retries = syn_config.get("max_retries_per_diagnosis", 3)
     bad_cases_per_report = syn_config.get("bad_cases_per_report", 1)
+    diagnosis_batch_size = syn_config.get("diagnosis_batch_size", 10)
+    synthesis_batch_size = syn_config.get("synthesis_batch_size", 20)
     predictions_root = config.get("predictions_root", "results")
 
     all_stats = {}
@@ -140,6 +142,7 @@ def run_pipeline(config_path: str):
                     total_reports=total_reports,
                     bad_cases_per_report=bad_cases_per_report,
                     output_dir=str(output_path / "_intermediate" / "diagnosis_reports"),
+                    batch_size=diagnosis_batch_size,
                 )
                 report_file = out_dir / "dimension_reports.jsonl"
                 with open(report_file, encoding="utf-8") as f:
@@ -199,6 +202,7 @@ def run_pipeline(config_path: str):
                     max_retries=max_retries,
                     output_dir=str(output_path / "_intermediate" / "synth_raw"),
                     model_name=model_name,
+                    batch_size=synthesis_batch_size,
                 )
                 if out_path:
                     with open(out_path, encoding="utf-8") as f:

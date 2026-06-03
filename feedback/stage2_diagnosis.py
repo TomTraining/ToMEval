@@ -10,7 +10,7 @@
 5. 保存 dimension_reports.jsonl
 
 输出目录结构：
-    data_output/diagnosis_reports/{dataset_name}/{split}/
+    data_output/diagnosis_reports/{dataset_name}/
         dimension_reports.jsonl
         dimension_coverage.json
 """
@@ -278,6 +278,7 @@ def run_stage2_dimension_diagnosis(
     total_reports: int,
     bad_cases_per_report: int = 1,
     output_dir: str = "data_output/diagnosis_reports",
+    batch_size: int = 10,
 ) -> Path:
     """读取 bad_cases.jsonl，按维度错误率分配报告，每个报告输入 bad_cases_per_report 条 bad case
 
@@ -317,8 +318,7 @@ def run_stage2_dimension_diagnosis(
     bad_cases = _load_bad_cases_from_file(prediction_path, data_file_path)
     logger.info(f"    📖 加载 {len(bad_cases)} 道错题")
 
-    split_name = stage1_dir.name
-    out_dir = Path(output_dir) / dataset_name / split_name
+    out_dir = Path(output_dir) / dataset_name
     out_dir.mkdir(parents=True, exist_ok=True)
     reports_path = out_dir / "dimension_reports.jsonl"
 
@@ -382,6 +382,21 @@ def run_stage2_dimension_diagnosis(
     all_prompts: List[str] = []
     all_meta: List[Dict[str, Any]] = []
 
+    # 读取已有报告，跳过已完成的 (dimension, case_idx) 对
+    existing_pairs: set = set()
+    if reports_path.exists():
+        with open(reports_path, encoding="utf-8") as _f:
+            for _line in _f:
+                if _line.strip():
+                    try:
+                        _rec = json.loads(_line)
+                        _m = _rec.get("_meta", {})
+                        existing_pairs.add((_m.get("dimension"), _m.get("case_idx")))
+                    except Exception:
+                        pass
+        if existing_pairs:
+            logger.info(f"    ⏭️  已有 {len(existing_pairs)} 份报告，只生成缺失的")
+
     for dim, n_reports in allocations.items():
         dim_cases = dimension_groups.get(dim, [])
         # 需要采样的总 bad case 数 = 报告数 × 每报告输入条数
@@ -389,6 +404,8 @@ def run_stage2_dimension_diagnosis(
         sampled_cases = sample_bad_cases_weighted(dim_cases, n_to_sample)
 
         for report_idx in range(n_reports):
+            if (dim, report_idx) in existing_pairs:
+                continue
             start = report_idx * bad_cases_per_report
             batch = sampled_cases[start: start + bad_cases_per_report]
             if not batch:
@@ -406,31 +423,40 @@ def run_stage2_dimension_diagnosis(
             })
 
     # 批量生成诊断报告
-    logger.info(f"    🤖 调用 LLM 生成 {len(all_prompts)} 份诊断报告...")
-    client = runner.create_llm_client(synthesis_llm_config, None)
-    raw_results = client.batch_generate_structure(
-        all_prompts, DimensionDiagnosisReport, desc="诊断中"
-    )
+    if not all_prompts:
+        logger.info("    ⏭️  所有报告已完成，跳过诊断")
+        return out_dir
 
-    # 写入 dimension_reports.jsonl
+    logger.info(f"    🤖 调用 LLM 生成 {len(all_prompts)} 份诊断报告（每批 {batch_size} 份）...")
+    client = runner.create_llm_client(synthesis_llm_config, None)
+
     success_count = 0
     fallback_count = 0
-    with open(reports_path, "w", encoding="utf-8") as f:
-        for meta_info, resp in zip(all_meta, raw_results):
-            result = resp.content if resp else None
-            if result is not None:
-                record = result.model_dump()
-                record["_meta"] = meta_info
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-                success_count += 1
-            else:
-                # Fallback: 用默认报告
-                fallback = dict(_FALLBACK_REPORT)
-                fallback["dimension"] = meta_info["dimension"]
-                fallback["_meta"] = meta_info
-                fallback["_is_fallback"] = True
-                f.write(json.dumps(fallback, ensure_ascii=False) + "\n")
-                fallback_count += 1
+    for batch_start in range(0, len(all_prompts), batch_size):
+        batch_prompts = all_prompts[batch_start: batch_start + batch_size]
+        batch_meta = all_meta[batch_start: batch_start + batch_size]
+
+        raw_results = client.batch_generate_structure(
+            batch_prompts, DimensionDiagnosisReport, desc="诊断中"
+        )
+
+        with open(reports_path, "a", encoding="utf-8") as f:
+            for meta_info, resp in zip(batch_meta, raw_results):
+                result = resp.content if resp else None
+                if result is not None:
+                    record = result.model_dump()
+                    record["_meta"] = meta_info
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    success_count += 1
+                else:
+                    fallback = dict(_FALLBACK_REPORT)
+                    fallback["dimension"] = meta_info["dimension"]
+                    fallback["_meta"] = meta_info
+                    fallback["_is_fallback"] = True
+                    f.write(json.dumps(fallback, ensure_ascii=False) + "\n")
+                    fallback_count += 1
+
+        logger.info(f"    💾 已完成 {min(batch_start + batch_size, len(all_prompts))}/{len(all_prompts)} 份")
 
     logger.info(f"    ✅ 成功生成 {success_count} 份报告")
     if fallback_count > 0:
