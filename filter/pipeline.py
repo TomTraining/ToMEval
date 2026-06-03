@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """V3 数据飞轮决策树编排器。
 
 以 split（单个 parquet 文件）为最小处理单元，每个 split 独立迭代评估+修复。

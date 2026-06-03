@@ -1,29 +1,36 @@
-#!/usr/bin/env python3
-"""filter 入口脚本（V3 数据飞轮）。
+"""
+数据过滤流水线入口
+
+流程：
+  1. pass@k 评估（全量强弱模型）
+  2. answerability 判断
+  3. shortcut 探测
+  4. 修复迭代（unanswerable / shortcut → repair）
+  5. finalize（合并 hard+medium → train_set）
+  6. 生成汇总报告（SUMMARY_REPORT.md）
 
 用法：
-  python run_eval.py
+  python run_filter.py
 
-所有配置（数据集、模型、路径等）在 filter/config.yaml 中设置。
+配置说明：
+  - 数据集、模型、路径等在 filter/config.yaml 中设置
+  - 只跑部分数据集：在 config.yaml 的 datasets 列表里注释掉不需要的
 """
 
 import logging
 import sys
+import yaml
 from datetime import datetime
 from pathlib import Path
 
 
 def _setup_logging() -> None:
-    """配置日志：同时输出到控制台和文件。"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / f"filter_{timestamp}.log"
-
-    # 清除之前的 handlers
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
-
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -37,10 +44,8 @@ def _setup_logging() -> None:
 
 
 def main() -> int:
-    from filter.run_filter import load_filter_config, run_filter_loop_all_splits, run_finalize
+    from filter.pipeline import load_filter_config, run_filter_loop_all_splits, run_finalize
     from filter.report_summary import save_summary_report
-    import yaml
-    from pathlib import Path
 
     _setup_logging()
 
@@ -50,7 +55,6 @@ def main() -> int:
         logging.error(f"配置加载失败: {e}")
         return 2
 
-    # 读取数据集列表
     cfg_path = Path("filter/config.yaml")
     cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
     datasets = cfg.get("datasets", [])
@@ -58,15 +62,13 @@ def main() -> int:
         logging.error("config.yaml 中未配置 datasets")
         return 2
 
-    logging.info(f"开始评估 {len(datasets)} 个数据集: {datasets}")
+    logging.info(f"开始过滤 {len(datasets)} 个数据集: {datasets}")
 
-    # 对每个数据集运行完整流程：filter → finalize
     for dataset in datasets:
         logging.info(f"\n{'='*60}")
         logging.info(f"处理数据集: {dataset}")
         logging.info(f"{'='*60}")
 
-        # Phase 1: filter（按 split 独立迭代评估 + 修复）
         try:
             summary = run_filter_loop_all_splits(
                 dataset=dataset, max_iter=config["max_iter"], config=config
@@ -84,7 +86,6 @@ def main() -> int:
             logging.error(f"完整错误堆栈:\n{traceback.format_exc()}")
             continue
 
-        # Phase 2: finalize（合并所有 split 的 hard+medium → train_set）
         try:
             out_path = run_finalize(dataset=dataset, config=config)
             logging.info(f"[{dataset}] finalize 完成 — train_set → {out_path}")
@@ -94,10 +95,9 @@ def main() -> int:
             logging.error(f"[{dataset}] finalize 失败: {e}")
 
     logging.info(f"\n{'='*60}")
-    logging.info("所有数据集评估完成")
+    logging.info("所有数据集过滤完成")
     logging.info(f"{'='*60}")
 
-    # 生成汇总报告
     try:
         report_path = f"{config['output_root']}/SUMMARY_REPORT.md"
         save_summary_report(config["output_root"], datasets, report_path)
