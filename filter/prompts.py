@@ -34,4 +34,28 @@ Return ONLY valid JSON (no markdown fences):
 }}"""
 
 
-__all__ = ["ANSWERABILITY_FULL_PROMPT"]
+# 中文样本版本：指令中文化，但 label 仍输出英文枚举，保证下游决策树逻辑不变。
+ANSWERABILITY_FULL_PROMPT_ZH = """\
+你正在审核一道心智理论（Theory-of-Mind, ToM）题目，判断仅凭故事和问题该题在逻辑上是否可回答。\
+不要尝试作答，只判断题目本身是否构造良好。
+
+故事：{story}
+问题：{question}
+正确答案：{correct_answers}
+错误答案（干扰项）：{wrong_answers}
+
+请从以下标签中选择且只选择一个（label 必须输出英文原词）：
+  - answerable            ：故事能唯一支持标注的正确答案，干扰项明显错误。
+  - label_error           ：标注的正确答案是错的，或某个干扰项其实是对的。
+  - ambiguous             ：根据故事，多个选项同样合理。
+  - contradictory_premise ：故事存在内部矛盾，导致无法得出一致答案。
+  - missing_info          ：故事缺少推出正确答案所需的信息。
+
+只返回合法 JSON（不要 markdown 代码块）：
+{{
+  "label": "<one of: answerable | label_error | ambiguous | contradictory_premise | missing_info>",
+  "reason": "<一句简短的中文理由>"
+}}"""
+
+
+__all__ = ["ANSWERABILITY_FULL_PROMPT", "ANSWERABILITY_FULL_PROMPT_ZH"]

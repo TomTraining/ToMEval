@@ -179,6 +179,10 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
                 message = response.choices[0].message
                 content = message.content or ""
                 reasoning = self._extract_reasoning(message)
+                # thinking 模式下，先把内联 <think> 思考剥离为 reasoning，
+                # 同时避免思考文本里的花括号污染后续 JSON 提取
+                if self.enable_thinking:
+                    content, reasoning = self._split_think_content(content, reasoning)
                 # 提取 JSON
                 json_data = extract_json(content)
                 if json_data is None:

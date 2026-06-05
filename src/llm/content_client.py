@@ -78,6 +78,9 @@ class ContentClient(LLMClient):
                 message = response.choices[0].message
                 text = message.content or ""
                 reasoning = self._extract_reasoning(message)
+                # thinking 模式下，把内联在 content 里的 <think> 思考剥离为 reasoning
+                if self.enable_thinking:
+                    text, reasoning = self._split_think_content(text, reasoning)
                 if text:
                     self._track_usage(
                         prompt_tokens=prompt_tokens,

@@ -28,9 +28,12 @@ import pandas as pd
 from filter.base import load_answer_models, load_judge_client
 from filter.utils import is_correct_mcq, resolve_sample_id, row_to_sample, write_parquet
 from src.evaluation.judge import judge_repeat
+from src.evaluation.lang import get_sample_lang
 from src.evaluation.prompts import (
     CHOICE_QA_TEMPLATE,
+    CHOICE_QA_TEMPLATE_ZH,
     OPEN_QA_TEMPLATE,
+    OPEN_QA_TEMPLATE_ZH,
     build_option_bundle,
     prompt_type as compute_prompt_type,
 )
@@ -39,40 +42,53 @@ from src.llm.content_client import ContentClient
 logger = logging.getLogger(__name__)
 
 
-_STORY_PLACEHOLDER = "(story omitted)"
-_QUESTION_PLACEHOLDER = "(question omitted)"
+# 占位符 / 指令按样本语言切换；\boxed{} 字母协议不随语言变化。
+_STORY_PLACEHOLDER = {"en": "(story omitted)", "zh": "（故事略）"}
+_QUESTION_PLACEHOLDER = {"en": "(question omitted)", "zh": "（问题略）"}
+
+_ANSWER_INSTRUCTIONS = {
+    ("en", "mcq_single"): "Select the single best option and return exactly one option letter.",
+    ("en", "mcq_multi"): "Select every correct option and return a list of option letters.",
+    ("zh", "mcq_single"): "请选出唯一最合适的选项，只返回一个选项字母。",
+    ("zh", "mcq_multi"): "请选出所有正确的选项，返回选项字母列表。",
+}
 
 
 def _options_block(option_map: Dict[str, str]) -> str:
     return "\n".join(f"{letter}. {text}" for letter, text in option_map.items())
 
 
-def _answer_instruction(prompt_type: str) -> str:
-    if prompt_type == "mcq_multi":
-        return "Select every correct option and return a list of option letters."
-    return "Select the single best option and return exactly one option letter."
+def _answer_instruction(prompt_type: str, lang: str = "en") -> str:
+    key = "mcq_multi" if prompt_type == "mcq_multi" else "mcq_single"
+    return _ANSWER_INSTRUCTIONS[(lang, key)]
 
 
 def build_no_story_prompt(sample: Dict[str, Any], option_map: Dict[str, str], prompt_type: str) -> str:
-    return CHOICE_QA_TEMPLATE.format(
-        story=_STORY_PLACEHOLDER,
+    lang = get_sample_lang(sample.get("meta"))
+    template = CHOICE_QA_TEMPLATE_ZH if lang == "zh" else CHOICE_QA_TEMPLATE
+    return template.format(
+        story=_STORY_PLACEHOLDER[lang],
         question=sample["question"],
         options_block=_options_block(option_map),
-        answer_instruction=_answer_instruction(prompt_type),
+        answer_instruction=_answer_instruction(prompt_type, lang),
     )
 
 
 def build_no_question_prompt(sample: Dict[str, Any], option_map: Dict[str, str], prompt_type: str) -> str:
-    return CHOICE_QA_TEMPLATE.format(
+    lang = get_sample_lang(sample.get("meta"))
+    template = CHOICE_QA_TEMPLATE_ZH if lang == "zh" else CHOICE_QA_TEMPLATE
+    return template.format(
         story=sample["story"],
-        question=_QUESTION_PLACEHOLDER,
+        question=_QUESTION_PLACEHOLDER[lang],
         options_block=_options_block(option_map),
-        answer_instruction=_answer_instruction(prompt_type),
+        answer_instruction=_answer_instruction(prompt_type, lang),
     )
 
 
 def build_no_options_prompt(sample: Dict[str, Any]) -> str:
-    return OPEN_QA_TEMPLATE.format(
+    lang = get_sample_lang(sample.get("meta"))
+    template = OPEN_QA_TEMPLATE_ZH if lang == "zh" else OPEN_QA_TEMPLATE
+    return template.format(
         story=sample["story"],
         question=sample["question"],
     )
@@ -168,6 +184,8 @@ def _run_no_options_dimension(
                 "pred": {"content": content},
                 "correct_answers": correct_answers,
                 "wrong_answers": wrong_answers,
+                # 带上 meta，让 judge_prompt 按样本语言选择中文/英文措辞。
+                "meta": sample.get("meta"),
             })
             record_keys.append((i, trial))
 

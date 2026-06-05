@@ -34,7 +34,7 @@ def row_to_sample(row: Any) -> Dict[str, Any]:
         row: DataFrame row
 
     Returns:
-        dict 包含 story/question/answer 字段
+        dict 包含 story/question/answer/meta 字段
     """
     answer = row.get("answer")
     if not isinstance(answer, dict):
@@ -43,10 +43,13 @@ def row_to_sample(row: Any) -> Dict[str, Any]:
     wrong_raw = answer.get("wrong_answers")
     correct = list(correct_raw) if correct_raw is not None else []
     wrong = list(wrong_raw) if wrong_raw is not None else []
+    meta = row.get("meta")
     return {
         "story": str(row.get("story", "") or ""),
         "question": str(row.get("question", "") or ""),
         "answer": {"correct_answers": correct, "wrong_answers": wrong},
+        # 透传 meta，让下游 prompt 构造能感知样本语言（meta.lang / meta.language）。
+        "meta": meta if isinstance(meta, dict) else {},
     }
 
 

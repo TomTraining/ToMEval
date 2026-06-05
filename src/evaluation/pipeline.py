@@ -65,7 +65,6 @@ def run_prediction_stage(
         logger.info(f"Model response: {json.dumps(example_record['pred']['content'], ensure_ascii=False)}")
         if example_record['pred'].get('reasoning'):
             logger.info(f"Reasoning: {example_record['pred']['reasoning'][:200]}...")
-        logger.info(f"Raw prediction: {example_record['raw_prediction']}")
 
     prediction_path = write_prediction_file(output_dir, records)
     logger.info(f"\n✓ Saved {len(records)} predictions to: {prediction_path}")
@@ -86,11 +85,17 @@ def run_metric_stage(
     if not prediction_path.exists():
         raise FileNotFoundError(f"prediction.jsonl not found in {output_dir}")
 
-    judge_config = experiment_config.get("judge_config") or experiment_config["llm_config"]
-    judge_client = runner.create_llm_client(judge_config, task_config)
+    records = read_prediction_file(prediction_path)
     logger.info(f"Loaded {prediction_path}")
 
-    records = read_prediction_file(prediction_path)
+    # MCQ 题走 \boxed{} 提取规则判分，只有存在 open 题时才需要创建 judge client。
+    has_open = any(record["prompt_type"] == "open" for record in records)
+    if has_open:
+        judge_config = experiment_config.get("judge_config") or experiment_config["llm_config"]
+        judge_client = runner.create_llm_client(judge_config, task_config)
+    else:
+        judge_client = None
+        logger.info("All records are MCQ: rule-based grading via \\boxed{} extraction, judge client skipped.")
     grouped: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
     for record in records:
         grouped[int(record["repeat"])].append(record)
@@ -101,18 +106,24 @@ def run_metric_stage(
         logger.info(f"\n--- Repeat {repeat + 1}/{len(grouped)} ---")
         repeat_records = sorted(grouped[repeat], key=lambda item: int(item["sample_index"]))
 
-        # 展示第一个样本的 Judge 输入
+        # 展示第一个样本的判分输入：open 展示 judge prompt，MCQ 展示提取规则比对信息。
         if repeat == 0 and repeat_records:
-            from .judge import judge_prompt
             example = repeat_records[0]
-            judge_input = judge_prompt(example)
             logger.info("\n[JUDGE INPUT EXAMPLE - Sample #0]")
             logger.info(f"Prompt type: {example['prompt_type']}")
-            logger.info(f"Judge prompt: {judge_input[:400]}...")
+            if example["prompt_type"] == "open":
+                from .judge import judge_prompt
+                judge_input = judge_prompt(example)
+                logger.info(f"Judge prompt: {judge_input[:400]}...")
+            else:
+                from .prompts import extract_prediction_from_text
+                content = (example.get("pred") or {}).get("content") or ""
+                extracted = extract_prediction_from_text(example["prompt_type"], str(content))
+                logger.info(f"Rule-based grading: extracted={extracted} vs correct={example['correct_letters']}")
 
         per_sample_results = judge_repeat(repeat_records, judge_client)
 
-        # 展示第一个样本的 Judge 输出
+        # 展示第一个样本的判分输出
         if repeat == 0 and per_sample_results:
             example_result = per_sample_results[0]
             logger.info("\n[JUDGE OUTPUT EXAMPLE - Sample #0]")
@@ -140,7 +151,16 @@ def run_standardized_qa_task(config_path: str) -> None:
     parser.add_argument("--experiment-config", default="experiment_config.yaml")
     parser.add_argument("--stage", choices=["predict", "metric", "all"], default="all")
     parser.add_argument("--exp-dir", default=None)
+    parser.add_argument(
+        "--allow-config-diff",
+        action="store_true",
+        help="跳过与标准测试配置不一致时的交互确认，直接使用自定义参数。",
+    )
     args = parser.parse_args()
+
+    # 若自定义配置的关键采样参数与标准测试 experiment_config.yaml 不一致，先确认
+    from .config_check import confirm_config_against_standard
+    confirm_config_against_standard(args.experiment_config, assume_yes=args.allow_config_diff)
 
     experiment_config = runner.load_experiment_config(args.experiment_config)
 

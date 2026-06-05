@@ -420,6 +420,9 @@ def run_stage2_dimension_diagnosis(
                 "dimension": dim,
                 "case_idx": report_idx,
                 "sample_idx": batch[0].get("sample_idx", -1),
+                # 维度键的 __zh 后缀来自 get_dimension_key 的语言拆分，
+                # 记录到报告 _meta，供 Stage 3 决定合成语言。
+                "lang": "zh" if dim.endswith("__zh") else "en",
             })
 
     # 批量生成诊断报告

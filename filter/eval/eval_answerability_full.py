@@ -21,8 +21,9 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from filter.base import load_answer_models
-from filter.prompts import ANSWERABILITY_FULL_PROMPT
+from filter.prompts import ANSWERABILITY_FULL_PROMPT, ANSWERABILITY_FULL_PROMPT_ZH
 from filter.utils import resolve_sample_id, stringify_answer_list, write_parquet
+from src.evaluation.lang import get_sample_lang
 from src.llm.content_client import ContentClient
 from src.llm.llm_utils import extract_json
 
@@ -38,7 +39,13 @@ def _build_prompt(row: Any) -> str:
         answer = {"correct_answers": [], "wrong_answers": []}
     ca = answer.get("correct_answers")
     wa = answer.get("wrong_answers")
-    return ANSWERABILITY_FULL_PROMPT.format(
+    # 指令语言跟随样本语言；label 枚举两个版本都输出英文，_parse_response 无需改动。
+    template = (
+        ANSWERABILITY_FULL_PROMPT_ZH
+        if get_sample_lang(row.get("meta")) == "zh"
+        else ANSWERABILITY_FULL_PROMPT
+    )
+    return template.format(
         story=str(row.get("story", "") or ""),
         question=str(row.get("question", "") or ""),
         correct_answers=stringify_answer_list(ca if ca is not None else []),

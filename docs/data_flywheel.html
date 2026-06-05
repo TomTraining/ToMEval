@@ -6,18 +6,19 @@
     <title>ToMEval 数据飞轮技术报告</title>
     <style>
         :root {
-            --bg: #f5f7fb;
+            --blue-900: #073b78;
+            --blue-800: #0b4d93;
+            --blue-700: #1767b1;
+            --blue-100: #eaf3ff;
+            --blue-050: #f5f9ff;
+            --ink: #14243b;
+            --muted: #5d6b80;
+            --faint: #d9e4f2;
             --paper: #ffffff;
-            --ink: #101828;
-            --muted: #667085;
-            --line: #d9e1ec;
-            --blue: #2557c7;
-            --green: #157a5a;
-            --orange: #c26522;
-            --red: #c8332b;
-            --cyan: #147d93;
-            --yellow: #c99919;
-            --shadow: 0 30px 80px rgba(16, 24, 40, 0.13);
+            --green: #178f74;
+            --orange: #d57a21;
+            --red: #c83e3a;
+            --shadow: 0 24px 60px rgba(7, 59, 120, 0.12);
         }
 
         * { box-sizing: border-box; }
@@ -25,60 +26,111 @@
         html {
             scroll-snap-type: y mandatory;
             scroll-behavior: smooth;
-            background: var(--bg);
+            background: #eef4fb;
         }
 
         body {
             margin: 0;
             color: var(--ink);
-            font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
+            font-family: "Avenir Next", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
             background:
-                linear-gradient(90deg, rgba(16,24,40,0.05) 1px, transparent 1px),
-                linear-gradient(180deg, rgba(16,24,40,0.05) 1px, transparent 1px),
-                var(--bg);
-            background-size: 34px 34px;
+                linear-gradient(90deg, rgba(7, 59, 120, 0.06) 1px, transparent 1px),
+                linear-gradient(180deg, rgba(7, 59, 120, 0.05) 1px, transparent 1px),
+                #eef4fb;
+            background-size: 28px 28px;
+            overflow-x: hidden;
         }
 
         .slide {
             min-height: 100vh;
-            scroll-snap-align: start;
+            padding: 28px;
             display: grid;
             place-items: center;
-            padding: 34px;
+            scroll-snap-align: start;
         }
 
         .canvas {
-            width: min(1380px, 100%);
-            min-height: min(820px, calc(100vh - 68px));
-            padding: 44px 54px 34px;
+            width: 100%;
+            max-width: 1380px;
+            min-width: 0;
+            min-height: min(820px, calc(100vh - 56px));
             display: grid;
-            grid-template-rows: auto 1fr auto;
-            gap: 30px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(16, 24, 40, 0.1);
+            grid-template-columns: 74px 1fr;
+            background: var(--paper);
+            border: 1px solid rgba(7, 59, 120, 0.12);
             box-shadow: var(--shadow);
+            overflow: hidden;
         }
 
-        .canvas.plain {
-            background: transparent;
-            border: 0;
-            box-shadow: none;
+        .rail {
+            padding: 32px 0;
+            color: #fff;
+            background: linear-gradient(180deg, var(--blue-900), var(--blue-700));
+            display: grid;
+            justify-items: center;
+            align-content: space-between;
+        }
+
+        .rail strong {
+            writing-mode: vertical-rl;
+            letter-spacing: 0.12em;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .page {
+            writing-mode: vertical-rl;
+            font-size: 13px;
+            font-weight: 800;
+            opacity: 0.9;
+        }
+
+        .content {
+            min-width: 0;
+            padding: 34px 48px 32px;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 28px;
+            position: relative;
+        }
+
+        .content::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, var(--blue-900), var(--blue-700), #6aa4d9);
         }
 
         .top,
         .footer {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            gap: 24px;
+            justify-content: space-between;
+            gap: 20px;
             color: var(--muted);
             font-size: 13px;
-            font-weight: 750;
+            font-weight: 700;
         }
 
-        .top strong {
-            color: var(--ink);
-            font-size: 14px;
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--blue-900);
+        }
+
+        .mark {
+            width: 34px;
+            height: 34px;
+            border: 2px solid var(--blue-800);
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 900;
         }
 
         h1,
@@ -89,276 +141,245 @@
         }
 
         h1 {
-            max-width: 1120px;
-            font-size: 88px;
-            line-height: 1.02;
-            font-weight: 850;
+            color: var(--blue-900);
+            font-size: 64px;
+            line-height: 1.08;
             letter-spacing: 0;
+            font-weight: 860;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         h2 {
-            max-width: 1120px;
-            font-size: 68px;
-            line-height: 1.05;
-            font-weight: 850;
+            color: var(--blue-900);
+            font-size: 46px;
+            line-height: 1.16;
             letter-spacing: 0;
+            font-weight: 850;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         h3 {
-            font-size: 30px;
-            line-height: 1.16;
-            font-weight: 850;
+            color: var(--ink);
+            font-size: 26px;
+            line-height: 1.18;
             letter-spacing: 0;
+            font-weight: 820;
+        }
+
+        .kicker {
+            color: var(--blue-700);
+            font-size: 15px;
+            font-weight: 850;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
         .lead {
-            max-width: 940px;
             color: var(--muted);
-            font-size: 25px;
-            line-height: 1.5;
+            font-size: 24px;
+            line-height: 1.56;
+            max-width: 980px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .body {
+            min-width: 0;
             display: grid;
             align-content: center;
-            gap: 32px;
+            gap: 28px;
         }
 
-        .title-layout {
+        .cover {
+            grid-template-columns: 1fr;
+            background:
+                radial-gradient(circle at 88% 16%, rgba(23, 103, 177, 0.12), transparent 28%),
+                var(--paper);
+        }
+
+        .cover .content {
+            padding: 58px 72px 42px;
+        }
+
+        .cover-layout {
+            min-width: 0;
+            min-height: 560px;
             display: grid;
-            grid-template-columns: 1.05fr 0.95fr;
-            gap: 54px;
+            grid-template-columns: 1.02fr 0.98fr;
             align-items: center;
+            gap: 52px;
         }
 
-        .title-copy {
+        .cover-layout > * {
+            min-width: 0;
+        }
+
+        .cover-copy {
+            min-width: 0;
             display: grid;
             gap: 28px;
         }
 
-        .kicker {
-            display: inline-flex;
-            align-items: center;
-            gap: 14px;
-            color: var(--blue);
-            font-size: 16px;
-            font-weight: 850;
-        }
-
-        .kicker::before {
-            content: "";
-            width: 56px;
-            height: 5px;
-            background: currentColor;
-        }
-
-        .cover-graphic {
-            min-height: 620px;
-            position: relative;
-            background: var(--paper);
-            border: 2px solid var(--ink);
-            overflow: hidden;
-        }
-
-        .cover-graphic::before {
-            content: "";
-            position: absolute;
-            inset: 78px;
-            border: 34px solid var(--ink);
-            border-radius: 50%;
-            opacity: 0.08;
-        }
-
-        .cover-ring {
-            position: absolute;
-            inset: 92px;
-            border: 7px solid var(--ink);
-            border-radius: 50%;
-        }
-
-        .cover-ring::after {
-            content: "";
-            position: absolute;
-            top: 34px;
-            right: 28px;
-            width: 0;
-            height: 0;
-            border-left: 34px solid var(--ink);
-            border-top: 20px solid transparent;
-            border-bottom: 20px solid transparent;
-            transform: rotate(35deg);
-        }
-
-        .cover-caption {
-            position: absolute;
-            left: 46px;
-            right: 46px;
-            bottom: 42px;
-        }
-
-        .cover-caption strong {
-            display: block;
-            font-size: 42px;
-            line-height: 1.04;
-        }
-
-        .cover-caption span {
-            display: block;
-            margin-top: 10px;
-            color: var(--muted);
-            font-size: 18px;
-            line-height: 1.45;
+        .meta {
+            display: grid;
+            gap: 10px;
+            justify-self: end;
+            color: var(--blue-900);
+            font-size: 17px;
+            font-weight: 760;
         }
 
         .agenda {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 16px;
+            border: 1px solid var(--faint);
+        }
+
+        .agenda.six {
+            grid-template-columns: repeat(6, 1fr);
         }
 
         .agenda-item {
-            min-height: 420px;
-            padding: 28px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 9px solid var(--accent);
+            min-height: 360px;
+            padding: 28px 24px;
             display: grid;
             align-content: space-between;
+            border-right: 1px solid var(--faint);
+            background: linear-gradient(180deg, #fff, var(--blue-050));
         }
 
+        .agenda-item:last-child { border-right: 0; }
+
         .agenda-item small {
-            color: var(--accent);
+            color: var(--blue-700);
             font-size: 15px;
             font-weight: 900;
         }
 
         .agenda-item strong {
             display: block;
-            font-size: 32px;
-            line-height: 1.12;
+            color: var(--blue-900);
+            font-size: 28px;
+            line-height: 1.16;
         }
 
-        .agenda-item span {
+        .agenda-item span,
+        .card p,
+        .step p,
+        .lane p {
             color: var(--muted);
             font-size: 17px;
-            line-height: 1.45;
+            line-height: 1.5;
         }
 
         .section-cover {
             display: grid;
-            grid-template-columns: 0.7fr 1.3fr;
+            grid-template-columns: 0.48fr 1fr;
             align-items: center;
-            gap: 46px;
+            gap: 52px;
         }
 
         .section-no {
             color: transparent;
-            -webkit-text-stroke: 3px var(--ink);
-            font-size: 190px;
+            -webkit-text-stroke: 3px var(--blue-800);
+            font-size: 210px;
             line-height: 0.9;
             font-weight: 900;
         }
 
         .section-copy {
+            min-width: 0;
             display: grid;
             gap: 28px;
         }
 
-        .section-copy h2 {
-            font-size: 78px;
-        }
-
-        .compare {
+        .two-col {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 24px;
+            gap: 22px;
         }
 
-        .compare-panel {
-            min-height: 420px;
-            padding: 34px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 10px solid var(--accent);
+        .card {
+            min-height: 360px;
+            padding: 30px;
+            border: 1px solid var(--faint);
+            border-top: 6px solid var(--accent, var(--blue-700));
+            background: #fff;
             display: grid;
-            gap: 26px;
             align-content: start;
+            gap: 20px;
         }
 
-        .point-list {
-            display: grid;
-            gap: 18px;
-        }
+        .card.blue { --accent: var(--blue-700); }
+        .card.green { --accent: var(--green); }
+        .card.orange { --accent: var(--orange); }
+        .card.red { --accent: var(--red); }
 
-        .point {
+        .bullet-list {
             display: grid;
-            grid-template-columns: 34px 1fr;
             gap: 14px;
+        }
+
+        .bullet {
+            display: grid;
+            grid-template-columns: 28px 1fr;
+            gap: 12px;
             align-items: start;
             color: var(--muted);
-            font-size: 21px;
-            line-height: 1.42;
+            font-size: 19px;
+            line-height: 1.45;
         }
 
-        .dot {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            color: white;
-            background: var(--accent);
-            font-size: 15px;
-            font-weight: 900;
-        }
-
-        .framework {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 12px;
-            align-items: stretch;
-        }
-
-        .framework-card {
-            min-height: 220px;
-            padding: 22px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 8px solid var(--accent);
-            display: grid;
-            align-content: space-between;
-            gap: 18px;
-            position: relative;
-        }
-
-        .framework-card::after {
+        .bullet::before {
             content: "";
-            position: absolute;
-            right: -12px;
-            top: 50%;
-            width: 24px;
-            height: 3px;
-            background: var(--line);
+            width: 10px;
+            height: 10px;
+            margin-top: 8px;
+            border-radius: 50%;
+            background: var(--accent, var(--blue-700));
+            justify-self: center;
         }
 
-        .framework-card:last-child::after {
-            display: none;
+        .flywheel-wrap {
+            min-width: 0;
+            min-height: 560px;
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 28px;
+            align-items: center;
         }
 
-        .framework-card small {
-            color: var(--accent);
-            font-weight: 900;
-            font-size: 13px;
+        .diagram {
+            min-width: 0;
+            max-width: 100%;
+            width: 100%;
+            height: auto;
+            display: block;
         }
 
-        .framework-card strong {
-            font-size: 24px;
-            line-height: 1.16;
+        .note-panel {
+            display: grid;
+            gap: 14px;
         }
 
-        .framework-card span {
+        .note {
+            padding: 20px 22px;
+            border-left: 5px solid var(--blue-700);
+            background: var(--blue-050);
+        }
+
+        .note strong {
+            display: block;
+            color: var(--blue-900);
+            font-size: 20px;
+            margin-bottom: 6px;
+        }
+
+        .note span {
             color: var(--muted);
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.45;
         }
 
@@ -368,78 +389,212 @@
             gap: 24px;
         }
 
-        .module-card {
-            min-height: 520px;
-            padding: 38px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 11px solid var(--accent);
-            display: grid;
-            align-content: space-between;
-            gap: 28px;
-        }
-
-        .module-card h3 {
-            font-size: 48px;
-        }
-
-        .module-card p {
-            color: var(--muted);
-            font-size: 23px;
-            line-height: 1.48;
-        }
-
-        .module-steps {
-            display: grid;
-            gap: 13px;
-        }
-
-        .module-step {
-            padding: 17px 19px;
-            background: #f7f9fc;
-            border: 1px solid var(--line);
-            color: var(--ink);
-            font-size: 20px;
-            font-weight: 750;
-        }
-
-        .flow {
+        .module-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 14px;
         }
 
-        .flow-card {
-            min-height: 300px;
-            padding: 28px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 8px solid var(--accent);
+        .module {
+            min-height: 430px;
+            padding: 34px;
+            background: var(--blue-050);
+            border: 1px solid var(--faint);
             display: grid;
-            gap: 22px;
-            align-content: start;
+            gap: 26px;
         }
 
+        .module h3 {
+            color: var(--blue-900);
+            font-size: 38px;
+        }
+
+        .module .steps {
+            display: grid;
+            gap: 12px;
+        }
+
+        .step {
+            padding: 16px 18px;
+            background: #fff;
+            border: 1px solid var(--faint);
+        }
+
+        .step h3 {
+            font-size: 19px;
+            color: var(--blue-900);
+            margin-bottom: 8px;
+        }
+
+        .process-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .process-card {
+            min-height: 310px;
+            padding: 24px;
+            border: 1px solid var(--faint);
+            border-top: 6px solid var(--accent, var(--blue-700));
+            background: #fff;
+            display: grid;
+            align-content: start;
+            gap: 16px;
+        }
+
+        .process-card small {
+            color: var(--accent, var(--blue-700));
+            font-size: 13px;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+        }
+
+        .process-card strong {
+            color: var(--blue-900);
+            font-size: 24px;
+            line-height: 1.18;
+        }
+
+        .process-card span {
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.45;
+        }
+
+        .process-card.blue { --accent: var(--blue-700); }
+        .process-card.green { --accent: var(--green); }
+        .process-card.orange { --accent: var(--orange); }
+        .process-card.red { --accent: var(--red); }
+
+        .signal-matrix {
+            display: grid;
+            grid-template-columns: 1fr 1.08fr 1fr;
+            gap: 16px;
+        }
+
+        .signal-col {
+            min-height: 390px;
+            border: 1px solid var(--faint);
+            background: #fff;
+        }
+
+        .signal-col h3 {
+            padding: 20px 22px;
+            color: #fff;
+            background: var(--blue-800);
+            font-size: 22px;
+        }
+
+        .signal-row {
+            padding: 18px 22px;
+            border-top: 1px solid var(--faint);
+        }
+
+        .signal-row strong {
+            display: block;
+            color: var(--blue-900);
+            font-size: 18px;
+            margin-bottom: 7px;
+        }
+
+        .signal-row span {
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.42;
+        }
+
+        .quality-gates {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+        }
+
+        .gate {
+            min-height: 380px;
+            padding: 28px;
+            border: 1px solid var(--faint);
+            background: linear-gradient(180deg, #fff, var(--blue-050));
+            display: grid;
+            align-content: start;
+            gap: 18px;
+        }
+
+        .gate h3 {
+            color: var(--blue-900);
+            font-size: 28px;
+        }
+
+        .gate p,
+        .gate li {
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.45;
+        }
+
+        .gate ul {
+            margin: 0;
+            padding-left: 19px;
+            display: grid;
+            gap: 9px;
+        }
+
+        .pipeline-wide {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0;
+            border: 1px solid var(--faint);
+        }
+
+        .pipeline-wide .lane {
+            min-height: 280px;
+        }
+
+        .flow {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            border: 1px solid var(--faint);
+        }
+
+        .lane {
+            min-height: 330px;
+            padding: 28px 24px;
+            border-right: 1px solid var(--faint);
+            background: #fff;
+            display: grid;
+            align-content: start;
+            gap: 22px;
+            position: relative;
+        }
+
+        .lane:last-child { border-right: 0; }
+
+        .lane::after {
+            content: "";
+            position: absolute;
+            right: -13px;
+            top: 84px;
+            z-index: 2;
+            width: 26px;
+            height: 26px;
+            border-top: 3px solid var(--blue-700);
+            border-right: 3px solid var(--blue-700);
+            transform: rotate(45deg);
+            background: #fff;
+        }
+
+        .lane:last-child::after { display: none; }
+
         .num {
-            width: 46px;
-            height: 46px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
             display: grid;
             place-items: center;
             color: #fff;
-            background: var(--accent);
+            background: var(--blue-800);
             font-weight: 900;
-        }
-
-        .flow-card strong {
-            font-size: 28px;
-            line-height: 1.16;
-        }
-
-        .flow-card span {
-            color: var(--muted);
-            font-size: 18px;
-            line-height: 1.45;
         }
 
         .matrix {
@@ -448,130 +603,63 @@
             gap: 18px;
         }
 
-        .matrix-card {
-            min-height: 360px;
-            padding: 34px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 10px solid var(--accent);
+        .matrix .card {
+            min-height: 350px;
             position: relative;
             overflow: hidden;
         }
 
-        .matrix-card::after {
+        .matrix .card::after {
             content: attr(data-mark);
             position: absolute;
             right: 18px;
-            top: 8px;
+            bottom: -16px;
             color: var(--accent);
             opacity: 0.12;
-            font-size: 116px;
+            font-size: 118px;
             font-weight: 900;
-        }
-
-        .matrix-card h3 {
-            margin-top: 78px;
-            font-size: 44px;
-        }
-
-        .matrix-card p {
-            margin-top: 20px;
-            color: var(--muted);
-            font-size: 21px;
-            line-height: 1.48;
         }
 
         .decision {
             display: grid;
-            grid-template-columns: 1.1fr 0.9fr;
-            gap: 24px;
+            grid-template-columns: 1fr 320px;
+            gap: 26px;
+            align-items: stretch;
         }
 
-        .tree {
-            padding: 30px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            display: grid;
-            gap: 16px;
+        .decision-board {
+            padding: 24px;
+            border: 1px solid var(--faint);
+            background: #fff;
         }
 
-        .tree-row {
+        .outcomes {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
             gap: 14px;
         }
 
-        .node {
-            min-height: 126px;
-            padding: 20px;
-            background: #f7f9fc;
-            border: 1px solid var(--line);
-            border-left: 8px solid var(--accent);
+        .outcome {
+            padding: 24px;
+            border-left: 6px solid var(--accent);
+            background: var(--blue-050);
         }
 
-        .node strong {
+        .outcome strong {
+            color: var(--blue-900);
+            font-size: 24px;
+        }
+
+        .outcome span {
             display: block;
-            font-size: 20px;
-        }
-
-        .node span {
-            display: block;
-            margin-top: 9px;
-            color: var(--muted);
-            font-size: 15px;
-            line-height: 1.45;
-        }
-
-        .labels {
-            display: grid;
-            gap: 13px;
-        }
-
-        .label {
-            padding: 20px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-left: 8px solid var(--accent);
-            display: grid;
-            grid-template-columns: 120px 1fr;
-            gap: 16px;
-        }
-
-        .label strong {
-            font-size: 21px;
-        }
-
-        .label span {
+            margin-top: 8px;
             color: var(--muted);
             font-size: 16px;
             line-height: 1.45;
         }
 
-        .loop {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 14px;
-        }
-
-        .loop-card {
-            min-height: 210px;
-            padding: 26px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 8px solid var(--accent);
-            display: grid;
-            align-content: space-between;
-        }
-
-        .loop-card strong {
-            font-size: 26px;
-        }
-
-        .loop-card span {
-            color: var(--muted);
-            font-size: 17px;
-            line-height: 1.45;
-        }
+        .outcome.keep { --accent: var(--green); }
+        .outcome.repair { --accent: var(--orange); }
+        .outcome.drop { --accent: var(--red); }
 
         .result-grid {
             display: grid;
@@ -579,484 +667,473 @@
             gap: 16px;
         }
 
-        .result-card {
-            min-height: 260px;
-            padding: 28px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-top: 8px solid var(--accent);
+        .result {
+            min-height: 220px;
+            padding: 26px;
+            border: 1px solid var(--faint);
+            background: #fff;
             display: grid;
             align-content: space-between;
         }
 
-        .result-card strong {
-            font-size: 38px;
+        .result strong {
+            color: var(--blue-900);
+            font-size: 34px;
         }
 
-        .result-card span {
+        .result span {
             color: var(--muted);
-            font-size: 18px;
+            font-size: 17px;
             line-height: 1.45;
         }
 
         .final-line {
-            max-width: 1080px;
             justify-self: center;
+            max-width: 980px;
             text-align: center;
-            font-size: 42px;
-            line-height: 1.24;
+            color: var(--blue-900);
+            font-size: 36px;
+            line-height: 1.3;
             font-weight: 850;
         }
-
-        .blue { --accent: var(--blue); }
-        .green { --accent: var(--green); }
-        .orange { --accent: var(--orange); }
-        .red { --accent: var(--red); }
-        .cyan { --accent: var(--cyan); }
-        .yellow { --accent: var(--yellow); }
 
         @media (max-width: 1120px) {
             html { scroll-snap-type: none; }
             .slide { min-height: auto; padding: 18px; }
-            .canvas { min-height: auto; padding: 28px; }
-            h1 { font-size: 48px; }
-            h2, .section-copy h2 { font-size: 42px; }
-            .lead { font-size: 20px; }
-            .title-layout,
+            .canvas { min-height: auto; grid-template-columns: 1fr; }
+            .rail { display: none; }
+            .content,
+            .cover .content { padding: 30px 26px; }
+            h1 { font-size: 42px; }
+            h2 { font-size: 34px; }
+            .cover-layout,
             .section-cover,
-            .compare,
+            .flywheel-wrap,
+            .two-col,
             .module-split,
-            .decision {
+            .decision,
+            .signal-matrix {
                 grid-template-columns: 1fr;
             }
             .agenda,
-            .framework,
+            .agenda.six,
             .flow,
             .matrix,
-            .tree-row,
-            .loop,
-            .result-grid {
+            .result-grid,
+            .module-grid,
+            .process-grid,
+            .quality-gates,
+            .pipeline-wide {
                 grid-template-columns: 1fr;
             }
-            .framework-card::after { display: none; }
-            .cover-graphic { min-height: 420px; }
-            .section-no { font-size: 110px; }
+            .agenda-item,
+            .lane {
+                min-height: auto;
+                border-right: 0;
+                border-bottom: 1px solid var(--faint);
+            }
+            .pipeline-wide .lane { min-height: auto; }
+            .lane::after { display: none; }
+            .section-no { font-size: 120px; }
         }
 
         @media (max-width: 640px) {
-            .canvas { padding: 22px; }
             .top,
             .footer {
                 align-items: flex-start;
                 flex-direction: column;
             }
-            h1 { font-size: 36px; }
-            h2, .section-copy h2 { font-size: 32px; }
-            h3, .module-card h3, .matrix-card h3 { font-size: 28px; }
-            .label {
-                grid-template-columns: 1fr;
+            h1 {
+                font-size: 31px;
+                word-break: break-all;
+            }
+            h2 { font-size: 28px; }
+            h3 { font-size: 22px; }
+            .lead { font-size: 19px; }
+            .cover-layout { gap: 28px; }
+            br.mobile-only { display: block; }
+            .cover-copy {
+                width: min(100%, 300px);
+            }
+            .cover .diagram {
+                width: min(100%, 300px);
+                justify-self: center;
             }
         }
+
+        .mobile-only { display: none; }
     </style>
 </head>
 <body>
-    <section class="slide">
-        <div class="canvas plain">
-            <div class="top">
-                <strong>ToMEval Data Flywheel</strong>
-                <span>01 / 12</span>
-            </div>
-            <div class="title-layout">
-                <div class="title-copy">
-                    <div class="kicker">Technical Report</div>
-                    <h1>数据飞轮：从评测反馈到高质量训练数据</h1>
-                    <p class="lead">围绕模型真实错误定向生成数据，再用质量评估筛出真正有训练价值的样本。</p>
+    <section class="slide" id="cover">
+        <div class="canvas cover">
+            <main class="content">
+                <div class="top">
+                    <div class="brand"><span class="mark">ICT</span><strong>ToMEval Research Report</strong></div>
+                    <span>01 / 16</span>
                 </div>
-                <div class="cover-graphic">
-                    <div class="cover-ring"></div>
-                    <div class="cover-caption">
-                        <strong>Evaluate → Generate → Filter → Train</strong>
-                        <span>把一次性数据合成，升级为持续收敛的数据工程闭环。</span>
+                <div class="cover-layout">
+                    <div class="cover-copy">
+                        <div class="kicker">Data-Centric Evaluation</div>
+                        <h1>数据飞轮：<br class="mobile-only">从评测到训练的<br class="mobile-only">数据闭环</h1>
+                        <p class="lead">以评测暴露的真实错误为起点，经过反馈合成、质量过滤和训练回归，形成可持续的数据工程闭环。</p>
                     </div>
+                    <svg class="diagram" viewBox="0 0 620 520" role="img" aria-label="数据飞轮封面图">
+                        <defs>
+                            <marker id="arrow-cover" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+                                <path d="M0,0 L12,6 L0,12 Z" fill="#0b4d93"></path>
+                            </marker>
+                            <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#073b78" flood-opacity="0.16"></feDropShadow>
+                            </filter>
+                        </defs>
+                        <circle cx="310" cy="260" r="168" fill="#f5f9ff" stroke="#d9e4f2" stroke-width="2"></circle>
+                        <path d="M310 86 A174 174 0 0 1 484 260" fill="none" stroke="#0b4d93" stroke-width="16" stroke-linecap="round" marker-end="url(#arrow-cover)"></path>
+                        <path d="M484 260 A174 174 0 0 1 310 434" fill="none" stroke="#1767b1" stroke-width="16" stroke-linecap="round" marker-end="url(#arrow-cover)"></path>
+                        <path d="M310 434 A174 174 0 0 1 136 260" fill="none" stroke="#178f74" stroke-width="16" stroke-linecap="round" marker-end="url(#arrow-cover)"></path>
+                        <path d="M136 260 A174 174 0 0 1 310 86" fill="none" stroke="#d57a21" stroke-width="16" stroke-linecap="round" marker-end="url(#arrow-cover)"></path>
+                        <g filter="url(#soft-shadow)">
+                            <rect x="218" y="200" width="184" height="120" rx="8" fill="#ffffff" stroke="#b9cbe0"></rect>
+                            <text x="310" y="246" text-anchor="middle" fill="#073b78" font-size="28" font-weight="800">ToMEval</text>
+                            <text x="310" y="280" text-anchor="middle" fill="#5d6b80" font-size="18" font-weight="700">Data Flywheel</text>
+                        </g>
+                        <g font-weight="800" font-size="18" fill="#14243b">
+                            <text x="310" y="58" text-anchor="middle">Evaluate</text>
+                            <text x="542" y="266" text-anchor="middle">Feedback</text>
+                            <text x="310" y="482" text-anchor="middle">Filter</text>
+                            <text x="78" y="266" text-anchor="middle">Train</text>
+                        </g>
+                    </svg>
                 </div>
-            </div>
-            <div class="footer">
-                <span>Feedback: 发现方向</span>
-                <span>Filter: 守住入口</span>
-            </div>
+                <div class="footer"><span>Eval 暴露问题</span><span>Train 验证数据价值</span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="agenda">
         <div class="canvas">
-            <div class="top">
-                <strong>Agenda</strong>
-                <span>02 / 12</span>
-            </div>
-            <div class="body">
-                <h2>报告结构</h2>
-                <div class="agenda">
-                    <div class="agenda-item blue">
-                        <small>01</small>
-                        <strong>背景</strong>
-                        <span>为什么随机造数不够，为什么需要从评测反馈出发。</span>
-                    </div>
-                    <div class="agenda-item cyan">
-                        <small>02</small>
-                        <strong>整体框架</strong>
-                        <span>数据飞轮如何连接评测、生成、过滤和训练。</span>
-                    </div>
-                    <div class="agenda-item green">
-                        <small>03</small>
-                        <strong>Feedback</strong>
-                        <span>如何从模型错误中归纳生成方向。</span>
-                    </div>
-                    <div class="agenda-item orange">
-                        <small>04</small>
-                        <strong>Filter</strong>
-                        <span>如何判断候选样本是否能进入训练。</span>
-                    </div>
-                    <div class="agenda-item red">
-                        <small>05</small>
-                        <strong>结果</strong>
-                        <span>这套闭环最终带来什么数据收益。</span>
+            <aside class="rail"><strong>AGENDA</strong><span class="page">02 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">ICT</span><strong>报告结构</strong></div><span>ToMEval Data Flywheel</span></div>
+                <div class="body">
+                    <h2>围绕一个问题展开：评测结果怎样变成下一轮高价值训练数据？</h2>
+                    <div class="agenda six">
+                        <div class="agenda-item"><small>01</small><strong>背景</strong><span>为什么随机合成无法稳定提升 ToM 能力。</span></div>
+                        <div class="agenda-item"><small>02</small><strong>框架</strong><span>四模块闭环如何形成数据飞轮。</span></div>
+                        <div class="agenda-item"><small>03</small><strong>Evaluate</strong><span>如何把评测转成反馈信号。</span></div>
+                        <div class="agenda-item"><small>04</small><strong>Feedback</strong><span>如何从错误中生成候选数据。</span></div>
+                        <div class="agenda-item"><small>05</small><strong>Filter</strong><span>如何控制样本训练价值。</span></div>
+                        <div class="agenda-item"><small>06</small><strong>Train</strong><span>如何回归评测并启动下一轮。</span></div>
                     </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>先讲问题，再讲系统，再讲模块。</span>
-                <span></span>
-            </div>
+                <div class="footer"><span>先讲为什么需要闭环，再拆开四个模块。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="background">
         <div class="canvas">
-            <div class="top">
-                <strong>01 / 背景</strong>
-                <span>03 / 12</span>
-            </div>
-            <div class="section-cover">
-                <div class="section-no">01</div>
-                <div class="section-copy">
-                    <h2>背景：数据规模不等于训练价值</h2>
-                    <p class="lead">ToM 训练数据的关键不是“更多”，而是“更贴近模型短板、更少噪声、更需要真实推理”。</p>
+            <aside class="rail"><strong>BACKGROUND</strong><span class="page">03 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">01</span><strong>研究背景</strong></div><span>Data quality over volume</span></div>
+                <div class="section-cover">
+                    <div class="section-no">01</div>
+                    <div class="section-copy">
+                        <h2>数据规模不等于训练价值</h2>
+                        <p class="lead">ToM 训练数据的关键不是“更多”，而是“更贴近模型短板、更少噪声、更需要真实推理”。数据价值来自模型短板对齐和严格质量准入。</p>
+                    </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>Background</span>
-                <span>从数量增长转向质量闭环。</span>
-            </div>
+                <div class="footer"><span>从数量增长转向质量闭环。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="problem">
         <div class="canvas">
-            <div class="top">
-                <strong>01 / 背景</strong>
-                <span>04 / 12</span>
-            </div>
-            <div class="body">
-                <h2>为什么不能只靠随机合成</h2>
-                <div class="compare">
-                    <div class="compare-panel red">
-                        <h3>随机合成的问题</h3>
-                        <div class="point-list">
-                            <div class="point"><span class="dot">1</span><span>不知道模型真正弱在哪个能力维度。</span></div>
-                            <div class="point"><span class="dot">2</span><span>新增样本可能只是已有模式的重复变体。</span></div>
-                            <div class="point"><span class="dot">3</span><span>简单题、坏题、捷径题会混入训练池。</span></div>
+            <aside class="rail"><strong>PROBLEM</strong><span class="page">04 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">01</span><strong>问题定义</strong></div><span>Random generation is insufficient</span></div>
+                <div class="body">
+                    <h2>随机合成缺少可追踪的改进路径</h2>
+                    <div class="two-col">
+                        <div class="card red">
+                            <h3>随机合成的局限</h3>
+                            <div class="bullet-list">
+                                <div class="bullet">不知道模型真正弱在哪个能力维度。</div>
+                                <div class="bullet">新增样本可能只是已有模式的重复变体。</div>
+                                <div class="bullet">简单题、坏题、捷径题会混入训练池。</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="compare-panel green">
-                        <h3>飞轮要解决的问题</h3>
-                        <div class="point-list">
-                            <div class="point"><span class="dot">1</span><span>用评测错误定位模型短板。</span></div>
-                            <div class="point"><span class="dot">2</span><span>围绕短板定向合成下一轮数据。</span></div>
-                            <div class="point"><span class="dot">3</span><span>用质量评估决定训练入口。</span></div>
+                        <div class="card green">
+                            <h3>闭环必须回答的四个问题</h3>
+                            <div class="bullet-list">
+                                <div class="bullet">模型错在哪里：Evaluate 产生可定位信号。</div>
+                                <div class="bullet">下一轮补什么：Feedback 形成生成计划。</div>
+                                <div class="bullet">候选是否合格：Filter 决定保留或修复。</div>
+                                <div class="bullet">训练是否有效：Train 后回到评测验证。</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>评测不是终点，而是下一轮数据生成的起点。</span>
-                <span></span>
-            </div>
+                <div class="footer"><span>评测不是终点，而是下一轮数据生成的起点。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="framework">
         <div class="canvas">
-            <div class="top">
-                <strong>02 / 整体框架</strong>
-                <span>05 / 12</span>
-            </div>
-            <div class="body">
-                <h2>整体框架：从模型错误到下一轮训练</h2>
-                <div class="framework">
-                    <div class="framework-card blue">
-                        <small>STEP 1</small>
-                        <strong>模型评测</strong>
-                        <span>暴露模型在不同 ToM 能力上的失败点。</span>
-                    </div>
-                    <div class="framework-card cyan">
-                        <small>STEP 2</small>
-                        <strong>错误诊断</strong>
-                        <span>把零散 bad case 归纳为稳定失败模式。</span>
-                    </div>
-                    <div class="framework-card green">
-                        <small>STEP 3</small>
-                        <strong>反馈合成</strong>
-                        <span>围绕失败模式生成下一批候选数据。</span>
-                    </div>
-                    <div class="framework-card orange">
-                        <small>STEP 4</small>
-                        <strong>质量过滤</strong>
-                        <span>判断样本难度、可答性和捷径风险。</span>
-                    </div>
-                    <div class="framework-card yellow">
-                        <small>STEP 5</small>
-                        <strong>修复迭代</strong>
-                        <span>问题样本修复后重新接受评估。</span>
-                    </div>
-                    <div class="framework-card red">
-                        <small>STEP 6</small>
-                        <strong>模型训练</strong>
-                        <span>高价值样本进入训练，推动下一轮评测。</span>
-                    </div>
-                </div>
-            </div>
-            <div class="footer">
-                <span>闭环结构比单向流水线更关键。</span>
-                <span></span>
-            </div>
-        </div>
-    </section>
-
-    <section class="slide">
-        <div class="canvas">
-            <div class="top">
-                <strong>02 / 模块分工</strong>
-                <span>06 / 12</span>
-            </div>
-            <div class="body">
-                <h2>两个核心模块：一个找方向，一个守入口</h2>
-                <div class="module-split">
-                    <div class="module-card green">
-                        <div>
-                            <h3>Feedback</h3>
-                            <p>从评测失败中发现模型短板，并把短板转化为下一轮候选数据的生成方向。</p>
-                        </div>
-                        <div class="module-steps">
-                            <div class="module-step">聚合模型错误</div>
-                            <div class="module-step">归纳能力维度</div>
-                            <div class="module-step">定向生成候选</div>
-                        </div>
-                    </div>
-                    <div class="module-card orange">
-                        <div>
-                            <h3>Filter</h3>
-                            <p>对候选数据做质量裁决，确保进入训练池的样本有难度、可答、无捷径。</p>
-                        </div>
-                        <div class="module-steps">
-                            <div class="module-step">评估样本难度</div>
-                            <div class="module-step">判断是否可答</div>
-                            <div class="module-step">识别表面捷径</div>
+            <aside class="rail"><strong>FRAMEWORK</strong><span class="page">05 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">02</span><strong>整体框架</strong></div><span>Closed-loop data engineering</span></div>
+                <div class="body">
+                    <h2>四模块数据飞轮：Eval → Feedback → Filter → Train</h2>
+                    <div class="flywheel-wrap">
+                        <svg class="diagram" viewBox="0 0 760 560" role="img" aria-label="数据飞轮整体框架">
+                            <defs><marker id="arrow-main" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L12,6 L0,12 Z" fill="#0b4d93"></path></marker></defs>
+                            <rect x="18" y="20" width="724" height="520" fill="#ffffff" stroke="#d9e4f2"></rect>
+                            <circle cx="380" cy="280" r="158" fill="#f5f9ff" stroke="#b9cbe0" stroke-width="2"></circle>
+                            <path d="M380 92 A188 188 0 0 1 568 280" fill="none" stroke="#0b4d93" stroke-width="12" stroke-linecap="round" marker-end="url(#arrow-main)"></path>
+                            <path d="M568 280 A188 188 0 0 1 380 468" fill="none" stroke="#1767b1" stroke-width="12" stroke-linecap="round" marker-end="url(#arrow-main)"></path>
+                            <path d="M380 468 A188 188 0 0 1 192 280" fill="none" stroke="#178f74" stroke-width="12" stroke-linecap="round" marker-end="url(#arrow-main)"></path>
+                            <path d="M192 280 A188 188 0 0 1 380 92" fill="none" stroke="#d57a21" stroke-width="12" stroke-linecap="round" marker-end="url(#arrow-main)"></path>
+                            <g fill="#fff" stroke="#b9cbe0" stroke-width="2">
+                                <rect x="294" y="54" width="172" height="72" rx="8"></rect><rect x="560" y="244" width="148" height="72" rx="8"></rect><rect x="294" y="434" width="172" height="72" rx="8"></rect><rect x="52" y="244" width="148" height="72" rx="8"></rect>
+                            </g>
+                            <g text-anchor="middle" font-weight="820">
+                                <text x="380" y="84" fill="#073b78" font-size="20">Evaluate</text><text x="380" y="111" fill="#5d6b80" font-size="14">暴露失败点</text>
+                                <text x="634" y="274" fill="#073b78" font-size="20">Feedback</text><text x="634" y="301" fill="#5d6b80" font-size="14">定向生成</text>
+                                <text x="380" y="464" fill="#073b78" font-size="20">Filter</text><text x="380" y="491" fill="#5d6b80" font-size="14">控制入口</text>
+                                <text x="126" y="274" fill="#073b78" font-size="20">Train</text><text x="126" y="301" fill="#5d6b80" font-size="14">更新能力</text>
+                            </g>
+                            <rect x="286" y="218" width="188" height="124" rx="8" fill="#073b78"></rect>
+                            <text x="380" y="266" text-anchor="middle" fill="#fff" font-size="24" font-weight="850">能力缺口</text>
+                            <text x="380" y="302" text-anchor="middle" fill="#cfe4fb" font-size="16" font-weight="700">error patterns to data</text>
+                        </svg>
+                        <div class="note-panel">
+                            <div class="note"><strong>Evaluate</strong><span>把模型输出转成分数、错误样本和能力缺口。</span></div>
+                            <div class="note"><strong>Feedback + Filter</strong><span>一个决定补什么，一个决定什么样本能进训练。</span></div>
+                            <div class="note"><strong>Train</strong><span>用版本化训练和回归评测验证数据是否真的有效。</span></div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>Feedback 负责“造得准”，Filter 负责“筛得干净”。</span>
-                <span></span>
-            </div>
+                <div class="footer"><span>闭环结构比单向流水线更关键。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="modules">
         <div class="canvas">
-            <div class="top">
-                <strong>03 / Feedback 模块</strong>
-                <span>07 / 12</span>
-            </div>
-            <div class="section-cover">
-                <div class="section-no">03</div>
-                <div class="section-copy">
-                    <h2>Feedback：从错误中提炼生成方向</h2>
-                    <p class="lead">核心不是改写错题，而是把一批错题抽象成稳定的能力缺口和合成主题。</p>
-                </div>
-            </div>
-            <div class="footer">
-                <span>Feedback</span>
-                <span>模型错误 → 能力诊断 → 定向合成。</span>
-            </div>
-        </div>
-    </section>
-
-    <section class="slide">
-        <div class="canvas">
-            <div class="top">
-                <strong>03 / Feedback 模块</strong>
-                <span>08 / 12</span>
-            </div>
-            <div class="body">
-                <h2>Feedback 的方法链路</h2>
-                <div class="flow">
-                    <div class="flow-card blue">
-                        <div class="num">1</div>
-                        <strong>Bad Case 聚合</strong>
-                        <span>收集多个模型答错的样本，覆盖更广的失败空间。</span>
-                    </div>
-                    <div class="flow-card cyan">
-                        <div class="num">2</div>
-                        <strong>维度诊断</strong>
-                        <span>按能力维度归纳 common error patterns。</span>
-                    </div>
-                    <div class="flow-card green">
-                        <div class="num">3</div>
-                        <strong>定向合成</strong>
-                        <span>围绕失败模式生成同类但不重复的新问题。</span>
-                    </div>
-                    <div class="flow-card yellow">
-                        <div class="num">4</div>
-                        <strong>污染控制</strong>
-                        <span>降低重复样本和测试集相似样本带来的风险。</span>
+            <aside class="rail"><strong>MODULES</strong><span class="page">06 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">02</span><strong>四模块协同</strong></div><span>Input, process, output</span></div>
+                <div class="body">
+                    <h2>每一环都要产出下一环可消费的工程对象</h2>
+                    <div class="process-grid">
+                        <div class="process-card blue"><small>EVALUATE</small><strong>模型与基准集</strong><span>批量推理、计算指标、聚合 bad cases，输出 scores / failed samples / error tags。</span></div>
+                        <div class="process-card green"><small>FEEDBACK</small><strong>错误到生成计划</strong><span>按能力维度归因，生成目标能力、题型、难度和约束，输出候选样本池。</span></div>
+                        <div class="process-card orange"><small>FILTER</small><strong>候选到训练准入</strong><span>检查难度、可答性和捷径风险，输出 keep / repair / drop 的分流结果。</span></div>
+                        <div class="process-card red"><small>TRAIN</small><strong>数据到模型版本</strong><span>版本化入池、混合采样训练、回归评测，输出新模型和下一轮弱点。</span></div>
                     </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>从“逐条改写”升级为“按能力维度生成”。</span>
-                <span></span>
-            </div>
+                <div class="footer"><span>数据飞轮的关键是接口清楚，而不是只画循环箭头。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="evaluate-flow">
         <div class="canvas">
-            <div class="top">
-                <strong>04 / Filter 模块</strong>
-                <span>09 / 12</span>
-            </div>
-            <div class="section-cover">
-                <div class="section-no">04</div>
-                <div class="section-copy">
-                    <h2>Filter：从候选数据中筛出训练价值</h2>
-                    <p class="lead">合成数据不能生成即用。Filter 要判断样本是否太简单、是否不可答、是否存在捷径。</p>
-                </div>
-            </div>
-            <div class="footer">
-                <span>Filter</span>
-                <span>候选样本 → 质量裁决 → 训练池。</span>
-            </div>
-        </div>
-    </section>
-
-    <section class="slide">
-        <div class="canvas">
-            <div class="top">
-                <strong>04 / Filter 模块</strong>
-                <span>10 / 12</span>
-            </div>
-            <div class="body">
-                <h2>Filter 的三类核心判断</h2>
-                <div class="matrix">
-                    <div class="matrix-card yellow" data-mark="E">
-                        <h3>难度判断</h3>
-                        <p>弱模型多次答对，说明样本太简单，训练增益低。</p>
+            <aside class="rail"><strong>EVALUATE</strong><span class="page">07 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">03</span><strong>Evaluate 模块</strong></div><span>Evaluation to feedback signals</span></div>
+                <div class="body">
+                    <h2>评测产生可用于数据生成的反馈信号</h2>
+                    <div class="flow">
+                        <div class="lane"><div class="num">1</div><h3>选择模型与数据集</h3><p>固定模型版本、任务配置和评测 split，保证每轮结果可复现。</p></div>
+                        <div class="lane"><div class="num">2</div><h3>批量推理</h3><p>记录模型答案、置信表达、拒答和格式错误，保留原始输出。</p></div>
+                        <div class="lane"><div class="num">3</div><h3>指标计算</h3><p>按任务计算 accuracy、pass/fail、维度分数和模型间差异。</p></div>
+                        <div class="lane"><div class="num">4</div><h3>错误收集</h3><p>聚合 failed samples，形成 bad case pool 进入诊断。</p></div>
                     </div>
-                    <div class="matrix-card red" data-mark="B">
-                        <h3>可答性判断</h3>
-                        <p>强模型判断样本是否自洽，排除歧义、矛盾和标签错误。</p>
-                    </div>
-                    <div class="matrix-card blue" data-mark="S">
-                        <h3>捷径判断</h3>
-                        <p>移除部分上下文后仍能答对，说明模型可能不需要真正推理。</p>
+                    <div class="note-panel">
+                        <div class="note"><strong>输出对象</strong><span>score table、failed samples、per-model weakness profile、可追踪实验目录。</span></div>
                     </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>这三类判断共同决定样本是否能进入训练。</span>
-                <span></span>
-            </div>
+                <div class="footer"><span>Evaluate 不只是打分，而是为 Feedback 提供结构化信号。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
+    <section class="slide" id="evaluate-diagnosis">
         <div class="canvas">
-            <div class="top">
-                <strong>04 / Filter 模块</strong>
-                <span>11 / 12</span>
-            </div>
-            <div class="body">
-                <h2>决策树：保留、修复、丢弃</h2>
-                <div class="decision">
-                    <div class="tree">
-                        <div class="tree-row">
-                            <div class="node blue"><strong>pass@k</strong><span>先用弱模型区分样本难度。</span></div>
-                            <div class="node cyan"><strong>answerability</strong><span>再判断题目是否可答、逻辑是否自洽。</span></div>
-                            <div class="node blue"><strong>shortcut probe</strong><span>最后检查是否存在不依赖推理的捷径。</span></div>
+            <aside class="rail"><strong>EVALUATE</strong><span class="page">08 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">03</span><strong>错误诊断</strong></div><span>Bad cases to capability gaps</span></div>
+                <div class="body">
+                    <h2>从错误样本到能力缺口</h2>
+                    <div class="signal-matrix">
+                        <div class="signal-col"><h3>错误类型</h3><div class="signal-row"><strong>belief tracking</strong><span>无法持续追踪角色信念状态。</span></div><div class="signal-row"><strong>false belief</strong><span>混淆真实世界与角色所知信息。</span></div><div class="signal-row"><strong>multi-agent reasoning</strong><span>多角色嵌套意图推理失败。</span></div></div>
+                        <div class="signal-col"><h3>错误强度</h3><div class="signal-row"><strong>single-model fail</strong><span>单个模型失败，用于模型画像。</span></div><div class="signal-row"><strong>multi-model fail</strong><span>多个模型失败，说明是稳定短板。</span></div><div class="signal-row"><strong>strong-model fail</strong><span>强模型也失败，优先检查题目质量。</span></div></div>
+                        <div class="signal-col"><h3>生成价值</h3><div class="signal-row"><strong>低优先级</strong><span>偶发格式问题或标签噪声。</span></div><div class="signal-row"><strong>可用于反馈</strong><span>错误稳定且能力归因清楚。</span></div><div class="signal-row"><strong>高价值补强</strong><span>多模型失败、可解释、可扩展成新题型。</span></div></div>
+                    </div>
+                </div>
+                <div class="footer"><span>只有可归因的错误，才适合作为下一轮生成方向。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="feedback-overview">
+        <div class="canvas">
+            <aside class="rail"><strong>FEEDBACK</strong><span class="page">09 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">04</span><strong>Feedback 模块</strong></div><span>Error patterns to generation plans</span></div>
+                <div class="section-cover">
+                    <div class="section-no">04</div>
+                    <div class="section-copy">
+                        <h2>从错误中提炼生成方向</h2>
+                        <p class="lead">Feedback 的输入是 bad cases、错误标签、能力缺口和数据集 schema；输出不是单条改写，而是 generation instruction、target capability、constraints 和 candidate samples。</p>
+                    </div>
+                </div>
+                <div class="footer"><span>模型错误到能力诊断，再到定向合成。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="feedback-flow">
+        <div class="canvas">
+            <aside class="rail"><strong>FEEDBACK</strong><span class="page">10 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">04</span><strong>方法链路</strong></div><span>Bad cases to candidates</span></div>
+                <div class="body">
+                    <h2>Feedback 流程：诊断、规划、生成、去重</h2>
+                    <div class="flow">
+                        <div class="lane"><div class="num">1</div><h3>错误聚合</h3><p>按任务、能力维度和模型失败模式聚合 bad cases，避免被单条异常样本带偏。</p></div>
+                        <div class="lane"><div class="num">2</div><h3>能力归因</h3><p>判断失败来自 ToM 推理、语境理解、标签歧义还是输出格式问题。</p></div>
+                        <div class="lane"><div class="num">3</div><h3>生成计划</h3><p>明确需要补强的能力、题型、上下文结构、难度区间和禁止泄漏信息。</p></div>
+                        <div class="lane"><div class="num">4</div><h3>候选合成</h3><p>生成同能力、不同表面的新样本，并保留生成来源和目标能力标签。</p></div>
+                    </div>
+                </div>
+                <div class="footer"><span>从“逐条改写”升级为“按能力维度生成”。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="feedback-quality">
+        <div class="canvas">
+            <aside class="rail"><strong>FEEDBACK</strong><span class="page">11 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">04</span><strong>生成质量控制</strong></div><span>De-duplication and contamination control</span></div>
+                <div class="body">
+                    <h2>候选数据进入 Filter 前先控制重复和污染</h2>
+                    <div class="quality-gates">
+                        <div class="gate"><h3>相似度控制</h3><p>检查候选样本与原测试样本、训练样本的语义和结构相似度。</p><ul><li>降低测试集污染风险</li><li>避免直接改写原题</li><li>保留能力相似但表面不同</li></ul></div>
+                        <div class="gate"><h3>模板重复控制</h3><p>统计角色、事件、问法和答案位置分布，避免生成池被少数模板主导。</p><ul><li>控制题型多样性</li><li>控制角色和场景重复</li><li>避免答案模式偏置</li></ul></div>
+                        <div class="gate"><h3>标签泄漏控制</h3><p>检查题面是否直接暴露答案，或通过表面关键词让模型绕过 ToM 推理。</p><ul><li>移除提示性措辞</li><li>检查选项泄漏</li><li>标记高风险样本</li></ul></div>
+                    </div>
+                </div>
+                <div class="footer"><span>输出为 candidate pool，交给 Filter 做训练准入裁决。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="filter-overview">
+        <div class="canvas">
+            <aside class="rail"><strong>FILTER</strong><span class="page">12 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">05</span><strong>Filter 模块</strong></div><span>Quality gate for generated data</span></div>
+                <div class="section-cover">
+                    <div class="section-no">05</div>
+                    <div class="section-copy">
+                        <h2>从候选数据中筛出训练价值</h2>
+                        <p class="lead">Filter 的输入是 candidate pool；核心判断是难度、可答性和捷径风险；输出是 keep、repair、drop 三类去向，决定样本是否能进入训练闭环。</p>
+                    </div>
+                </div>
+                <div class="footer"><span>候选样本到质量裁决，再到训练池。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="filter-matrix">
+        <div class="canvas">
+            <aside class="rail"><strong>FILTER</strong><span class="page">13 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">05</span><strong>质量判断</strong></div><span>Difficulty, answerability, shortcut</span></div>
+                <div class="body">
+                    <h2>Filter 流程：难度、可答性、捷径检测</h2>
+                    <div class="quality-gates">
+                        <div class="gate"><h3>难度判断</h3><p>用弱模型 pass@k 或多模型通过率判断 easy / medium / hard。</p><ul><li>easy：训练增益低，优先修复或降权</li><li>medium：可作为稳定训练样本</li><li>hard：高价值补强样本</li></ul></div>
+                        <div class="gate"><h3>可答性判断</h3><p>用强模型和规则检查题目是否自洽、标签是否一致、信息是否充分。</p><ul><li>排除逻辑矛盾</li><li>排除标签错误</li><li>标记轻微歧义进入 repair</li></ul></div>
+                        <div class="gate"><h3>捷径判断</h3><p>遮蔽关键上下文后重测，如果仍能答对，说明样本可能不需要真正推理。</p><ul><li>检查关键词泄漏</li><li>检查选项偏置</li><li>检查背景常识直答</li></ul></div>
+                    </div>
+                </div>
+                <div class="footer"><span>三类判断共同决定样本是否能进入训练。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="filter-decision">
+        <div class="canvas">
+            <aside class="rail"><strong>DECISION</strong><span class="page">14 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">05</span><strong>过滤决策</strong></div><span>Keep, repair, drop</span></div>
+                <div class="body">
+                    <h2>决策树：保留、修复、丢弃</h2>
+                    <div class="decision">
+                        <div class="decision-board">
+                            <svg class="diagram" viewBox="0 0 760 390" role="img" aria-label="Filter 决策树">
+                                <defs><marker id="arrow-tree" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 Z" fill="#0b4d93"></path></marker></defs>
+                                <g fill="#fff" stroke="#b9cbe0" stroke-width="2"><rect x="270" y="22" width="220" height="62" rx="8"></rect><rect x="64" y="142" width="178" height="62" rx="8"></rect><rect x="291" y="142" width="178" height="62" rx="8"></rect><rect x="518" y="142" width="178" height="62" rx="8"></rect><rect x="64" y="284" width="178" height="62" rx="8"></rect><rect x="291" y="284" width="178" height="62" rx="8"></rect><rect x="518" y="284" width="178" height="62" rx="8"></rect></g>
+                                <g stroke="#0b4d93" stroke-width="2.5" fill="none" marker-end="url(#arrow-tree)"><path d="M380 84 C380 116 153 112 153 142"></path><path d="M380 84 C380 116 380 112 380 142"></path><path d="M380 84 C380 116 607 112 607 142"></path><path d="M153 204 L153 284"></path><path d="M380 204 L380 284"></path><path d="M607 204 L607 284"></path></g>
+                                <g text-anchor="middle" font-weight="800"><text x="380" y="60" fill="#073b78" font-size="20">候选样本</text><text x="153" y="180" fill="#073b78" font-size="18">difficulty</text><text x="380" y="180" fill="#073b78" font-size="18">answerability</text><text x="607" y="180" fill="#073b78" font-size="18">shortcut</text><text x="153" y="322" fill="#178f74" font-size="18">keep</text><text x="380" y="322" fill="#d57a21" font-size="18">repair</text><text x="607" y="322" fill="#c83e3a" font-size="18">drop</text></g>
+                            </svg>
                         </div>
-                        <div class="tree-row">
-                            <div class="node green"><strong>hard</strong><span>弱模型答不出，但题目可答。</span></div>
-                            <div class="node green"><strong>medium</strong><span>有一定难度，可答，且无捷径。</span></div>
-                            <div class="node orange"><strong>repair</strong><span>easy、bad、shortcut 分别定向修复。</span></div>
+                        <div class="outcomes">
+                            <div class="outcome keep"><strong>保留</strong><span>hard / medium、可答、无明显捷径，进入训练池。</span></div>
+                            <div class="outcome repair"><strong>修复</strong><span>有价值但难度不足、轻微歧义或上下文不完整，回到候选池重检。</span></div>
+                            <div class="outcome drop"><strong>丢弃</strong><span>不可答、标签冲突、污染风险高或多轮修复失败。</span></div>
                         </div>
                     </div>
-                    <div class="labels">
-                        <div class="label green"><strong>保留</strong><span>hard / medium 进入训练池。</span></div>
-                        <div class="label orange"><strong>修复</strong><span>提高难度、修正逻辑、重写题面。</span></div>
-                        <div class="label red"><strong>丢弃</strong><span>多轮修复仍不合格的样本不进入训练。</span></div>
-                    </div>
                 </div>
-            </div>
-            <div class="footer">
-                <span>Filter 的核心是按结果分流，而不是全量串行评估。</span>
-                <span></span>
-            </div>
+                <div class="footer"><span>Filter 的核心是按结果分流，而不是全量串行评估。</span><span></span></div>
+            </main>
         </div>
     </section>
 
-    <section class="slide">
-        <div class="canvas plain">
-            <div class="top">
-                <strong>05 / 结果</strong>
-                <span>12 / 12</span>
-            </div>
-            <div class="body">
-                <h2>结果：让数据和模型一起迭代</h2>
-                <div class="loop">
-                    <div class="loop-card blue">
-                        <strong>Evaluate</strong>
-                        <span>评测暴露模型失败点。</span>
-                    </div>
-                    <div class="loop-card cyan">
-                        <strong>Diagnose</strong>
-                        <span>归纳能力缺口和失败模式。</span>
-                    </div>
-                    <div class="loop-card green">
-                        <strong>Generate</strong>
-                        <span>围绕短板合成新候选。</span>
-                    </div>
-                    <div class="loop-card orange">
-                        <strong>Filter</strong>
-                        <span>控制难度、可答性和捷径风险。</span>
-                    </div>
-                    <div class="loop-card red">
-                        <strong>Train</strong>
-                        <span>用高价值样本推动下一轮模型。</span>
+    <section class="slide" id="train-flow">
+        <div class="canvas">
+            <aside class="rail"><strong>TRAIN</strong><span class="page">15 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">06</span><strong>Train 模块</strong></div><span>Data to model version</span></div>
+                <div class="body">
+                    <h2>高质量样本反哺模型，并回归评测验证</h2>
+                    <div class="pipeline-wide">
+                        <div class="lane"><div class="num">1</div><h3>数据入池</h3><p>接收 keep 样本和 repair 后重新通过的样本，记录来源、目标能力和过滤结果。</p></div>
+                        <div class="lane"><div class="num">2</div><h3>混合采样</h3><p>与原有训练数据按能力维度和难度比例混合，避免新数据覆盖旧能力。</p></div>
+                        <div class="lane"><div class="num">3</div><h3>训练更新</h3><p>形成新的训练版本和模型版本，保留数据版本与模型版本映射。</p></div>
+                        <div class="lane"><div class="num">4</div><h3>回归评测</h3><p>重新跑 ToMEval，比较目标能力提升和非目标能力退化。</p></div>
+                        <div class="lane"><div class="num">5</div><h3>下一轮弱点</h3><p>把新的 failed samples 回传 Evaluate/Feedback，启动下一轮飞轮。</p></div>
                     </div>
                 </div>
-                <div class="result-grid">
-                    <div class="result-card green"><strong>更准</strong><span>数据方向来自真实模型错误。</span></div>
-                    <div class="result-card orange"><strong>更净</strong><span>质量评估拦截低价值样本。</span></div>
-                    <div class="result-card blue"><strong>更难</strong><span>训练集中保留真正有挑战的样本。</span></div>
-                    <div class="result-card cyan"><strong>可持续</strong><span>每轮测试都会产生下一轮数据方向。</span></div>
+                <div class="footer"><span>Train 的输出不是终点，而是下一轮 Eval 的输入。</span><span></span></div>
+            </main>
+        </div>
+    </section>
+
+    <section class="slide" id="result">
+        <div class="canvas">
+            <aside class="rail"><strong>RESULT</strong><span class="page">16 / 16</span></aside>
+            <main class="content">
+                <div class="top"><div class="brand"><span class="mark">END</span><strong>结果总结</strong></div><span>Data and model co-evolution</span></div>
+                <div class="body">
+                    <h2>让数据和模型一起迭代</h2>
+                    <div class="result-grid">
+                        <div class="result"><strong>Eval 更准</strong><span>知道模型错在哪里，避免盲目造数。</span></div>
+                        <div class="result"><strong>Feedback 更准</strong><span>知道下一轮该补什么能力和题型。</span></div>
+                        <div class="result"><strong>Filter 更净</strong><span>知道什么样本值得进入训练池。</span></div>
+                        <div class="result"><strong>Train 更稳</strong><span>知道训练是否真的带来能力提升。</span></div>
+                    </div>
+                    <p class="final-line">Eval 暴露问题，Feedback 定义补强方向，Filter 控制数据质量，Train 验证数据价值。</p>
                 </div>
-                <p class="final-line">feedback 决定下一轮该补什么，filter 决定什么值得进入训练。</p>
-            </div>
-            <div class="footer">
-                <span>不是更多数据，而是更有效的数据。</span>
-                <span>End</span>
-            </div>
+                <div class="footer"><span>不是更多数据，而是更有效的数据。</span><span>End</span></div>
+            </main>
         </div>
     </section>
 </body>

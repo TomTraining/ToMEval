@@ -435,12 +435,14 @@ def synthesize_from_reports(
 
         logger.info(f"  Round {round_idx + 1}/{max_retries}: generating {len(pending_pairs)} questions...")
 
+        # 合成语言由 Stage 2 报告的 _meta.lang 决定（维度分组已按语言拆分）。
         gen_prompts = [
             build_stage2_generation_from_report_prompt(
                 report=reports[r_idx],
                 dataset_name=dataset_name,
                 target_count=1,
                 previous_question=last_failed.get((r_idx, s_idx)) if round_idx > 0 else None,
+                lang=str((reports[r_idx].get("_meta") or {}).get("lang") or "en"),
             )
             for (r_idx, s_idx) in pending_pairs
         ]
@@ -473,6 +475,9 @@ def synthesize_from_reports(
                     if isinstance(meta, dict):
                         meta["id"] = f"synthetic_{dataset_name.lower()}_{r_idx:03d}_{s_idx}"
                         meta.setdefault("history", [])
+                        # 写入语言标记，保证中文合成样本回流 eval/filter 时
+                        # 能被 get_sample_lang 识别并走中文路径。
+                        meta["lang"] = str((reports[r_idx].get("_meta") or {}).get("lang") or "en")
 
                     results[pair] = q_dict
                     batch_new.append(q_dict)

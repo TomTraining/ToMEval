@@ -77,7 +77,19 @@ def main() -> None:
         default=None,
         help="Existing experiment directory suffix for metric-only reruns.",
     )
+    parser.add_argument(
+        "--allow-config-diff",
+        action="store_true",
+        help="跳过与标准测试配置不一致时的交互确认，直接使用自定义参数。",
+    )
     args = parser.parse_args()
+
+    # 批量入口统一确认一次：若自定义配置关键参数与标准测试不一致则询问，
+    # 确认后通过环境变量让各数据集子进程跳过重复询问。
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from src.evaluation.config_check import confirm_config_against_standard, ACK_ENV
+    confirm_config_against_standard(args.experiment_config, assume_yes=args.allow_config_diff)
+    os.environ[ACK_ENV] = "1"
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.environ["RUN_TIMESTAMP"] = timestamp
