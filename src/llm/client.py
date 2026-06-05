@@ -7,9 +7,10 @@ LLMClient: 基类，包含通用功能
 """
 
 import logging
+import re
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import openai
 
@@ -204,6 +205,45 @@ class LLMClient:
             or getattr(message, "reasoning_content", None)
             or ""
         )
+
+    @staticmethod
+    def _split_think_content(content: Any, reasoning: str = "") -> Tuple[Any, str]:
+        """把 content 里内联的 <think> 思考内容剥离为 reasoning，其余作为真正 content。
+
+        部分模型在 enable_thinking 时不走独立的 reasoning 字段，而是把思考过程
+        以 <think>...</think> 内联在 content 里。这里统一抽出来，兼容三种形态：
+          - 成对 <think>...</think>
+          - 仅 </think>（开头的 <think> 被 chat template 省略，常见于 Qwen 系列）
+          - 仅 <think>（被 max_tokens 截断，没有闭合标签）
+
+        已有的 reasoning（模型单独返回的）保留在前，内联抽取的追加其后。
+        content 不是字符串（如结构化对象）时原样返回。
+        """
+        if not isinstance(content, str) or ("<think>" not in content and "</think>" not in content):
+            return content, reasoning
+
+        think_parts = []
+
+        def _collect(match: "re.Match") -> str:
+            think_parts.append(match.group(1))
+            return ""
+
+        # 1) 成对 <think>...</think>
+        text = re.sub(r"<think>(.*?)</think>", _collect, content, flags=re.DOTALL)
+        # 2) 残留单独 </think>：其前为思考，其后为正文
+        if "</think>" in text:
+            head, _, tail = text.partition("</think>")
+            think_parts.append(head)
+            text = tail
+        # 3) 残留单独 <think>（未闭合/被截断）：其后全部视为思考
+        if "<think>" in text:
+            head, _, tail = text.partition("<think>")
+            think_parts.append(tail)
+            text = head
+
+        inline = "\n".join(p.strip() for p in think_parts if p and p.strip())
+        merged = "\n".join(x for x in [(reasoning or "").strip(), inline] if x)
+        return text.strip(), merged
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(model='{self.model}')"

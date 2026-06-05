@@ -151,7 +151,16 @@ def run_standardized_qa_task(config_path: str) -> None:
     parser.add_argument("--experiment-config", default="experiment_config.yaml")
     parser.add_argument("--stage", choices=["predict", "metric", "all"], default="all")
     parser.add_argument("--exp-dir", default=None)
+    parser.add_argument(
+        "--allow-config-diff",
+        action="store_true",
+        help="跳过与标准测试配置不一致时的交互确认，直接使用自定义参数。",
+    )
     args = parser.parse_args()
+
+    # 若自定义配置的关键采样参数与标准测试 experiment_config.yaml 不一致，先确认
+    from .config_check import confirm_config_against_standard
+    confirm_config_against_standard(args.experiment_config, assume_yes=args.allow_config_diff)
 
     experiment_config = runner.load_experiment_config(args.experiment_config)
 
