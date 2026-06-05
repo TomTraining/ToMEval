@@ -375,7 +375,12 @@ def get_dimension_key(meta: Any, dataset_name: str) -> str:
       SocialIQA / EmoBench → meta.dimension[0]
       HiToM       → str(meta.order)
       FanToM      → meta.question_type，或从 meta.id 解析
+
+    多语言数据集（ToMBench/EmoBench 含 zh 行）按语言拆分维度组：
+    非英文样本的维度键追加 "__{lang}" 后缀，保证诊断/合成的语言闭环干净。
     """
+    from src.evaluation.lang import get_sample_lang
+
     if isinstance(meta, str):
         try:
             meta = json.loads(meta)
@@ -384,9 +389,13 @@ def get_dimension_key(meta: Any, dataset_name: str) -> str:
     if not isinstance(meta, dict):
         meta = {}
 
+    # zh/en bad case 不混组：诊断报告与后续合成的语言由分组决定。
+    lang = get_sample_lang(meta)
+    suffix = f"__{lang}" if lang != "en" else ""
+
     if dataset_name == "ToMBench":
         ability = meta.get("ability", meta.get("Ability", ""))
-        return str(ability) if ability else "unknown"
+        return (str(ability) if ability else "unknown") + suffix
 
     elif dataset_name == "BigToM":
         ct = meta.get("condition_type", meta.get("Condition_type", ""))
@@ -400,8 +409,8 @@ def get_dimension_key(meta: Any, dataset_name: str) -> str:
     elif dataset_name in ("SocialIQA", "EmoBench"):
         dim = meta.get("dimension", meta.get("Dimension", ["unknown"]))
         if isinstance(dim, list):
-            return str(dim[0]) if dim else "unknown"
-        return str(dim) if dim else "unknown"
+            return (str(dim[0]) if dim else "unknown") + suffix
+        return (str(dim) if dim else "unknown") + suffix
 
     elif dataset_name == "HiToM":
         order = meta.get("order", meta.get("Order", None))

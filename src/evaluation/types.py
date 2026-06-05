@@ -35,4 +35,3 @@ class PredictionRecord(TypedDict):
     shuffle_seed: int
     meta: Dict[str, Any]
     pred: Dict[str, Any]
-    raw_prediction: Any

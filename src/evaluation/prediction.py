@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 
 from src.llm.client import LLMResponse
 
-from .prompts import build_option_bundle, build_prompt, extract_prediction_value, prompt_type
+from .prompts import build_option_bundle, build_prompt, prompt_type
 from .storage import serialize_llm_response
 from .types import PredictionRecord, StandardizedSample
 
@@ -49,7 +49,6 @@ def predict_records(
                 "shuffle_seed": shuffle_seed,
                 "meta": sample["meta"],
                 "pred": {"content": None, "reasoning": ""},
-                "raw_prediction": None,
             }
             repeat_payloads.append(payload)
             grouped_prompts[current_prompt_type].append(prompt)
@@ -71,10 +70,9 @@ def predict_records(
                 responses_by_index[sample_index] = response
 
         for payload in repeat_payloads:
-            # prediction.jsonl 同时保留原始模型输出和规整后的 raw_prediction，方便复查。
+            # prediction.jsonl 只保留原始模型输出，答案提取统一放在 judge 阶段进行。
             response = responses_by_index.get(payload["sample_index"])
             payload["pred"] = serialize_llm_response(response)
-            payload["raw_prediction"] = extract_prediction_value(payload["prompt_type"], response)
             records.append(payload)
 
     return records

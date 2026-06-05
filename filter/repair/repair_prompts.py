@@ -25,10 +25,17 @@ Return ONLY valid JSON (no markdown fences) matching:
 }}
 
 Constraints:
+  - {language_constraint}
   - Preserve the dataset's question style (length, agent names, register).
   - Keep correct_answers / wrong_answers as plain text (NOT letters).
   - Keep wrong_answers count identical to the original sample.
   - Do not include any commentary outside the JSON."""
+
+# 修复内容的语言必须跟随原样本语言；JSON key 与结构约束保持英文。
+_LANGUAGE_CONSTRAINTS = {
+    "en": "Write all generated text (story, question, answers) in English, matching the original sample.",
+    "zh": "所有生成的文本（story、question、answers 的内容）必须使用简体中文，与原样本语言一致。",
+}
 
 
 REPAIR_UNANSWERABLE_PROMPT = """\
@@ -123,10 +130,12 @@ def build_repair_prompt(
     wrong_answers: List[str],
     failure_label: str = "",
     failure_reason: str = "",
+    lang: str = "en",
 ) -> str:
     template = REPAIR_PROMPTS_BY_TYPE.get(repair_type)
     if template is None:
         raise ValueError(f"unknown repair_type: {repair_type}")
+    language_constraint = _LANGUAGE_CONSTRAINTS.get(lang, _LANGUAGE_CONSTRAINTS["en"])
     return template.format(
         dataset=dataset,
         dataset_focus=get_dataset_focus(dataset),
@@ -136,6 +145,7 @@ def build_repair_prompt(
         wrong_answers=", ".join(wrong_answers),
         failure_label=failure_label or "(unspecified)",
         failure_reason=failure_reason or "(unspecified)",
+        language_constraint=language_constraint,
     )
 
 

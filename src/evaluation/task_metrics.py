@@ -61,10 +61,14 @@ def flatten_group(stats: Dict[str, Dict[str, int]], prefix: str) -> Dict[str, fl
 def base_metric_payload(per_sample_results: List[Dict[str, Any]]) -> Dict[str, Any]:
     total = len(per_sample_results)
     correct = sum(1 for item in per_sample_results if item["is_correct"])
+    # MCQ 严格模式下没有 \boxed{} 会被标记为 extraction_failed，这里额外统计格式遵循情况。
+    extraction_failed = sum(1 for item in per_sample_results if item.get("error_reason") == "extraction_failed")
     return {
         "accuracy": safe_div(correct, total),
         "correct": correct,
         "total": total,
+        "extraction_failed": extraction_failed,
+        "extraction_failed_rate": safe_div(extraction_failed, total),
         "per_sample_results": per_sample_results,
     }
 

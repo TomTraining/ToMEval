@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from filter.base import load_judge_client
 from filter.repair.repair_prompts import build_repair_prompt
 from filter.utils import resolve_sample_id, write_parquet
+from src.evaluation.lang import get_sample_lang
 from src.llm.structure_client import StructureClient
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,8 @@ def repair_samples(
             wrong_answers=wrong,
             failure_label=str(label_row.get("answerability_label") or ""),
             failure_reason=str(label_row.get("answerability_reason") or ""),
+            # 修复内容语言跟随原样本语言（meta.lang / meta.language）。
+            lang=get_sample_lang(row.get("meta")),
         ))
         sample_id_per_target.append(resolve_sample_id(row, tidx))
 

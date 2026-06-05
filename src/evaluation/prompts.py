@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.llm.client import LLMResponse
 
+from .lang import get_sample_lang
 from .types import AnswerBlock, PromptType, StandardizedSample
 
 
@@ -34,8 +35,40 @@ Question:
 Options:
 {options_block}
 
-{answer_instruction}
-Return only the answer."""
+{answer_instruction}"""
+
+# 中文样本使用中文指令模板（参考 ToMBench 官方中文 prompt 风格）；
+# 选项字母 A-Z 与 \boxed{} 输出协议保持不变，保证下游规则判分逻辑通用。
+OPEN_QA_TEMPLATE_ZH = """请根据下面的故事回答问题。
+
+故事：
+{story}
+
+问题：
+{question}
+
+请直接回答问题。
+只输出答案文本。"""
+
+CHOICE_QA_TEMPLATE_ZH = """请根据下面的故事回答问题。
+
+故事：
+{story}
+
+问题：
+{question}
+
+选项：
+{options_block}
+
+{answer_instruction}"""
+
+ANSWER_INSTRUCTIONS = {
+    ("en", "mcq_single"): "Select the single best option.\nPut your final answer letter inside \\boxed{}, e.g. \\boxed{A}.",
+    ("en", "mcq_multi"): "Select every correct option.\nPut all your final answer letters inside one \\boxed{}, comma-separated, e.g. \\boxed{A,C}.",
+    ("zh", "mcq_single"): "请选出唯一最合适的选项。\n将最终答案的选项字母放进 \\boxed{} 中，例如 \\boxed{A}。",
+    ("zh", "mcq_multi"): "请选出所有正确的选项。\n将所有最终答案的选项字母放进同一个 \\boxed{} 中，用英文逗号分隔，例如 \\boxed{A,C}。",
+}
 
 
 def build_option_bundle(
@@ -79,17 +112,18 @@ def prompt_type(answer: AnswerBlock) -> PromptType:
 
 def build_prompt(sample: StandardizedSample, option_map: Optional[Dict[str, str]]) -> str:
     current_prompt_type = prompt_type(sample["answer"])
+    # 指令语言跟随样本语言（meta.lang / meta.language），结构协议不变。
+    lang = get_sample_lang(sample.get("meta"))
     if current_prompt_type == "open":
-        return OPEN_QA_TEMPLATE.format(story=sample["story"], question=sample["question"])
+        template = OPEN_QA_TEMPLATE_ZH if lang == "zh" else OPEN_QA_TEMPLATE
+        return template.format(story=sample["story"], question=sample["question"])
 
     # 在 prompt 中显式展示“字母 -> 文本”的当轮映射，方便 prediction 和 judge 对齐。
     options_block = "\n".join(f"{letter}. {text}" for letter, text in option_map.items())
-    answer_instruction = (
-        "Select every correct option and return a list of option letters."
-        if current_prompt_type == "mcq_multi"
-        else "Select the single best option and return exactly one option letter."
-    )
-    return CHOICE_QA_TEMPLATE.format(
+    # 要求模型把最终答案放进 \boxed{}，metric 阶段通过 boxed 提取做规则判分。
+    answer_instruction = ANSWER_INSTRUCTIONS[(lang, current_prompt_type)]
+    template = CHOICE_QA_TEMPLATE_ZH if lang == "zh" else CHOICE_QA_TEMPLATE
+    return template.format(
         story=sample["story"],
         question=sample["question"],
         options_block=options_block,
@@ -97,31 +131,41 @@ def build_prompt(sample: StandardizedSample, option_map: Optional[Dict[str, str]
     )
 
 
+def extract_boxed(text: str) -> Optional[str]:
+    # 兼容 \boxed{...} 和 \box{...}；取最后一个匹配（最终答案通常在推理末尾）。
+    matches = re.findall(r"\\box(?:ed)?\s*\{([^{}]*)\}", text)
+    if not matches:
+        return None
+    return matches[-1]
+
+
 def extract_prediction_value(current_prompt_type: PromptType, response: Optional[LLMResponse]) -> Any:
     if response is None or response.content is None:
         return None
-    text = str(response.content).strip()
+    return extract_prediction_from_text(current_prompt_type, str(response.content))
+
+
+def extract_prediction_from_text(current_prompt_type: PromptType, content: str) -> Any:
+    # judge 阶段直接拿 prediction.jsonl 里的 content 文本做提取，不依赖 LLMResponse 对象。
+    text = content.strip()
     if current_prompt_type == "open":
         return text
+
+    # MCQ 严格模式：只认 \boxed{} 里的内容，没有 boxed 就视为提取失败（返回 None）。
+    boxed = extract_boxed(text)
+    if boxed is None:
+        return None
+
     if current_prompt_type == "mcq_multi":
-        # 多选题统一提取字母列表并去重，避免模型输出 "A, A, C" 这类噪声。
+        # 从 boxed 内容提取字母列表并去重，天然兼容 "A,C" / "A, C" / "AC" 等写法。
         letters = []
         seen = set()
-        for token in re.findall(r"[A-Za-z]", text):
+        for token in re.findall(r"[A-Za-z]", boxed):
             letter = token.upper()
             if letter not in seen:
                 letters.append(letter)
                 seen.add(letter)
-        return letters
+        return letters or None
 
-    # 优先匹配 "答案是 X" / "Answer: X" / "option X" / 独立大写字母等模式
-    # 依次尝试更精确的模式，最后才回退到首字母
-    for pattern in (
-        r"(?:answer|option|选项|答案)[^\w]*([A-Z])\b",
-        r"\b([A-Z])\b",
-        r"([A-Za-z])",
-    ):
-        m = re.search(pattern, text, re.IGNORECASE)
-        if m:
-            return m.group(1).upper()
-    return ""
+    m = re.search(r"[A-Za-z]", boxed)
+    return m.group(0).upper() if m else None

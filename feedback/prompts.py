@@ -497,7 +497,7 @@ If the question accidentally tests a different cognitive operation, revise it.
 
 ## Generation Rules
 0. [COGNITIVE OPERATION LOCK] See above — cognitive operation must be exactly {primary_cognitive_operation}
-1. **LANGUAGE: Write ALL text (story, question, answers) in ENGLISH ONLY. No Chinese, no other languages.**
+1. **{language_directive}**
 2. Create a completely ORIGINAL question — all character names, locations, objects, and scenarios must be fresh
 3. Do NOT reuse names like Alice/Bob/Maria/John or scenarios from known benchmarks
 4. Strictly follow the JSON structure and story style shown above
@@ -518,11 +518,25 @@ Return ONLY the JSON:
 }}"""
 
 
+# 合成内容的语言指令：en 保持原有英文限制；zh 用中文生成并覆盖英文风格提示。
+_SYNTHESIS_LANGUAGE_DIRECTIVES = {
+    "en": "LANGUAGE: Write ALL text (story, question, answers) in ENGLISH ONLY. No Chinese, no other languages.",
+    "zh": (
+        "LANGUAGE: Write ALL text (story, question, answers) in SIMPLIFIED CHINESE (简体中文) ONLY. "
+        "Use natural Chinese names and locally plausible scenarios. "
+        "Where the Dataset Story Style above mentions English prose or Western-style names, "
+        "use natural Chinese prose and Chinese names instead. "
+        "Keep all JSON keys and meta field values (e.g. ability/difficulty labels) in English."
+    ),
+}
+
+
 def build_stage2_generation_from_report_prompt(
     report: Dict[str, Any],
     dataset_name: str,
     target_count: int = 1,
     previous_question: Optional[Dict[str, Any]] = None,
+    lang: str = "en",
 ) -> str:
     """构建从维度诊断报告合成新样本的 prompt
 
@@ -534,6 +548,7 @@ def build_stage2_generation_from_report_prompt(
         dataset_name: 数据集名称
         target_count: 生成数量
         previous_question: 上一轮生成但未通过验证的题目（retry feedback）
+        lang: 合成内容语言（"en"/"zh"，来自诊断报告 _meta.lang）
     """
     fmt = SYNTHESIS_FORMAT_REGISTRY.get(dataset_name)
     if fmt is None:
@@ -618,6 +633,7 @@ def build_stage2_generation_from_report_prompt(
         difficulty_specific_rules=difficulty_specific_rules,
         distractor_strategy=distractor_strategy,
         retry_feedback=retry_feedback,
+        language_directive=_SYNTHESIS_LANGUAGE_DIRECTIVES.get(lang, _SYNTHESIS_LANGUAGE_DIRECTIVES["en"]),
     )
 
 
