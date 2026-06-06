@@ -110,6 +110,9 @@ def load_filter_config() -> Dict[str, Any]:
         "sampling_enabled": bool(sampling.get("enabled", False)),
         "max_samples": int(sampling.get("max_samples", 100)),
         "max_iter": int(max_iter),
+        "pass_k": int(cfg.get("pass_k", _PASS_K)),          # 弱模型 pass@k 的 k
+        "shortcut_k": int(cfg.get("shortcut_k", _PASS_K)),  # shortcut 探测的 k（独立于 pass_k）
+        "repair_enabled": bool(cfg.get("repair_enabled", True)),
     }
 
 
@@ -388,7 +391,24 @@ def build_summary(labels_df: pd.DataFrame, iter_n: int) -> Dict[str, Any]:
         "label_counts": counts,
         "label_pct": pct,
         "repair_count": repair_count,
+        "bad_reason_counts": count_bad_reasons(labels_df),
     }
+
+
+def count_bad_reasons(labels_df: pd.DataFrame) -> Dict[str, int]:
+    """统计 label==bad 样本的 answerability 细分原因分布。
+
+    answerability_label ∈ {label_error, ambiguous, contradictory_premise, missing_info}；
+    为空（解析失败 / 防御性 bad）归入 "unknown"。
+    """
+    counts: Dict[str, int] = {}
+    if "label" not in labels_df.columns or "answerability_label" not in labels_df.columns:
+        return counts
+    bad_mask = labels_df["label"] == _LABEL_BAD
+    for val in labels_df.loc[bad_mask, "answerability_label"]:
+        key = val if isinstance(val, str) and val else "unknown"
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def _write_json(obj: Dict[str, Any], path: Path) -> None:
@@ -419,11 +439,15 @@ def run_single_iteration(
     out_dir: Path,
     clients: Dict[str, Any],
     repair_enabled: bool = True,
+    pass_k: int = _PASS_K,
+    shortcut_k: int = _PASS_K,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """一轮决策树评估 + 可选修复。
 
     Args:
         repair_enabled: False 时跳过 Phase E（用于最后一轮修复产出的纯评估）
+        pass_k: Phase B pass@k 的 trial 次数
+        shortcut_k: Phase D shortcut 探测每维的 trial 次数
 
     Returns:
         (labels_df, keep_df, repaired_df)
@@ -446,8 +470,8 @@ def run_single_iteration(
         passk_df = pd.read_parquet(passk_path)
         logger.info(f"[iter{iter_n}] ⏭️  Phase B: 读取已有结果 ({len(passk_df)} rows)")
     else:
-        logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={_PASS_K})")
-        passk_df = run_passk_on_df(input_df, dataset, k=_PASS_K, simple_client=clients["simple"])
+        logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={pass_k})")
+        passk_df = run_passk_on_df(input_df, dataset, k=pass_k, simple_client=clients["simple"])
         write_passk_parquet(passk_df, passk_path)
 
     # ── Phase C：answerability（仅 partial + all_failed）─────────────────────
@@ -487,7 +511,7 @@ def run_single_iteration(
                 shortcut_df = run_shortcut_on_df(
                     sc_subset,
                     dataset,
-                    k=_PASS_K,
+                    k=shortcut_k,
                     threshold=_SHORTCUT_THRESHOLD,
                     simple_client=clients["simple"],
                     judge_client=clients["judge"],
@@ -600,6 +624,10 @@ def run_filter_loop(
     if max_iter < 1:
         raise ValueError(f"max_iter 必须 >= 1，得到 {max_iter}")
 
+    pass_k = int(config.get("pass_k", _PASS_K))
+    shortcut_k = int(config.get("shortcut_k", _PASS_K))
+    repair_enabled = bool(config.get("repair_enabled", True))
+
     split_stem = split_file.stem
     split_root = _split_dir(config["output_root"], dataset, split_stem)
 
@@ -638,6 +666,7 @@ def run_filter_loop(
                 "iter": iter_n,
                 "total": cached_summary.get("total", 0),
                 "label_counts": cached_summary.get("label_counts", {}),
+                "bad_reason_counts": cached_summary.get("bad_reason_counts", {}),
             })
             total_keep += int(cached_summary.get("keep_pool_count", 0))
             labels_path = out_dir / "labels.parquet"
@@ -659,14 +688,18 @@ def run_filter_loop(
             logger.info(f"⚠️  [loop] iter={iter_n} 无输入，提前终止")
             break
 
+        # repair_enabled=False（全局关闭修复）时：iter1 不产出 repaired_df → 下方
+        # break 逻辑自然终止于单轮纯评估；额外纯评估轮因 current_input_df 为 None 跳过。
         labels_df, keep_df, repaired_df = run_single_iteration(
-            dataset, iter_n, current_input_df, out_dir, clients, repair_enabled=True,
+            dataset, iter_n, current_input_df, out_dir, clients,
+            repair_enabled=repair_enabled, pass_k=pass_k, shortcut_k=shortcut_k,
         )
         iters_run += 1
         label_counts_by_iter.append({
             "iter": iter_n,
             "total": int(len(labels_df)),
             "label_counts": labels_df["label"].value_counts(dropna=False).to_dict() if len(labels_df) else {},
+            "bad_reason_counts": count_bad_reasons(labels_df) if len(labels_df) else {},
         })
         total_keep += int(len(keep_df))
         last_labels_df = labels_df
@@ -680,8 +713,8 @@ def run_filter_loop(
         current_input_df = repaired_df
         logger.info(f"[iter{iter_n}] ➡️  传递 {len(repaired_df)} 条修复样本到下一轮")
 
-    # 最后一轮仍需修复的 → unfixable
-    if last_labels_df is not None and last_out_dir is not None and iters_run >= max_iter:
+    # 最后一轮仍需修复的 → unfixable（仅在开启修复时；关闭修复走单轮纯评估，不标 unfixable）
+    if repair_enabled and last_labels_df is not None and last_out_dir is not None and iters_run >= max_iter:
         last_labels_df = _mark_unfixable(last_out_dir, last_labels_df, iters_run)
 
     # 对最后一轮修复产出做额外纯评估（不修复）
@@ -692,13 +725,15 @@ def run_filter_loop(
         logger.info(f"{'='*60}")
         out_dir = _iter_dir(split_root, extra_iter)
         labels_df, keep_df, _ = run_single_iteration(
-            dataset, extra_iter, current_input_df, out_dir, clients, repair_enabled=False,
+            dataset, extra_iter, current_input_df, out_dir, clients,
+            repair_enabled=False, pass_k=pass_k, shortcut_k=shortcut_k,
         )
         iters_run += 1
         label_counts_by_iter.append({
             "iter": extra_iter,
             "total": int(len(labels_df)),
             "label_counts": labels_df["label"].value_counts(dropna=False).to_dict() if len(labels_df) else {},
+            "bad_reason_counts": count_bad_reasons(labels_df) if len(labels_df) else {},
         })
         total_keep += int(len(keep_df))
 
@@ -866,6 +901,7 @@ __all__ = [
     "load_split_df",
     "assign_labels",
     "build_summary",
+    "count_bad_reasons",
     "run_single_iteration",
     "run_filter_loop",
     "run_filter_loop_all_splits",

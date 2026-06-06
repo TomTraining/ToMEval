@@ -11,6 +11,21 @@ from typing import Any, Dict, List
 import pandas as pd
 
 
+def _format_bad_reasons(label_counts_by_iter: List[Dict[str, Any]]) -> List[str]:
+    """把各轮的 bad_reason_counts 渲染成逐轮明细行；无 bad 原因时返回空列表。
+
+    兼容旧 summary（无 bad_reason_counts 字段时安全跳过）。
+    """
+    out: List[str] = []
+    for iter_info in label_counts_by_iter:
+        reasons = iter_info.get("bad_reason_counts") or {}
+        if not reasons:
+            continue
+        detail = ", ".join(f"{k}={v}" for k, v in sorted(reasons.items()))
+        out.append(f"- iter{iter_info.get('iter')}: {detail}\n")
+    return out
+
+
 def generate_summary_report(output_root: str, datasets: List[str]) -> str:
     """生成汇总报告（Markdown 格式）。
 
@@ -68,6 +83,12 @@ def generate_summary_report(output_root: str, datasets: List[str]) -> str:
                         f"| iter{iter_n} | {total} | {easy} | {hard} | {medium} | "
                         f"{shortcut} | {bad} | {unfixable} |\n"
                     )
+
+                # bad 细分原因明细（仅在存在 bad 时展示）
+                bad_reason_lines = _format_bad_reasons(split_sum.get("label_counts_by_iter", []))
+                if bad_reason_lines:
+                    lines.append("\n**bad 细分原因**:\n")
+                    lines.extend(bad_reason_lines)
 
                 lines.append(f"\n- **保留样本数 (hard+medium)**: {split_sum['total_keep_pool']}\n")
         else:

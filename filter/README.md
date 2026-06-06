@@ -48,7 +48,12 @@ sampling:
   enabled: true      # false=全量评估
   max_samples: 100   # 每个数据集最多评估多少条
 
-# 修复迭代次数
+# pass@k 与 shortcut 的 k（各自独立）
+pass_k: 3            # 弱模型 pass@k 的 trial 次数
+shortcut_k: 3        # shortcut 三维探测每维的 trial 次数
+
+# 修复开关与迭代次数
+repair_enabled: true # false=只跑单轮评估打标，不修复/不迭代/不标 unfixable
 max_iter: 3
 ```
 
@@ -73,7 +78,7 @@ filter_output/
 │   │   ├── shortcut.parquet       # shortcut 探测
 │   │   ├── labels.parquet         # 决策树标签
 │   │   ├── repaired.parquet       # 修复后的样本
-│   │   └── summary.json           # 本轮统计
+│   │   └── summary.json           # 本轮统计（含 bad_reason_counts 细分原因）
 │   ├── eval_iter2/
 │   │   └── ...
 │   ├── filter_summary.json        # 全流程统计
@@ -115,8 +120,8 @@ filter_output/
 ## 评估流程
 
 ### Phase B: Pass@K 评估
-- 用弱模型（simple）对每个样本做 k=3 次预测
-- 根据通过次数分为三类：
+- 用弱模型（simple）对每个样本做 `pass_k` 次预测（默认 3，config.yaml 可调）
+- 根据通过次数分为三类（以 k=3 为例）：
   - **all_passed** (3/3) → 太简单
   - **partial** (1-2/3) → 中等难度
   - **all_failed** (0/3) → 太难或有问题
@@ -130,11 +135,12 @@ filter_output/
 
 ### Phase D: Shortcut 探测
 - 仅对 `partial + answerable` 样本执行
+- 每维探测 `shortcut_k` 次（默认 3，config.yaml 可独立于 pass_k 调整）
 - 三维探测：
   - **no_story**: 去掉 story 能否答对
   - **no_question**: 去掉 question 能否答对
   - **no_options**: 去掉选项文本（仅保留字母）能否答对
-- 如果任意维度通过 ≥ majority (ceil(k/2))，标记为 shortcut
+- 如果任意维度通过 ≥ majority (ceil(shortcut_k/2))，标记为 shortcut
 
 ### Phase E: 决策树标签 + 修复
 根据上述结果打标签：
@@ -145,9 +151,13 @@ filter_output/
 - **bad** (unanswerable) → 修复：修正逻辑错误
 - **unfixable** (max_iter 后仍未修复) → 丢弃
 
-修复后的样本进入下一轮迭代，直到：
-- 达到 `max_iter` 上限
-- 无新样本需要修复
+bad 的细分原因（`label_error` / `ambiguous` / `contradictory_premise` / `missing_info`，
+解析失败归入 `unknown`）会按原因统计到 `summary.json` 的 `bad_reason_counts`，
+并在 `SUMMARY_REPORT.md` 的「bad 细分原因」段展示，方便定位是什么导致了 bad。
+
+**修复开关 `repair_enabled`：**
+- `true`（默认）：修复后的样本进入下一轮迭代，直到达到 `max_iter` 上限或无新样本需要修复。
+- `false`：只跑单轮评估打标（pass@k + answerability + shortcut），不修复、不迭代、不标 unfixable。
 
 ### Finalize: 合并训练集
 收集所有轮次中标记为 `hard` 和 `medium` 的样本，合并为最终训练集。
@@ -157,8 +167,7 @@ filter_output/
 ## 配置说明
 
 ### 固定参数（硬编码，无需配置）
-- `pass_k = 3` - pass@k 的 k 值
-- `shortcut_threshold = "majority"` - ceil(k/2) = 2
+- `shortcut_threshold = "majority"` - ceil(k/2)
 - `shortcut_dimensions = [no_story, no_question, no_options]`
 - `skip_answerability_on_all_passed = true` - all_passed 直接判 easy
 - `repair_enabled_types = [unanswerable, easy, shortcut]`
@@ -168,6 +177,9 @@ filter_output/
 - `models.strong` / `models.simple` - 模型配置
 - `paths.input_root` / `paths.output_root` - 路径
 - `sampling.enabled` / `sampling.max_samples` - 采样控制
+- `pass_k` - pass@k 的 k 值（默认 3）
+- `shortcut_k` - shortcut 探测的 k 值，独立于 pass_k（默认 3）
+- `repair_enabled` - 修复总开关；false=只跑单轮评估打标（默认 true）
 - `max_iter` - 修复迭代上限
 
 ---
@@ -185,6 +197,15 @@ A: 设置 `sampling.enabled: false`。
 
 ### Q: 修复迭代太慢怎么办？
 A: 减少 `max_iter`，或开启采样减少样本数。
+
+### Q: 我只想评估打标、不想修复怎么办？
+A: 设置 `repair_enabled: false`，流水线只跑单轮评估（pass@k + answerability + shortcut），不修复、不迭代、不标 unfixable。
+
+### Q: 怎么知道一条数据为什么被判 bad？
+A: 看 `eval_iter{N}/summary.json` 的 `bad_reason_counts`（按 label_error / ambiguous / contradictory_premise / missing_info / unknown 统计），或 `SUMMARY_REPORT.md` 的「bad 细分原因」段；单条原因在 `labels.parquet` 的 `answerability_label` 列。
+
+### Q: pass@k 和 shortcut 的 k 能分开调吗？
+A: 能。`pass_k` 控制 Phase B 的 pass@k，`shortcut_k` 控制 Phase D 三维探测，两者互相独立。
 
 ### Q: 如何查看详细日志？
 A: 查看 `logs/filter_{timestamp}.log` 文件。

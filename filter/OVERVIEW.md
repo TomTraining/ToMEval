@@ -27,7 +27,7 @@
         │
         ▼
   Phase B：pass@k
-  弱模型跑 k=3 次
+  弱模型跑 pass_k 次（默认 3）
         │
    ┌────┴────────────────────┐
    ▼                         ▼
@@ -58,6 +58,8 @@ all_passed (3/3)         partial (1-2/3) 或 all_failed (0/3)
 ```
 
 修复后的样本进入**下一轮迭代**，直到达到 `max_iter` 上限或无新样本需要修复。
+若 `repair_enabled: false`，则只跑单轮评估打标，不修复、不迭代、不标 unfixable。
+bad 的细分原因（label_error / ambiguous / contradictory_premise / missing_info）会统计到 `summary.json` 的 `bad_reason_counts`。
 
 ---
 
@@ -84,7 +86,7 @@ all_passed (3/3)         partial (1-2/3) 或 all_failed (0/3)
 | **no_question** | 去掉 question，只给 story + options | 选项本身暴露了答案 |
 | **no_options** | 去掉选项文本，只保留字母 | 靠排除法而非理解作答 |
 
-任意一个维度：弱模型 k 次中过半答对 → 标记为 shortcut。
+任意一个维度：弱模型 `shortcut_k` 次（默认 3，独立于 pass_k）中过半答对 → 标记为 shortcut。
 
 ---
 
