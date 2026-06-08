@@ -47,6 +47,11 @@ pass_k: 3                 # 弱模型 pass@k 的 trial 次数
 # ── shortcut 探测 ─────────────────────────────────────────────────────────────
 shortcut_k: 3             # shortcut 三维探测每维的 trial 次数
 
+# ── 各阶段开关 ────────────────────────────────────────────────────────────────
+passk_enabled: true          # false = 跳过难度分桶，所有样本按 partial 走可回答性/shortcut（失去 easy/hard）
+answerability_enabled: true  # false = 跳过可回答性；优雅降级：假设全部可回答
+shortcut_enabled: true       # false = 跳过 shortcut；优雅降级：假设全部非 shortcut
+
 # ── 修复开关 ──────────────────────────────────────────────────────────────────
 repair_enabled: true      # false = 只跑单轮评估打标，不修复 / 不迭代 / 不标 unfixable
 
