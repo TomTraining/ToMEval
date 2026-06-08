@@ -68,6 +68,8 @@ logger = logging.getLogger(__name__)
 
 _PASS_K = 3                    # pass@k 的 k 值
 _MAX_ITER_DEFAULT = 3          # 默认修复迭代上限
+_PASSK_ENABLED_DEFAULT = True  # 是否启用 pass@k 难度分桶（关闭则全部按 partial 走后续阶段）
+_ANSWERABILITY_ENABLED_DEFAULT = True  # 是否启用可回答性判断
 _SHORTCUT_ENABLED = True       # 是否启用 shortcut 检测
 _SHORTCUT_THRESHOLD = "majority"  # majority = ceil(k/2)
 _SHORTCUT_DIMENSIONS = ["no_story", "no_question", "no_options"]
@@ -112,6 +114,9 @@ def load_filter_config() -> Dict[str, Any]:
         "max_iter": int(max_iter),
         "pass_k": int(cfg.get("pass_k", _PASS_K)),          # 弱模型 pass@k 的 k
         "shortcut_k": int(cfg.get("shortcut_k", _PASS_K)),  # shortcut 探测的 k（独立于 pass_k）
+        "passk_enabled": bool(cfg.get("passk_enabled", _PASSK_ENABLED_DEFAULT)),
+        "answerability_enabled": bool(cfg.get("answerability_enabled", _ANSWERABILITY_ENABLED_DEFAULT)),
+        "shortcut_enabled": bool(cfg.get("shortcut_enabled", _SHORTCUT_ENABLED)),
         "repair_enabled": bool(cfg.get("repair_enabled", True)),
     }
 
@@ -215,12 +220,27 @@ def _assign_one(bucket: str, answerable: Optional[bool], is_shortcut: Optional[b
     return _LABEL_MEDIUM, None
 
 
+def _derive_sample_ids(input_df: pd.DataFrame) -> List[str]:
+    """从 input_df 的 meta.id 抽 sample_id（缺失时回退 row_{idx}）。
+
+    供 assign_labels 和 pass@k 关闭时的占位 passk_df 复用，保证两边 sample_id 完全一致。
+    """
+    ids: List[str] = []
+    for idx, row in input_df.reset_index(drop=True).iterrows():
+        meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
+        sid = meta.get("id") if isinstance(meta, dict) else None
+        ids.append(str(sid) if sid else f"row_{idx}")
+    return ids
+
+
 def assign_labels(
     input_df: pd.DataFrame,
     passk_df: pd.DataFrame,
     ans_df: pd.DataFrame,
     shortcut_df: pd.DataFrame,
     iter_n: int,
+    answerability_enabled: bool = True,
+    shortcut_enabled: bool = True,
 ) -> pd.DataFrame:
     """合并三阶段输出 → labels DataFrame。
 
@@ -234,12 +254,7 @@ def assign_labels(
                      no_options_pass, is_shortcut, label, repair_type, iter
     """
     # 从 input_df 抽 sample_id 顺序作为基准
-    base_ids: List[str] = []
-    for idx, row in input_df.reset_index(drop=True).iterrows():
-        meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
-        sid = meta.get("id") if isinstance(meta, dict) else None
-        base_ids.append(str(sid) if sid else f"row_{idx}")
-    base = pd.DataFrame({"sample_id": base_ids})
+    base = pd.DataFrame({"sample_id": _derive_sample_ids(input_df)})
 
     # 检查 sample_id 是否有重复
     if base["sample_id"].duplicated().any():
@@ -331,27 +346,33 @@ def assign_labels(
         # pandas NA / numpy array → Python scalar
         # 使用 == 而不是 is 来避免 numpy array 的布尔判断问题
         ans_clean: Optional[bool]
-        try:
-            if pd.notna(answerable) and answerable == True:  # noqa: E712
-                ans_clean = True
-            elif pd.notna(answerable) and answerable == False:  # noqa: E712
-                ans_clean = False
-            else:
+        if not answerability_enabled:
+            ans_clean = True  # 优雅降级：可回答性关闭 → 假设可回答
+        else:
+            try:
+                if pd.notna(answerable) and answerable == True:  # noqa: E712
+                    ans_clean = True
+                elif pd.notna(answerable) and answerable == False:  # noqa: E712
+                    ans_clean = False
+                else:
+                    ans_clean = None
+            except (ValueError, TypeError):
+                # 如果是 array 或其他无法比较的类型，标记为 None
                 ans_clean = None
-        except (ValueError, TypeError):
-            # 如果是 array 或其他无法比较的类型，标记为 None
-            ans_clean = None
 
         sc_clean: Optional[bool]
-        try:
-            if pd.notna(is_sc) and is_sc == True:  # noqa: E712
-                sc_clean = True
-            elif pd.notna(is_sc) and is_sc == False:  # noqa: E712
-                sc_clean = False
-            else:
+        if not shortcut_enabled:
+            sc_clean = False  # 优雅降级：shortcut 关闭 → 假设非 shortcut
+        else:
+            try:
+                if pd.notna(is_sc) and is_sc == True:  # noqa: E712
+                    sc_clean = True
+                elif pd.notna(is_sc) and is_sc == False:  # noqa: E712
+                    sc_clean = False
+                else:
+                    sc_clean = None
+            except (ValueError, TypeError):
                 sc_clean = None
-        except (ValueError, TypeError):
-            sc_clean = None
 
         if not isinstance(bucket, str):
             # passk 缺失 → 标 bad（防御性，正常不该走到）
@@ -441,6 +462,9 @@ def run_single_iteration(
     repair_enabled: bool = True,
     pass_k: int = _PASS_K,
     shortcut_k: int = _PASS_K,
+    passk_enabled: bool = True,
+    answerability_enabled: bool = True,
+    shortcut_enabled: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """一轮决策树评估 + 可选修复。
 
@@ -448,6 +472,9 @@ def run_single_iteration(
         repair_enabled: False 时跳过 Phase E（用于最后一轮修复产出的纯评估）
         pass_k: Phase B pass@k 的 trial 次数
         shortcut_k: Phase D shortcut 探测每维的 trial 次数
+        passk_enabled: False 时跳过难度分桶，所有样本按 partial 走后续阶段（失去 easy/hard）
+        answerability_enabled: False 时跳过可回答性判断，优雅降级假设全部可回答
+        shortcut_enabled: False 时跳过 shortcut 检测，优雅降级假设全部非 shortcut
 
     Returns:
         (labels_df, keep_df, repaired_df)
@@ -466,45 +493,68 @@ def run_single_iteration(
 
     # ── Phase B：pass@k 全量 ────────────────────────────────────────────────
     passk_path = out_dir / "passk.parquet"
-    if passk_path.exists():
-        passk_df = pd.read_parquet(passk_path)
-        logger.info(f"[iter{iter_n}] ⏭️  Phase B: 读取已有结果 ({len(passk_df)} rows)")
+    if passk_enabled:
+        if passk_path.exists():
+            passk_df = pd.read_parquet(passk_path)
+            logger.info(f"[iter{iter_n}] ⏭️  Phase B: 读取已有结果 ({len(passk_df)} rows)")
+        else:
+            logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={pass_k})")
+            passk_df = run_passk_on_df(input_df, dataset, k=pass_k, simple_client=clients["simple"])
+            write_passk_parquet(passk_df, passk_path)
     else:
-        logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={pass_k})")
-        passk_df = run_passk_on_df(input_df, dataset, k=pass_k, simple_client=clients["simple"])
-        write_passk_parquet(passk_df, passk_path)
+        # pass@k 关闭：不做难度分桶，所有样本按 partial（难度未知）走后续阶段
+        logger.info(f"[iter{iter_n}] ⏭️  pass@k 已禁用，所有样本按 partial（难度未知）走后续判断")
+        passk_df = pd.DataFrame({
+            "sample_id": _derive_sample_ids(input_df),
+            "pass_at_k": pd.NA,
+            "bucket": _BUCKET_PARTIAL,
+        })
 
     # ── Phase C：answerability（仅 partial + all_failed）─────────────────────
     ans_path = out_dir / "answerability.parquet"
-    if ans_path.exists():
-        ans_df = pd.read_parquet(ans_path)
-        logger.info(f"[iter{iter_n}] ⏭️  Phase C: 读取已有结果 ({len(ans_df)} rows)")
+    if answerability_enabled:
+        if ans_path.exists():
+            ans_df = pd.read_parquet(ans_path)
+            logger.info(f"[iter{iter_n}] ⏭️  Phase C: 读取已有结果 ({len(ans_df)} rows)")
+        else:
+            logger.info(f"[iter{iter_n}] 🔍 Phase C: answerability 判断")
+            if _SKIP_ANSWERABILITY_ON_ALL_PASSED:
+                ans_target_mask = passk_df["bucket"].isin([_BUCKET_PARTIAL, _BUCKET_ALL_FAILED])
+            else:
+                ans_target_mask = pd.Series([True] * len(passk_df))
+            ans_target_idx = passk_df.index[ans_target_mask].tolist()
+            if len(ans_target_idx) > 0:
+                ans_subset = input_df.iloc[ans_target_idx].reset_index(drop=True)
+                ans_df = run_answerability_on_df(ans_subset, dataset, strong_client=clients["strong"])
+            else:
+                ans_df = pd.DataFrame(columns=["sample_id", "label", "reason", "answerable"])
+                logger.info(f"[iter{iter_n}] ⏭️  跳过 answerability (all_passed)")
+            write_answerability_parquet(ans_df, ans_path)
     else:
-        logger.info(f"[iter{iter_n}] 🔍 Phase C: answerability 判断")
-        if _SKIP_ANSWERABILITY_ON_ALL_PASSED:
-            ans_target_mask = passk_df["bucket"].isin([_BUCKET_PARTIAL, _BUCKET_ALL_FAILED])
-        else:
-            ans_target_mask = pd.Series([True] * len(passk_df))
-        ans_target_idx = passk_df.index[ans_target_mask].tolist()
-        if len(ans_target_idx) > 0:
-            ans_subset = input_df.iloc[ans_target_idx].reset_index(drop=True)
-            ans_df = run_answerability_on_df(ans_subset, dataset, strong_client=clients["strong"])
-        else:
-            ans_df = pd.DataFrame(columns=["sample_id", "label", "reason", "answerable"])
-            logger.info(f"[iter{iter_n}] ⏭️  跳过 answerability (all_passed)")
-        write_answerability_parquet(ans_df, ans_path)
+        # 可回答性关闭：优雅降级，assign_labels 与 Phase D 目标选取里假设全部可回答
+        logger.info(f"[iter{iter_n}] ⏭️  answerability 已禁用，优雅降级：假设全部可回答")
+        ans_df = pd.DataFrame(columns=["sample_id", "label", "reason", "answerable"])
 
     # ── Phase D：shortcut 三探测（仅 partial + answerable）────────────────────
+    shortcut_empty_cols = [
+        "sample_id", "no_story_pass", "no_question_pass", "no_options_pass", "is_shortcut",
+    ]
     shortcut_path = out_dir / "shortcut.parquet"
-    if shortcut_path.exists():
-        shortcut_df = pd.read_parquet(shortcut_path)
-        logger.info(f"[iter{iter_n}] ⏭️  Phase D: 读取已有结果 ({len(shortcut_df)} rows)")
-    else:
-        logger.info(f"[iter{iter_n}] 🎯 Phase D: shortcut 检测")
-        if _SHORTCUT_ENABLED and not ans_df.empty:
+    if shortcut_enabled:
+        if shortcut_path.exists():
+            shortcut_df = pd.read_parquet(shortcut_path)
+            logger.info(f"[iter{iter_n}] ⏭️  Phase D: 读取已有结果 ({len(shortcut_df)} rows)")
+        else:
+            logger.info(f"[iter{iter_n}] 🎯 Phase D: shortcut 检测")
             partial_ids = set(passk_df.loc[passk_df["bucket"] == _BUCKET_PARTIAL, "sample_id"])
-            answerable_ids = set(ans_df.loc[ans_df["answerable"] == True, "sample_id"])  # noqa: E712
-            target_ids = partial_ids & answerable_ids
+            if answerability_enabled:
+                answerable_ids = (
+                    set(ans_df.loc[ans_df["answerable"] == True, "sample_id"])  # noqa: E712
+                    if not ans_df.empty else set()
+                )
+                target_ids = partial_ids & answerable_ids
+            else:
+                target_ids = partial_ids  # 优雅降级：可回答性关闭 → 全部视为可回答
             if len(target_ids) > 0:
                 mask = passk_df["sample_id"].isin(target_ids)
                 sc_subset = input_df.iloc[passk_df.index[mask].tolist()].reset_index(drop=True)
@@ -518,16 +568,13 @@ def run_single_iteration(
                     dimensions=_SHORTCUT_DIMENSIONS,
                 )
             else:
-                shortcut_df = pd.DataFrame(columns=[
-                    "sample_id", "no_story_pass", "no_question_pass", "no_options_pass", "is_shortcut",
-                ])
+                shortcut_df = pd.DataFrame(columns=shortcut_empty_cols)
                 logger.info(f"[iter{iter_n}] ⏭️  跳过 shortcut (无 partial+answerable)")
-        else:
-            shortcut_df = pd.DataFrame(columns=[
-                "sample_id", "no_story_pass", "no_question_pass", "no_options_pass", "is_shortcut",
-            ])
-            logger.info(f"[iter{iter_n}] ⏭️  跳过 shortcut (已禁用或无数据)")
-        write_shortcut_parquet(shortcut_df, shortcut_path)
+            write_shortcut_parquet(shortcut_df, shortcut_path)
+    else:
+        # shortcut 关闭：优雅降级，assign_labels 里假设全部非 shortcut
+        logger.info(f"[iter{iter_n}] ⏭️  shortcut 已禁用，优雅降级：假设全部非 shortcut")
+        shortcut_df = pd.DataFrame(columns=shortcut_empty_cols)
 
     # ── 决策树打标 ──────────────────────────────────────────────────────────
     labels_path = out_dir / "labels.parquet"
@@ -536,7 +583,11 @@ def run_single_iteration(
         logger.info(f"[iter{iter_n}] ⏭️  决策树打标: 读取已有结果 ({len(labels_df)} rows)")
     else:
         logger.info(f"[iter{iter_n}] 🏷️  决策树打标")
-        labels_df = assign_labels(input_df, passk_df, ans_df, shortcut_df, iter_n)
+        labels_df = assign_labels(
+            input_df, passk_df, ans_df, shortcut_df, iter_n,
+            answerability_enabled=answerability_enabled,
+            shortcut_enabled=shortcut_enabled,
+        )
         labels_df.to_parquet(labels_path, index=False)
 
     if len(labels_df) != len(input_df):
@@ -626,6 +677,9 @@ def run_filter_loop(
 
     pass_k = int(config.get("pass_k", _PASS_K))
     shortcut_k = int(config.get("shortcut_k", _PASS_K))
+    passk_enabled = bool(config.get("passk_enabled", _PASSK_ENABLED_DEFAULT))
+    answerability_enabled = bool(config.get("answerability_enabled", _ANSWERABILITY_ENABLED_DEFAULT))
+    shortcut_enabled = bool(config.get("shortcut_enabled", _SHORTCUT_ENABLED))
     repair_enabled = bool(config.get("repair_enabled", True))
 
     split_stem = split_file.stem
@@ -693,6 +747,8 @@ def run_filter_loop(
         labels_df, keep_df, repaired_df = run_single_iteration(
             dataset, iter_n, current_input_df, out_dir, clients,
             repair_enabled=repair_enabled, pass_k=pass_k, shortcut_k=shortcut_k,
+            passk_enabled=passk_enabled, answerability_enabled=answerability_enabled,
+            shortcut_enabled=shortcut_enabled,
         )
         iters_run += 1
         label_counts_by_iter.append({
@@ -727,6 +783,8 @@ def run_filter_loop(
         labels_df, keep_df, _ = run_single_iteration(
             dataset, extra_iter, current_input_df, out_dir, clients,
             repair_enabled=False, pass_k=pass_k, shortcut_k=shortcut_k,
+            passk_enabled=passk_enabled, answerability_enabled=answerability_enabled,
+            shortcut_enabled=shortcut_enabled,
         )
         iters_run += 1
         label_counts_by_iter.append({
