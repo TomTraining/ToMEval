@@ -12,7 +12,7 @@ python report/generate_summary.py --stdout
 ## Expected Flow
 
 ```bash
-python run_all.py
+python run_eval.py
 python report/generate_dataset_tables.py
 python report/generate_summary.py
 ```

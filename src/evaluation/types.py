@@ -35,3 +35,6 @@ class PredictionRecord(TypedDict):
     shuffle_seed: int
     meta: Dict[str, Any]
     pred: Dict[str, Any]
+    # 协议评测下记录所用协议与 extractor；旧 jsonl 缺失这两字段时按 None/"legacy" 兼容读取。
+    protocol: Optional[str]
+    extractor: str

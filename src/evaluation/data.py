@@ -120,8 +120,11 @@ def analyze_question_types(samples: List[StandardizedSample]) -> Dict[str, Any]:
     open_count = 0
     mcq_count = 0
 
+    from .prompts import prompt_type
+
     for sample in samples:
-        if not sample["answer"]["wrong_answers"]:
+        # 与 prompt_type 用同一判定:无干扰项且唯一正确答案才算开放题。
+        if prompt_type(sample["answer"]) == "open":
             open_count += 1
         else:
             mcq_count += 1

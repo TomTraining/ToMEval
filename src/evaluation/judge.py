@@ -61,7 +61,9 @@ def rule_judge_mcq(record: Dict[str, Any]) -> Dict[str, Any]:
     if model_output in (None, ""):
         return {"is_correct": False, "error_reason": "content_none", "extracted": None}
 
-    extracted = extract_prediction_from_text(record["prompt_type"], str(model_output))
+    # extractor 跟随记录里 stamp 的协议（direct/cot/legacy），单独跑 stage=metric 也能正确分派。
+    extractor = record.get("extractor", "legacy")
+    extracted = extract_prediction_from_text(record["prompt_type"], str(model_output), extractor)
     if extracted is None:
         # 严格模式：没有 \boxed{} 或 boxed 内无字母，直接判错并标记提取失败。
         return {"is_correct": False, "error_reason": "extraction_failed", "extracted": None}

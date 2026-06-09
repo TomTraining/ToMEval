@@ -2,23 +2,23 @@ llm:
   model_name: Qwen3-8B
   api_key: not-needed
   api_url: http://0.0.0.0:8000/v1
-  temperature: 0.6
-  max_tokens: 32768
   max_workers: 16  # 降低并发，避免服务器过载
-  enable_thinking: true
-  system_prompt: ""
 
-judge:
-  model_name: Qwen3-8B
-  api_key: not-needed
-  api_url: http://0.0.0.0:8000/v1
-  temperature: 0.0
-  max_tokens: 32768
-  max_workers: 16  # 降低并发，避免服务器过载
-  enable_thinking: false
-  system_prompt: ""
+# 评测协议:采样参数(temperature/max_tokens/enable_thinking/top_p)、system prompt、extractor、
+# repeats(= 协议的 n_samples)全部由协议驱动,llm 段只保留连接相关参数。
+# 可选值:direct | direct_think | cot | del_tom
+protocol: cot
 
-repeats: 3
+# 评测阶段:predict(只生成预测) | metric(只判分聚合) | all(预测+判分)
+stage: all
+
+# run_eval.py 批量评测的数据集列表(单跑 tasks/<DS>/run.py 时忽略此项)
+datasets:
+  - EmoBench
+  - FanToM
+  - HiToM
+  - ToMBench
+
 max_samples: 0
 normalized_datasets_path: datasets
 results_path: results

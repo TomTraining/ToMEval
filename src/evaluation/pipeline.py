@@ -54,7 +54,13 @@ def run_prediction_stage(
     client = runner.create_content_client(experiment_config["llm_config"], task_config)
     logger.info(f"\nStarting batch prediction (repeats={experiment_config['repeats']})...")
 
-    records = predict_records(samples, task_config["dataset"], client, experiment_config["repeats"])
+    records = predict_records(
+        samples,
+        task_config["dataset"],
+        client,
+        experiment_config["repeats"],
+        protocol=experiment_config.get("protocol"),
+    )
 
     # 展示第一个预测结果的输出示例
     if records:
@@ -88,6 +94,9 @@ def run_metric_stage(
     records = read_prediction_file(prediction_path)
     logger.info(f"Loaded {prediction_path}")
 
+    # 协议优先从记录里读(兼容单独跑 stage=metric)，兜底用 experiment_config。
+    protocol = (records[0].get("protocol") if records else None) or experiment_config.get("protocol")
+
     # MCQ 题走 \boxed{} 提取规则判分，只有存在 open 题时才需要创建 judge client。
     has_open = any(record["prompt_type"] == "open" for record in records)
     if has_open:
@@ -96,6 +105,24 @@ def run_metric_stage(
     else:
         judge_client = None
         logger.info("All records are MCQ: rule-based grading via \\boxed{} extraction, judge client skipped.")
+
+    # del_tom:把同一 sample 的多次 repeat 折叠成「每样本一条」后多数投票，单次聚合。
+    from .protocols import is_voting_protocol
+    if is_voting_protocol(protocol):
+        from .voting import vote_collapse
+        logger.info(f"Protocol '{protocol}': majority voting across {len(records)} predictions...")
+        voted_records, voted_results = vote_collapse(records, judge_client)
+        metrics = aggregate_metrics(task_config["dataset"], voted_records, voted_results)
+        all_metrics = [metrics]
+        logger.info(
+            f"✓ Voted: Accuracy={metrics['accuracy']:.4f}, "
+            f"Correct={metrics['correct']}/{metrics['total']}"
+        )
+        metrics_path = save_metrics(output_dir, all_metrics)
+        logger.info(f"\n✓ Saved metrics to: {metrics_path}")
+        logger.info("=" * 80 + "\n")
+        return metrics_path
+
     grouped: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
     for record in records:
         grouped[int(record["repeat"])].append(record)
@@ -118,7 +145,9 @@ def run_metric_stage(
             else:
                 from .prompts import extract_prediction_from_text
                 content = (example.get("pred") or {}).get("content") or ""
-                extracted = extract_prediction_from_text(example["prompt_type"], str(content))
+                extracted = extract_prediction_from_text(
+                    example["prompt_type"], str(content), example.get("extractor", "legacy")
+                )
                 logger.info(f"Rule-based grading: extracted={extracted} vs correct={example['correct_letters']}")
 
         per_sample_results = judge_repeat(repeat_records, judge_client)
@@ -149,20 +178,14 @@ def run_standardized_qa_task(config_path: str) -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment-config", default="experiment_config.yaml")
-    parser.add_argument("--stage", choices=["predict", "metric", "all"], default="all")
     parser.add_argument("--exp-dir", default=None)
-    parser.add_argument(
-        "--allow-config-diff",
-        action="store_true",
-        help="跳过与标准测试配置不一致时的交互确认，直接使用自定义参数。",
-    )
     args = parser.parse_args()
 
-    # 若自定义配置的关键采样参数与标准测试 experiment_config.yaml 不一致，先确认
-    from .config_check import confirm_config_against_standard
-    confirm_config_against_standard(args.experiment_config, assume_yes=args.allow_config_diff)
-
     experiment_config = runner.load_experiment_config(args.experiment_config)
+    # stage 由配置驱动(predict/metric/all)。
+    stage = experiment_config["stage"]
+    if stage not in {"predict", "metric", "all"}:
+        raise ValueError(f"experiment_config.stage must be predict/metric/all, got {stage!r}")
 
     # 配置日志：同时输出到控制台和文件
     from datetime import datetime
@@ -202,11 +225,12 @@ def run_standardized_qa_task(config_path: str) -> None:
     logger.info(f"🚀 Starting Evaluation")
     logger.info("=" * 80)
     logger.info(f"Config: {args.experiment_config}")
-    logger.info(f"Stage: {stage_display[args.stage]}")
+    logger.info(f"Stage: {stage_display[stage]}")
+    logger.info(f"Protocol: {experiment_config.get('protocol') or '(none / legacy)'}")
     logger.info("=" * 80 + "\n")
 
     model_name = experiment_config["llm_config"]["model_name"]
-    if args.stage == "metric" and args.exp_dir is None:
+    if stage == "metric" and args.exp_dir is None:
         target_output_dir = find_latest_experiment_dir(
             task_config["dataset"],
             model_name,
@@ -224,7 +248,7 @@ def run_standardized_qa_task(config_path: str) -> None:
     logger.info(f"Output directory: {target_output_dir}\n")
     save_config(target_output_dir, task_config, experiment_config)
 
-    if args.stage in {"predict", "all"}:
+    if stage in {"predict", "all"}:
         run_prediction_stage(task_config, experiment_config, target_output_dir)
-    if args.stage in {"metric", "all"}:
+    if stage in {"metric", "all"}:
         run_metric_stage(task_config, experiment_config, target_output_dir)

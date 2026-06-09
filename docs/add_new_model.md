@@ -37,34 +37,34 @@ ToMEval 支持任何兼容 OpenAI API 的模型（包括本地 vLLM、DeepSeek�
 
 ```yaml
 # ============================
-# 被测模型（LLM）配置
+# 被测模型（LLM）配置：只填连接相关参数
 # ============================
 llm:
   model_name: MyNewModel        # 模型名称，同时作为 results/ 下的目录名
   api_key: not-needed           # API 密钥（本地服务填 not-needed，云端 API 填真实密钥）
   api_url: http://0.0.0.0:8000/v1   # API 端点
-  temperature: 0.6              # 采样温度
-  max_tokens: 32768             # 最大输出 token 数
-  max_workers: 64               # 并发线程数
-  enable_thinking: false        # 是否启用思考模式（仅 Qwen3 等支持 thinking 的模型）
-  system_prompt: ""             # 系统 Prompt（留空则不设置）
+  max_workers: 16               # 并发线程数（云端 API 建议 8-16）
 
 # ============================
-# Judge 模型配置（用于判断答案正确性）
+# 评测协议：采样参数 / system prompt / extractor / 投票全部由协议驱动
 # ============================
-judge:
-  model_name: MyNewModel
-  api_key: not-needed
-  api_url: http://0.0.0.0:8000/v1
-  temperature: 0.0              # Judge 建议用 0 以获得确定性输出
-  max_tokens: 4096
-  enable_thinking: false
-  system_prompt: ""
+protocol: cot                   # direct | direct_think | cot | del_tom，详见 docs/protocols.md
+
+# ============================
+# 评测阶段与数据集
+# ============================
+stage: all                      # predict | metric | all
+datasets:                       # run_eval.py 批量评测的数据集列表
+  - BigToM
+  - EmoBench
+  - FanToM
+  - HiToM
+  - SocialIQA
+  - ToMBench
 
 # ============================
 # 实验参数
 # ============================
-repeats: 3          # 重复运行次数（取平均以减少随机性）；使用云端 API 建议设为 1
 max_samples: 0      # 0 = 全量；>0 = 随机抽取指定数量（用于快速测试）
 normalized_datasets_path: datasets
 results_path: results
@@ -74,7 +74,8 @@ results_path: results
 
 - `model_name` 的值会直接作为 `results/{dataset}/{model_name}/` 的目录名，**不同模型必须使用不同名称**。
 - `api_key` 支持环境变量写法：`api_key: ${DEEPSEEK_API_KEY}`，运行时自动替换。
-- `repeats: 3` 意味着每个数据集每条样本会被推理 3 次，最终指标取平均，适合本地推理；云端 API 计费时建议 `repeats: 1`。
+- **温度、max_tokens、是否思考、重复次数（= 协议的 n_samples）全部由 `protocol` 决定**，`llm` 段不再写这些采样参数。各协议的具体参数与 prompt 见 [protocols.md](protocols.md)。
+- 当前数据集均为选择题，走规则判分，不需要 judge 模型；若加入开放题，judge 会自动回退使用 `llm` 配置（也可单独写 `judge:` 段覆盖）。
 
 ---
 
@@ -84,10 +85,10 @@ results_path: results
 
 ```bash
 cd /path/to/ToMEval
-python run_all.py
+python run_eval.py
 ```
 
-这会依次运行 `run_all.py` 中 `DATASETS` 列表里所有启用的数据集（当前 6 个：BigToM, EmoBench, FanToM, HiToM, SocialIQA, ToMBench）。
+这会依次运行 `experiment_config.yaml` 中 `datasets` 列表里所有启用的数据集（当前 6 个：BigToM, EmoBench, FanToM, HiToM, SocialIQA, ToMBench）。
 
 ### 运行单个数据集
 
@@ -103,8 +104,7 @@ python tasks/SocialIQA/run.py
 
 ```yaml
 # experiment_config.yaml
-max_samples: 3   # 只取 3 条样本
-repeats: 1       # 只跑 1 轮
+max_samples: 3   # 只取 3 条样本（repeats 由协议决定，无需手动设）
 ```
 
 ```bash
@@ -251,7 +251,7 @@ llm:
   model_name: Qwen3-8B          # 与模型目录名一致（或自定义）
   api_key: not-needed
   api_url: http://0.0.0.0:8000/v1
-  enable_thinking: true         # 如启用了 reasoning parser
+protocol: cot                   # 是否走 thinking 由协议决定
 ```
 
 #### 验证服务正常
@@ -271,15 +271,13 @@ llm:
   model_name: deepseek-chat
   api_key: ${DEEPSEEK_API_KEY}
   api_url: https://api.deepseek.com/v1
-  temperature: 0.6
-  max_tokens: 8192
   max_workers: 16      # 云端 API 建议降低并发
-  enable_thinking: false
+protocol: cot          # 采样参数由协议决定
 ```
 
 ```bash
 export DEEPSEEK_API_KEY="sk-xxx"
-python run_all.py
+python run_eval.py
 ```
 
 #### OpenAI
@@ -289,15 +287,13 @@ llm:
   model_name: gpt-4o
   api_key: ${OPENAI_API_KEY}
   api_url: https://api.openai.com/v1
-  temperature: 0.6
-  max_tokens: 4096
   max_workers: 8
-  enable_thinking: false
+protocol: cot          # 采样参数由协议决定
 ```
 
 ```bash
 export OPENAI_API_KEY="sk-xxx"
-python run_all.py
+python run_eval.py
 ```
 
 #### 其他兼容服务
@@ -314,34 +310,35 @@ python run_all.py
 
 ## 配置参数详解
 
-### llm 配置
+### llm 配置（只保留连接相关参数）
 
 | 参数 | 说明 | 建议值 |
 |---|---|---|
 | `model_name` | 模型名称，也是 `results/` 下的目录名 | 使用清晰可辨的名称 |
 | `api_url` | API 端点，末尾不要加 `/` | - |
 | `api_key` | API 密钥，支持 `${ENV_VAR}` 变量替换 | - |
-| `temperature` | 采样温度，0.0 确定性，1.0 最随机 | `0.6`（推理任务） |
-| `max_tokens` | 最大输出 token 数 | `32768`（本地），`4096`（云端） |
-| `max_workers` | 并发线程数 | `64`（本地），`8-16`（云端） |
-| `enable_thinking` | 启用 Qwen3 等模型的思考模式 | 仅支持 thinking 的模型设 `true` |
-| `system_prompt` | 系统提示词 | `""` 使用各数据集默认配置 |
+| `max_workers` | 并发线程数 | `16`（云端 8-16，本地可更高） |
 
-### judge 配置
+> `temperature` / `max_tokens` / `top_p` / `enable_thinking` 不再写在 `llm` 段，**由 `protocol` 统一覆盖**（缺省时 `LLMClient` 仍有内置默认值兜底，但正常评测应交给协议）。各协议取值见 [protocols.md](protocols.md)。
 
-| 参数 | 说明 | 建议值 |
+### 协议 / 阶段 / 数据集
+
+| 参数 | 说明 | 取值 |
 |---|---|---|
-| `temperature` | Judge 温度 | `0.0`（确定性输出） |
-| `max_tokens` | Judge 输出长度 | `4096` |
+| `protocol` | 评测协议，决定采样参数、system prompt、extractor、是否投票 | `direct` / `direct_think` / `cot` / `del_tom` |
+| `stage` | 评测阶段 | `predict` / `metric` / `all` |
+| `datasets` | `run_eval.py` 批量评测的数据集名称列表 | 数据集名数组 |
 
 ### 实验参数
 
 | 参数 | 说明 | 建议值 |
 |---|---|---|
-| `repeats` | 重复轮数 | `3`（本地），`1`（云端 API） |
 | `max_samples` | 最大样本数，`0` 为全量 | `0`（正式），`3-10`（调试） |
 | `normalized_datasets_path` | 标准化数据集目录 | `datasets` |
 | `results_path` | 结果输出目录 | `results` |
+
+> 重复次数（repeats）= 协议的 `n_samples`（direct/direct_think/cot 为 1，del_tom 为 8），不再单独配置。
+> judge 模型当前用不到（选择题走规则判分）；如评测含开放题，judge 默认回退使用 `llm` 配置，也可单独写 `judge:` 段覆盖。
 
 ---
 
@@ -392,9 +389,9 @@ python report/generate_summary.py
 
 框架会自动检测并降级处理：先尝试 `parse` 模式（原生结构化输出），失败则降级为 `create` 模式（在 Prompt 中注入 JSON 格式要求，然后用正则提取）。通常无需手动干预。
 
-### Q: enable_thinking 有什么作用？
+### Q: 思考（thinking）模式怎么控制？
 
-`enable_thinking: true` 会在请求中添加 `extra_body: {chat_template_kwargs: {enable_thinking: true}}`，触发 Qwen3 等模型的思考（Chain-of-Thought）推理，推理过程会保存到 `prediction.jsonl` 的 `pred.reasoning` 字段中。仅对支持 thinking 模式的模型有效。
+由协议决定，不再手动配置：`direct` 关闭 thinking（裸答），`direct_think` / `cot` / `del_tom` 开启。关闭时请求会带 `extra_body: {enable_thinking: false, chat_template_kwargs: {enable_thinking: false}}`；开启时对 Qwen3 等模型触发 Chain-of-Thought，推理过程保存到 `prediction.jsonl` 的 `pred.reasoning` 字段。详见 [protocols.md](protocols.md)。
 
 ### Q: 随机抽样（max_samples > 0）是否可复现？
 
