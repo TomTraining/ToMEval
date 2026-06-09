@@ -124,11 +124,13 @@ Those all live in `src/evaluation/`.
 
 ## Register the Dataset
 
-Add the dataset name to `DATASETS` in `run_all.py`.
+Add the dataset name to the `datasets` list in `experiment_config.yaml`.
 
 ## Smoke Test
 
+Set `stage` in `experiment_config.yaml` (`predict` / `metric` / `all`), then:
+
 ```bash
-python tasks/MyDataset/run.py --stage predict
-python tasks/MyDataset/run.py --stage metric --exp-dir 20260515_120000
+python tasks/MyDataset/run.py                       # 跑 stage=predict 或 all
+python tasks/MyDataset/run.py --exp-dir 20260515_120000   # stage=metric 时指定已有目录
 ```

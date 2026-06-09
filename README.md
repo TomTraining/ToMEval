@@ -40,11 +40,15 @@ There is one shared evaluation pipeline:
 Shared logic in `src/` handles:
 
 - loading normalized data
-- deterministic option shuffle
-- two unified English prompt templates
+- protocol-driven sampling, system prompts, answer extraction, and voting (see [docs/protocols.md](docs/protocols.md))
+- deterministic option shuffle (disabled for the `del_tom` voting protocol)
 - free-text prediction calls via `ContentClient` (`create`)
-- structured LLM judge calls via `StructureClient` (`parse`)
+- structured LLM judge calls via `StructureClient` (`parse`), only when open-ended questions are present
 - saving `prediction.jsonl` and `metrics.json`
+
+The evaluation **protocol** (`direct` / `direct_think` / `cot` / `del_tom`) is selected with the `protocol`
+field in `experiment_config.yaml` and drives sampling params, prompts, extractor, and majority voting.
+See [docs/protocols.md](docs/protocols.md) for the full parameter and prompt reference.
 
 Dataset-specific logic stays in `tasks/<dataset>/metrics.py`.
 
@@ -71,7 +75,7 @@ For choice QA, prediction records include the shuffled option mapping and gold l
 ```text
 ToMEval/
 |-- experiment_config.yaml
-|-- run_all.py
+|-- run_eval.py
 |-- run_feedback.py
 |-- run_filter.py
 |-- requirements.txt
@@ -81,6 +85,8 @@ ToMEval/
 |   |   |-- pipeline.py
 |   |   |-- data.py
 |   |   |-- prediction.py
+|   |   |-- protocols.py        # 协议:采样参数/system prompt/extractor
+|   |   |-- voting.py           # del_tom 多数投票
 |   |   |-- judge.py
 |   |   |-- judge_schema.py
 |   |   |-- prompts.py
@@ -129,28 +135,24 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Set model and path config in `experiment_config.yaml`, then run:
+Set model, protocol, `stage` and `datasets` in `experiment_config.yaml`, then run:
 
 ```bash
-python run_all.py
+python run_eval.py
 ```
 
-Or run one dataset:
+Or run one dataset (still reads `stage` from the config):
 
 ```bash
 python tasks/BigToM/run.py
 ```
 
-Run only prediction:
+Run only prediction: set `stage: predict` in `experiment_config.yaml`, then run `python run_eval.py`.
+
+Re-run only metrics on an existing experiment: set `stage: metric`, then:
 
 ```bash
-python run_all.py --stage predict
-```
-
-Re-run only metrics on an existing experiment:
-
-```bash
-python run_all.py --stage metric --exp-dir 20260515_120000
+python run_eval.py --exp-dir 20260515_120000
 ```
 
 Generate tables:
@@ -166,6 +168,6 @@ python report/generate_summary.py
 2. Add `tasks/<dataset>/config.yaml`.
 3. Add `tasks/<dataset>/metrics.py` if the dataset needs custom grouped metrics.
 4. Add `tasks/<dataset>/run.py`.
-5. Register the dataset name in `run_all.py`.
+5. Add the dataset name to the `datasets` list in `experiment_config.yaml`.
 
 See [docs/add_new_dataset.md](docs/add_new_dataset.md).

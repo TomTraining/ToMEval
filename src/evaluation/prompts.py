@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.llm.client import LLMResponse
 
 from .lang import get_sample_lang
+from .protocols import extract_cot, extract_direct
 from .types import AnswerBlock, PromptType, StandardizedSample
 
 
@@ -76,11 +77,13 @@ def build_option_bundle(
     sample_id: str,
     answer: AnswerBlock,
     repeat: int,
+    shuffle: bool = True,
 ) -> Tuple[Optional[Dict[str, str]], List[str], List[str], int]:
-    # 没有 wrong_answers 就视为开放题，不生成选项映射。
+    # 只有“无干扰项且唯一正确答案”才是开放题，不生成选项映射；
+    # 无 wrong 但多正确（如 5选5）仍按 MCQ 用正确项构造选项，避免被误判为开放题。
     correct_answers = list(answer["correct_answers"])
     wrong_answers = list(answer["wrong_answers"])
-    if not wrong_answers:
+    if not wrong_answers and len(correct_answers) == 1:
         return None, [], [], 0
 
     option_rows = [{"text": text, "is_correct": True} for text in correct_answers] + [
@@ -90,10 +93,12 @@ def build_option_bundle(
         raise ValueError(f"Too many options for sample {sample_id}: {len(option_rows)}")
 
     # shuffle 必须可复现，所以只依赖 dataset/sample/repeat 生成确定性种子。
+    # del_tom 等投票协议关闭 shuffle，保证同一 sample 各 repeat 选项顺序一致，按字母投票才有意义。
     seed_source = f"{dataset_name}|{sample_id}|{repeat}"
     seed = int(hashlib.sha256(seed_source.encode("utf-8")).hexdigest()[:16], 16)
-    rng = random.Random(seed)
-    rng.shuffle(option_rows)
+    if shuffle:
+        rng = random.Random(seed)
+        rng.shuffle(option_rows)
 
     letters = list(OPTION_LETTERS[: len(option_rows)])
     option_map = {letter: row["text"] for letter, row in zip(letters, option_rows)}
@@ -103,14 +108,20 @@ def build_option_bundle(
 
 
 def prompt_type(answer: AnswerBlock) -> PromptType:
-    if not answer["wrong_answers"]:
+    # 开放题严格定义:无干扰项且正确答案恰好 1 个。
+    # 防止“无 wrong 但多正确”(如 5选5)被误判为开放题——这类按多选题处理。
+    if not answer["wrong_answers"] and len(answer["correct_answers"]) == 1:
         return "open"
     if len(answer["correct_answers"]) > 1:
         return "mcq_multi"
     return "mcq_single"
 
 
-def build_prompt(sample: StandardizedSample, option_map: Optional[Dict[str, str]]) -> str:
+def build_prompt(
+    sample: StandardizedSample,
+    option_map: Optional[Dict[str, str]],
+    include_instruction: bool = True,
+) -> str:
     current_prompt_type = prompt_type(sample["answer"])
     # 指令语言跟随样本语言（meta.lang / meta.language），结构协议不变。
     lang = get_sample_lang(sample.get("meta"))
@@ -120,15 +131,15 @@ def build_prompt(sample: StandardizedSample, option_map: Optional[Dict[str, str]
 
     # 在 prompt 中显式展示“字母 -> 文本”的当轮映射，方便 prediction 和 judge 对齐。
     options_block = "\n".join(f"{letter}. {text}" for letter, text in option_map.items())
-    # 要求模型把最终答案放进 \boxed{}，metric 阶段通过 boxed 提取做规则判分。
-    answer_instruction = ANSWER_INSTRUCTIONS[(lang, current_prompt_type)]
+    # include_instruction=False 时（协议评测），答题格式指令改由 system prompt 承载，user prompt 只留选项块。
+    answer_instruction = ANSWER_INSTRUCTIONS[(lang, current_prompt_type)] if include_instruction else ""
     template = CHOICE_QA_TEMPLATE_ZH if lang == "zh" else CHOICE_QA_TEMPLATE
     return template.format(
         story=sample["story"],
         question=sample["question"],
         options_block=options_block,
         answer_instruction=answer_instruction,
-    )
+    ).rstrip()
 
 
 def extract_boxed(text: str) -> Optional[str]:
@@ -139,20 +150,34 @@ def extract_boxed(text: str) -> Optional[str]:
     return matches[-1]
 
 
-def extract_prediction_value(current_prompt_type: PromptType, response: Optional[LLMResponse]) -> Any:
+def extract_prediction_value(
+    current_prompt_type: PromptType,
+    response: Optional[LLMResponse],
+    extractor: str = "legacy",
+) -> Any:
     if response is None or response.content is None:
         return None
-    return extract_prediction_from_text(current_prompt_type, str(response.content))
+    return extract_prediction_from_text(current_prompt_type, str(response.content), extractor)
 
 
-def extract_prediction_from_text(current_prompt_type: PromptType, content: str) -> Any:
+def extract_prediction_from_text(
+    current_prompt_type: PromptType,
+    content: str,
+    extractor: str = "legacy",
+) -> Any:
     # judge 阶段直接拿 prediction.jsonl 里的 content 文本做提取，不依赖 LLMResponse 对象。
     text = content.strip()
     if current_prompt_type == "open":
         return text
 
-    # MCQ 严格模式：只认 \boxed{} 里的内容，没有 boxed 就视为提取失败（返回 None）。
-    boxed = extract_boxed(text)
+    # 协议感知的 boxed 提取：direct 取第一个 \boxed{}，cot 取最后一个，legacy 沿用历史的“最后一个”。
+    # 三者均无 boxed 时返回 None（MCQ 严格模式：视为提取失败）。
+    if extractor == "direct":
+        boxed = extract_direct(text)
+    elif extractor == "cot":
+        boxed = extract_cot(text)
+    else:
+        boxed = extract_boxed(text)
     if boxed is None:
         return None
 

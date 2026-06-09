@@ -5,7 +5,7 @@ Content Client - 负责文本生成
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List
+from typing import List, Optional
 
 from tqdm import tqdm
 
@@ -33,12 +33,15 @@ class ContentClient(LLMClient):
         self,
         prompt: str,
         max_retry: int = 5,
+        system_prompt: Optional[str] = None,
     ) -> LLMResponse:
         """Generate text from a single prompt with retry.
 
         Args:
             prompt: User prompt content
             max_retry: Maximum retry attempts
+            system_prompt: 本次调用使用的 system prompt；为 None 时回退到 self.system_prompt
+                （协议评测下按样本传不同的 system prompt）。
 
         Returns:
             LLMResponse with generated content and reasoning
@@ -46,9 +49,10 @@ class ContentClient(LLMClient):
         extra_body = build_extra_body(self.top_k, self.enable_thinking)
 
         # 构建消息列表，如果配置了 system_prompt 则添加到开头
+        effective_system_prompt = system_prompt if system_prompt is not None else self.system_prompt
         messages = []
-        if self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
+        if effective_system_prompt:
+            messages.append({"role": "system", "content": effective_system_prompt})
         messages.append({"role": "user", "content": prompt})
 
         for attempt in range(max_retry):
@@ -102,21 +106,32 @@ class ContentClient(LLMClient):
         self,
         prompts: List[str],
         desc: str = "Generating",
+        system_prompts: Optional[List[str]] = None,
     ) -> List[LLMResponse]:
         """Generate text from multiple prompts in parallel.
 
         Args:
             prompts: List of user prompts
             desc: Description for progress bar
+            system_prompts: 与 prompts 等长、一一对应的 system prompt 列表；为 None 时
+                所有调用回退到 self.system_prompt（协议评测下按样本传不同 system prompt）。
 
         Returns:
             List of LLMResponse
         """
+        if system_prompts is not None and len(system_prompts) != len(prompts):
+            raise ValueError(
+                f"system_prompts length ({len(system_prompts)}) must match prompts length ({len(prompts)})"
+            )
+
         with ThreadPoolExecutor(self.max_workers) as executor:
-            futures = [
-                executor.submit(self.generate, p)
-                for p in prompts
-            ]
+            if system_prompts is None:
+                futures = [executor.submit(self.generate, p) for p in prompts]
+            else:
+                futures = [
+                    executor.submit(self.generate, p, system_prompt=sp)
+                    for p, sp in zip(prompts, system_prompts)
+                ]
 
             results = []
             for future in tqdm(
