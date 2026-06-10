@@ -9,6 +9,15 @@ from src.llm.client import LLMResponse
 from .paths import average_metrics
 
 
+def pred_content(record: Dict[str, Any]) -> Any:
+    """取记录里模型的原始输出文本(pred.content);pred 缺失或为 None 时返回 None。
+
+    判分各处都从 record["pred"]["content"] 取模型输出，统一收口到这里，
+    避免 `(record.get("pred") or {}).get("content")` 在多个模块里重复。
+    """
+    return (record.get("pred") or {}).get("content")
+
+
 def serialize_llm_response(response: LLMResponse | None) -> Dict[str, Any]:
     if response is None:
         return {"content": None, "reasoning": ""}

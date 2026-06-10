@@ -53,7 +53,7 @@ protocol: cot                   # direct | direct_think | cot | del_tom，详见
 # ============================
 # 评测阶段与数据集
 # ============================
-stage: all                      # predict | metric | all
+stage: all                      # predict | metric | visualize | all
 datasets:                       # run_eval.py 批量评测的数据集列表
   - BigToM
   - EmoBench
@@ -67,7 +67,8 @@ datasets:                       # run_eval.py 批量评测的数据集列表
 # ============================
 max_samples: 0      # 0 = 全量；>0 = 随机抽取指定数量（用于快速测试）
 normalized_datasets_path: datasets
-results_path: results
+results_path: results           # 预测/判分结果根目录
+figures_path: figures           # visualize 阶段出图根目录
 ```
 
 ### 重要说明
@@ -75,7 +76,7 @@ results_path: results
 - `model_name` 的值会直接作为 `results/{dataset}/{model_name}/` 的目录名，**不同模型必须使用不同名称**。
 - `api_key` 支持环境变量写法：`api_key: ${DEEPSEEK_API_KEY}`，运行时自动替换。
 - **温度、max_tokens、是否思考、重复次数（= 协议的 n_samples）全部由 `protocol` 决定**，`llm` 段不再写这些采样参数。各协议的具体参数与 prompt 见 [protocols.md](protocols.md)。
-- 当前数据集均为选择题，走规则判分，不需要 judge 模型；若加入开放题，judge 会自动回退使用 `llm` 配置（也可单独写 `judge:` 段覆盖）。
+- 选择题走规则判分（提取 `\boxed{}` 比对字母），**不需要 judge 模型**。开放题的判分方式由**数据集自己**在 `tasks/<数据集>/config.yaml` 的 `open_judge` 字段选择（`f1` / `llm_simple` / `rubric`），需要 judge 模型时在同一文件配 `judge1`/`judge2`，与被测模型 `llm` 段解耦。详见 [add_new_dataset.md](add_new_dataset.md)。
 
 ---
 
@@ -182,23 +183,29 @@ for f in glob.glob('results/*/*/exp_*/metrics.json'):
 
 ### prediction.jsonl 结构
 
-每行是一个 JSON 对象，记录单条样本的预测详情：
+每行是一个 JSON 对象，**只记录原始模型输出**（判分在 metric 阶段做，不写在这里）：
 
 ```json
 {
+  "sample_id": "tombench_0001",
+  "sample_index": 0,
   "repeat": 0,
-  "sample_idx": 0,
-  "gold_answer": "B",
+  "prompt_type": "mcq_single",
+  "correct_letters": ["B"],
+  "options": {"A": "...", "B": "..."},
+  "prompt": "Read the following story...",
   "pred": {
-    "content": {"answer": "B"},
+    "content": "...\\boxed{B}",
     "reasoning": "Let me think step by step..."
   },
-  "prompt": "Read the following story...",
   "meta": {"ability": "Belief: Content false beliefs"},
-  "is_correct": true,
-  "error_reason": null
+  "protocol": "cot",
+  "extractor": "cot"
 }
 ```
+
+> `pred.content` 是模型的**原始文本输出**（不是已解析的对象）；`pred.reasoning` 是 thinking 模式下剥离出的思考过程。
+> `is_correct` / `error_reason` 是判分结果，落在 `metrics.json` 的 `per_sample_results`，不在 `prediction.jsonl` 里。
 
 ---
 
@@ -326,7 +333,7 @@ python run_eval.py
 | 参数 | 说明 | 取值 |
 |---|---|---|
 | `protocol` | 评测协议，决定采样参数、system prompt、extractor、是否投票 | `direct` / `direct_think` / `cot` / `del_tom` |
-| `stage` | 评测阶段 | `predict` / `metric` / `all` |
+| `stage` | 评测阶段 | `predict` / `metric` / `visualize` / `all` |
 | `datasets` | `run_eval.py` 批量评测的数据集名称列表 | 数据集名数组 |
 
 ### 实验参数
@@ -335,10 +342,11 @@ python run_eval.py
 |---|---|---|
 | `max_samples` | 最大样本数，`0` 为全量 | `0`（正式），`3-10`（调试） |
 | `normalized_datasets_path` | 标准化数据集目录 | `datasets` |
-| `results_path` | 结果输出目录 | `results` |
+| `results_path` | 预测/判分结果输出目录 | `results` |
+| `figures_path` | visualize 阶段出图目录 | `figures` |
 
 > 重复次数（repeats）= 协议的 `n_samples`（direct/direct_think/cot 为 1，del_tom 为 8），不再单独配置。
-> judge 模型当前用不到（选择题走规则判分）；如评测含开放题，judge 默认回退使用 `llm` 配置，也可单独写 `judge:` 段覆盖。
+> 选择题走规则判分，不需要 judge 模型；开放题的判分方式与 judge 模型由数据集在 `tasks/<数据集>/config.yaml` 的 `open_judge` / `judge1` 配置，详见 [add_new_dataset.md](add_new_dataset.md)。
 
 ---
 

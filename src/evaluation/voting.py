@@ -13,8 +13,9 @@ from __future__ import annotations
 from collections import Counter, OrderedDict
 from typing import Any, Dict, List, Optional
 
-from .judge import judge_repeat
+from .judge import backfill_meta, judge_repeat
 from .prompts import extract_prediction_from_text
+from .storage import pred_content
 
 
 def majority_vote_letter(letters: List[Optional[str]]) -> Optional[str]:
@@ -30,7 +31,7 @@ def majority_vote_letter(letters: List[Optional[str]]) -> Optional[str]:
 def _vote_single(group: List[Dict[str, Any]], rep: Dict[str, Any]) -> Dict[str, Any]:
     letters: List[Optional[str]] = []
     for record in group:
-        content = (record.get("pred") or {}).get("content")
+        content = pred_content(record)
         if content in (None, ""):
             letters.append(None)
             continue
@@ -55,7 +56,7 @@ def _vote_multi(group: List[Dict[str, Any]], rep: Dict[str, Any]) -> Dict[str, A
     counts: Counter = Counter()
     valid = 0
     for record in group:
-        content = (record.get("pred") or {}).get("content")
+        content = pred_content(record)
         if content in (None, ""):
             continue
         extractor = record.get("extractor", "cot")
@@ -79,9 +80,10 @@ def _vote_multi(group: List[Dict[str, Any]], rep: Dict[str, Any]) -> Dict[str, A
     }
 
 
-def vote_collapse(records: List[Dict[str, Any]], judge_client: Any):
+def vote_collapse(records: List[Dict[str, Any]], open_ctx: Any = None):
     """把同一 sample 的多次 repeat 折叠成每样本一条 (代表 record, 判分结果)。
 
+    open_ctx:OpenJudgeContext，open 题的退化判分按其模式分派(f1/llm_simple/rubric)。
     返回 (voted_records, voted_results),两者等长且一一对应,可直接喂给 aggregate_metrics。
     """
     groups: "OrderedDict[str, List[Dict[str, Any]]]" = OrderedDict()
@@ -108,14 +110,12 @@ def vote_collapse(records: List[Dict[str, Any]], judge_client: Any):
             open_reps.append(rep)
 
     if open_reps:
-        open_results = judge_repeat(open_reps, judge_client)
+        open_results = judge_repeat(open_reps, open_ctx=open_ctx)
         for position, result in zip(open_positions, open_results):
             voted_results[position] = result
 
-    # 统一回填 sample_id / repeat，保证后续 metric 聚合不丢样本身份。
     for record, result in zip(voted_records, voted_results):
-        result.setdefault("sample_id", record["sample_id"])
-        result.setdefault("repeat", record["repeat"])
+        backfill_meta(result, record)
     return voted_records, voted_results
 
 
