@@ -30,32 +30,6 @@ def normalize_text_list(value: Any) -> List[str]:
     return [text] if text else []
 
 
-# FanToM 原始数据里，answerability/info_accessibility 类问题的 correct_answers
-# 形如 ['yes'] / ['no'] / ['no:long']，且 wrong_answers 为空。直接走 open 题型时：
-#   1) judge 看到字面 'no:long' 容易把它当成必须出现的子串而误杀；
-#   2) 字符串匹配在 short/long 标注形式不一致时也会漏判。
-# 因此把这类二元题统一规整为 mcq_single：
-#   - 剥掉 :long / :short 等长度提示后缀
-#   - 注入相反极性作为 wrong_answers，让下游 prompt_type() 走 mcq_single
-def _fantom_binarize(sample: StandardizedSample) -> StandardizedSample:
-    answer = sample["answer"]
-    correct = answer["correct_answers"]
-    if len(correct) != 1 or answer["wrong_answers"]:
-        return sample
-
-    raw = correct[0].strip()
-    head = raw.split(":", 1)[0].lower()
-    if head not in {"yes", "no"}:
-        return sample
-
-    # 统一大写首字母，提升 prompt 可读性
-    canonical = "Yes" if head == "yes" else "No"
-    opposite = "No" if head == "yes" else "Yes"
-    answer["correct_answers"] = [canonical]
-    answer["wrong_answers"] = [opposite]
-    return sample
-
-
 def build_sample_id(row: Dict[str, Any], index: int) -> str:
     meta = row["meta"]
     return str(row.get("sample_id") or meta.get("id") or f"sample_{index}")
@@ -107,11 +81,6 @@ def load_standardized_data(
         max_samples=experiment_config["max_samples"],
     )
     samples = [normalize_sample(row, index) for index, row in enumerate(rows)]
-
-    # 数据集级 fixup：FanToM 的 yes/no 二元题统一收口为 mcq_single
-    if str(dataset_config.get("dataset")) == "FanToM":
-        samples = [_fantom_binarize(s) for s in samples]
-
     return samples
 
 

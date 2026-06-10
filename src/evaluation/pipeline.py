@@ -36,7 +36,7 @@ def run_prediction_stage(
     max_samples = experiment_config.get("max_samples", 0)
 
     if max_samples > 0:
-        logger.info(f"Dataset: {task_config['dataset']} ({type_info['total']}/{type_info['total']} samples - limited by max_samples={max_samples})")
+        logger.info(f"Dataset: {task_config['dataset']} ({type_info['total']} samples - limited by max_samples={max_samples})")
     else:
         logger.info(f"Dataset: {task_config['dataset']} ({type_info['total']} samples - full dataset)")
 
@@ -51,7 +51,7 @@ def run_prediction_stage(
         logger.info(f"Correct answers: {example['answer']['correct_answers']}")
         logger.info(f"Wrong answers: {example['answer']['wrong_answers'][:2] if len(example['answer']['wrong_answers']) > 2 else example['answer']['wrong_answers']}")
 
-    client = runner.create_content_client(experiment_config["llm_config"], task_config)
+    client = runner.create_content_client(experiment_config["llm_config"])
     logger.info(f"\nStarting batch prediction (repeats={experiment_config['repeats']})...")
 
     records = predict_records(
@@ -97,21 +97,25 @@ def run_metric_stage(
     # 协议优先从记录里读(兼容单独跑 stage=metric)，兜底用 experiment_config。
     protocol = (records[0].get("protocol") if records else None) or experiment_config.get("protocol")
 
-    # MCQ 题走 \boxed{} 提取规则判分，只有存在 open 题时才需要创建 judge client。
+    # MCQ 题走 \boxed{} 提取规则判分，只有存在 open 题时才需要按 open_judge 模式建上下文。
+    # open_judge 模式 + judge1/rubric 参数来自本数据集 config.yaml。
+    from .open_judge import DEFAULT_OPEN_JUDGE, build_open_ctx
+    open_mode = task_config.get("open_judge", DEFAULT_OPEN_JUDGE)
     has_open = any(record["prompt_type"] == "open" for record in records)
     if has_open:
-        judge_config = experiment_config.get("judge_config") or experiment_config["llm_config"]
-        judge_client = runner.create_llm_client(judge_config, task_config)
+        task_dir = Path(f"tasks/{task_config['dataset']}")
+        open_ctx = build_open_ctx(task_config, open_mode, task_dir=task_dir)
+        logger.info(f"Open QA judging: mode={open_mode} (judge_clients={len(open_ctx.judge_clients)}).")
     else:
-        judge_client = None
-        logger.info("All records are MCQ: rule-based grading via \\boxed{} extraction, judge client skipped.")
+        open_ctx = None
+        logger.info("All records are MCQ: rule-based grading via \\boxed{} extraction, open judge skipped.")
 
     # del_tom:把同一 sample 的多次 repeat 折叠成「每样本一条」后多数投票，单次聚合。
     from .protocols import is_voting_protocol
     if is_voting_protocol(protocol):
         from .voting import vote_collapse
         logger.info(f"Protocol '{protocol}': majority voting across {len(records)} predictions...")
-        voted_records, voted_results = vote_collapse(records, judge_client)
+        voted_records, voted_results = vote_collapse(records, open_ctx)
         metrics = aggregate_metrics(task_config["dataset"], voted_records, voted_results)
         all_metrics = [metrics]
         logger.info(
@@ -139,9 +143,12 @@ def run_metric_stage(
             logger.info("\n[JUDGE INPUT EXAMPLE - Sample #0]")
             logger.info(f"Prompt type: {example['prompt_type']}")
             if example["prompt_type"] == "open":
-                from .judge import judge_prompt
-                judge_input = judge_prompt(example)
-                logger.info(f"Judge prompt: {judge_input[:400]}...")
+                # judge_prompt 仅适用于 llm_simple；f1/rubric 模式只标注模式名,避免触发 assert。
+                logger.info(f"Open judge mode: {open_mode}")
+                if open_mode == "llm_simple":
+                    from .judge import judge_prompt
+                    judge_input = judge_prompt(example)
+                    logger.info(f"Judge prompt: {judge_input[:400]}...")
             else:
                 from .prompts import extract_prediction_from_text
                 content = (example.get("pred") or {}).get("content") or ""
@@ -150,7 +157,7 @@ def run_metric_stage(
                 )
                 logger.info(f"Rule-based grading: extracted={extracted} vs correct={example['correct_letters']}")
 
-        per_sample_results = judge_repeat(repeat_records, judge_client)
+        per_sample_results = judge_repeat(repeat_records, open_ctx=open_ctx)
 
         # 展示第一个样本的判分输出
         if repeat == 0 and per_sample_results:
@@ -173,6 +180,35 @@ def run_metric_stage(
     return metrics_path
 
 
+def run_visualize_stage(
+    task_config: Dict[str, Any],
+    experiment_config: Dict[str, Any],
+    output_dir: Path,
+) -> Path:
+    # visualize 阶段只读 output_dir/metrics.json，按数据集分组自动出图（数据集无关）。
+    logger.info("=" * 80)
+    logger.info("STAGE 3: VISUALIZE")
+    logger.info("=" * 80)
+
+    metrics_path = output_dir / "metrics.json"
+    if not metrics_path.exists():
+        raise FileNotFoundError(f"metrics.json not found in {output_dir}; 请先跑 stage=metric 或 all。")
+
+    from src.visualization import load_metrics, render_single
+
+    payload = load_metrics(metrics_path)
+    model_name = experiment_config["llm_config"]["model_name"]
+    figures_dir = Path(experiment_config["figures_path"]) / task_config["dataset"] / model_name
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    written = render_single(payload, figures_dir, prefix="")
+    logger.info(f"✓ 生成 {len(written)} 张图 -> {figures_dir}")
+    for path in written:
+        logger.info(f"    {path}")
+    logger.info("=" * 80 + "\n")
+    return figures_dir
+
+
 def run_standardized_qa_task(config_path: str) -> None:
     task_config = load_task_config(config_path)
 
@@ -182,10 +218,10 @@ def run_standardized_qa_task(config_path: str) -> None:
     args = parser.parse_args()
 
     experiment_config = runner.load_experiment_config(args.experiment_config)
-    # stage 由配置驱动(predict/metric/all)。
+    # stage 由配置驱动(predict/metric/visualize/all)。
     stage = experiment_config["stage"]
-    if stage not in {"predict", "metric", "all"}:
-        raise ValueError(f"experiment_config.stage must be predict/metric/all, got {stage!r}")
+    if stage not in {"predict", "metric", "visualize", "all"}:
+        raise ValueError(f"experiment_config.stage must be predict/metric/visualize/all, got {stage!r}")
 
     # 配置日志：同时输出到控制台和文件
     from datetime import datetime
@@ -218,7 +254,8 @@ def run_standardized_qa_task(config_path: str) -> None:
     stage_display = {
         "predict": "Prediction",
         "metric": "Judge & Metrics",
-        "all": "Prediction + Judge & Metrics"
+        "visualize": "Visualize",
+        "all": "Prediction + Judge & Metrics + Visualize"
     }
 
     logger.info("\n" + "=" * 80)
@@ -230,7 +267,8 @@ def run_standardized_qa_task(config_path: str) -> None:
     logger.info("=" * 80 + "\n")
 
     model_name = experiment_config["llm_config"]["model_name"]
-    if stage == "metric" and args.exp_dir is None:
+    # metric / visualize 只读已有产物，默认复用最新 exp 目录，不新建。
+    if stage in {"metric", "visualize"} and args.exp_dir is None:
         target_output_dir = find_latest_experiment_dir(
             task_config["dataset"],
             model_name,
@@ -252,3 +290,5 @@ def run_standardized_qa_task(config_path: str) -> None:
         run_prediction_stage(task_config, experiment_config, target_output_dir)
     if stage in {"metric", "all"}:
         run_metric_stage(task_config, experiment_config, target_output_dir)
+    if stage in {"visualize", "all"}:
+        run_visualize_stage(task_config, experiment_config, target_output_dir)

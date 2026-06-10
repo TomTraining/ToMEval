@@ -39,7 +39,7 @@ tasks/MyDataset/
 
 ### `config.yaml`
 
-Minimal example:
+Minimal example (choice-QA only — MCQ needs no judge model):
 
 ```yaml
 dataset: MyDataset
@@ -47,6 +47,38 @@ path: MyDataset/test
 ```
 
 `path` is resolved under `normalized_datasets_path` from `experiment_config.yaml` (default: `datasets`).
+
+#### Open-QA datasets: choose an `open_judge` mode
+
+If the dataset has open questions (`wrong_answers: []`), pick how they are graded via `open_judge`
+(registry: `src/evaluation/open_judge.py`):
+
+- `f1` — no judge model; token/char F1 vs `correct_answers`, binarized by `f1_threshold` (default 0.5).
+- `llm_simple` — **default**; a binary LLM judge (needs a `judge1` model).
+- `rubric` — dataset-provided rubric prompts score a total; needs `judge1` (optional `judge2` averaged),
+  a `rubric` block (`prompts_file` / `key_field` / `max_score`) and `open_threshold`.
+
+Judge models are configured **here** (per dataset), not in `experiment_config.yaml`. Example (rubric, as used by V4p2):
+
+```yaml
+dataset: MyDataset
+path: MyDataset/test
+
+open_judge: rubric
+open_threshold: 7.0
+rubric:
+  prompts_file: judge_prompts.json   # relative to this dir; {key: {prompt}}
+  key_field: dim                     # pick per-key prompt by meta.<key_field>
+  max_score: 10
+
+judge1:                              # required for llm_simple / rubric
+  model_name: qwen3-8b
+  api_key: ${DASHSCOPE_API_KEY}
+  api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  # 云端约束：thinking 开启只支持流式，judge 走非流式 → 关闭；dashscope qwen3 上限 8192
+  enable_thinking: false
+  max_tokens: 8192
+```
 
 ### `run.py`
 
@@ -116,9 +148,10 @@ You do not need to reimplement:
 - open-vs-choice task routing
 - deterministic shuffle
 - prediction generation
-- judge parse calls
+- judging (MCQ by `\boxed{}` rule; open QA by the dataset's `open_judge` mode)
 - judge prompt construction
 - result file writing
+- visualization (figures from `metrics.json`)
 
 Those all live in `src/evaluation/`.
 
@@ -128,7 +161,7 @@ Add the dataset name to the `datasets` list in `experiment_config.yaml`.
 
 ## Smoke Test
 
-Set `stage` in `experiment_config.yaml` (`predict` / `metric` / `all`), then:
+Set `stage` in `experiment_config.yaml` (`predict` / `metric` / `visualize` / `all`), then:
 
 ```bash
 python tasks/MyDataset/run.py                       # 跑 stage=predict 或 all

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import yaml
 
@@ -40,7 +40,8 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
         "max_samples": config.get("max_samples", 0),
         "normalized_datasets_path": config.get("normalized_datasets_path", "datasets_normalized"),
         "results_path": config.get("results_path", "results"),
-        "judge_config": config.get("judge", {}),
+        "figures_path": config.get("figures_path", "figures"),
+        # judge 参数不再由 experiment_config 管理，移到各数据集 tasks/<DS>/config.yaml 的 judge1/judge2 段。
         "protocol": protocol,
         # stage 与 datasets 由配置驱动:stage 控制 predict/metric/all,datasets 供 run_eval 批量评测。
         "stage": config.get("stage", "all"),
@@ -48,19 +49,15 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
     }
 
 
-def create_llm_client(llm_config: Dict[str, Any], dataset_config: Optional[Dict[str, Any]] = None) -> Any:
+def create_llm_client(llm_config: Dict[str, Any]) -> Any:
     config = llm_config.copy()
-    if dataset_config and dataset_config.get("system_prompt"):
-        config["system_prompt"] = dataset_config["system_prompt"]
     from src.llm import StructureClient
 
     return StructureClient.from_config(config)
 
 
-def create_content_client(llm_config: Dict[str, Any], dataset_config: Optional[Dict[str, Any]] = None) -> Any:
+def create_content_client(llm_config: Dict[str, Any]) -> Any:
     config = llm_config.copy()
-    if dataset_config and dataset_config.get("system_prompt"):
-        config["system_prompt"] = dataset_config["system_prompt"]
     from src.llm import ContentClient
 
     return ContentClient.from_config(config)

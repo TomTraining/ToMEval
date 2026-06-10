@@ -48,12 +48,20 @@ def save_config(
         "experiment_config": dict(experiment_config),
     }
 
-    for section in ("llm_config", "judge_config"):
-        if section in config_data["experiment_config"]:
-            cleaned = dict(config_data["experiment_config"][section])
+    # experiment_config 的 llm_config 脱敏。
+    if "llm_config" in config_data["experiment_config"]:
+        cleaned = dict(config_data["experiment_config"]["llm_config"])
+        cleaned.pop("api_key", None)
+        cleaned.pop("api_url", None)
+        config_data["experiment_config"]["llm_config"] = cleaned
+
+    # judge 参数现在落在 dataset_config(config.yaml)，同样剥掉密钥/地址。
+    for section in ("judge1", "judge2"):
+        if isinstance(config_data["dataset_config"].get(section), dict):
+            cleaned = dict(config_data["dataset_config"][section])
             cleaned.pop("api_key", None)
             cleaned.pop("api_url", None)
-            config_data["experiment_config"][section] = cleaned
+            config_data["dataset_config"][section] = cleaned
 
     (output_dir / "config.json").write_text(
         json.dumps(config_data, ensure_ascii=False, indent=2),

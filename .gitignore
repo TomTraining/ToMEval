@@ -71,3 +71,5 @@ preprocess
 train_datasets
 AGENTS.md
 tests/
+figures/
+.pytest_cache/
