@@ -243,7 +243,7 @@ models:                     # 不填则处理所有模型；display 是表里显
 ```bash
 vllm serve /path/to/model --port 8000                                   # 普通模型
 vllm serve /path/to/Qwen3-8B --port 8000 \
-    --enable-reasoning --reasoning-parser deepseek_r1                   # 支持 thinking 的模型
+    --reasoning-parser qwen3                                            # 支持 thinking 的模型
 ```
 
 ```yaml

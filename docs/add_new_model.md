@@ -242,8 +242,7 @@ vllm serve /path/to/model \
 # 启用思考模式（Qwen3 等支持 thinking 的模型）
 vllm serve /path/to/Qwen3-8B \
     --port 8000 \
-    --enable-reasoning \
-    --reasoning-parser deepseek_r1
+    --reasoning-parser qwen3
 
 # 多 GPU
 vllm serve /path/to/model \
