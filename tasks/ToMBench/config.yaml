@@ -1,2 +1,5 @@
 dataset: ToMBench
 path: ToMBench/test
+
+# body prompt 复刻原论文(tasks/ToMBench/prompt.py)：[Story]/[Question]/[Candidate Answers] 排版。
+prompt_style: tombench

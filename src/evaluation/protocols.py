@@ -77,6 +77,14 @@ def is_voting_protocol(protocol: Optional[str]) -> bool:
     return protocol == "del_tom"
 
 
+def reasoning_for(protocol: Optional[str]) -> bool:
+    """cot / del_tom 为推理型(可先逐步推理再给答案);direct / direct_think 为直答型。
+
+    供 per-dataset 的 build_system_prompt 决定答题指令是否带“先推理”措辞。
+    """
+    return protocol in ("cot", "del_tom")
+
+
 def _style(protocol: str) -> str:
     """direct/direct_think → 'bare';cot/del_tom → 'reason'。"""
     return "bare" if protocol in ("direct", "direct_think") else "reason"
@@ -92,37 +100,35 @@ def extractor_name_for(protocol: Optional[str]) -> str:
 # system prompt:按 (风格 style, 语言 lang, 题型 ptype) 给出完整文案。
 # 字母格式措辞与 prompts.ANSWER_INSTRUCTIONS 保持一致,保证下游 \boxed{} 解析通用。
 _SYSTEM_PROMPTS: Dict[tuple, str] = {
-    # ---------- bare(direct / direct_think):直接输出最终答案,不解释 ----------
+    # ---------- bare(direct / direct_think):给出最终答案即可 ----------
+    # 不再硬性禁止解释/推理：direct_think 开启了 thinking，禁推理会与之打架；
+    # direct(不思考、temp=0)在此指令下也会稳定直接给出 \boxed 答案。
     ("bare", "en", "mcq_single"): (
         "You are a careful reader answering a multiple-choice theory-of-mind question. "
-        "Read the story and the question carefully, then output ONLY your final answer in the "
-        "format \\boxed{X} where X is the letter of the single best option. "
-        "Do not include any explanation, reasoning, or extra text."
+        "Read the story and the question carefully, then give your final answer in the "
+        "format \\boxed{X} where X is the letter of the single best option."
     ),
     ("bare", "en", "mcq_multi"): (
         "You are a careful reader answering a multiple-choice theory-of-mind question. "
-        "Read the story and the question carefully, then output ONLY your final answer as one "
-        "\\boxed{} containing every correct option letter, comma-separated, e.g. \\boxed{A,C}. "
-        "Do not include any explanation, reasoning, or extra text."
+        "Read the story and the question carefully, then give your final answer as one "
+        "\\boxed{} containing every correct option letter, comma-separated, e.g. \\boxed{A,C}."
     ),
     ("bare", "en", "open"): (
         "You are a careful reader answering a question about a story. "
-        "Read the story and the question carefully, then output ONLY the final answer text. "
-        "Do not include any explanation, reasoning, or extra text."
+        "Read the story and the question carefully, then give your final answer text."
     ),
     ("bare", "zh", "mcq_single"): (
         "你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的单选题。"
-        "请仔细阅读故事和问题,只输出最终答案,格式为 \\boxed{X},其中 X 是唯一最合适选项的字母。"
-        "不要包含任何解释、推理或多余文字。"
+        "请仔细阅读故事和问题,然后给出最终答案,格式为 \\boxed{X},其中 X 是唯一最合适选项的字母。"
     ),
     ("bare", "zh", "mcq_multi"): (
         "你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的多选题。"
-        "请仔细阅读故事和问题,只输出最终答案:把所有正确选项的字母放进同一个 \\boxed{} 中,"
-        "用英文逗号分隔,例如 \\boxed{A,C}。不要包含任何解释、推理或多余文字。"
+        "请仔细阅读故事和问题,然后给出最终答案:把所有正确选项的字母放进同一个 \\boxed{} 中,"
+        "用英文逗号分隔,例如 \\boxed{A,C}。"
     ),
     ("bare", "zh", "open"): (
         "你是一个认真阅读的人,正在回答一道关于故事的问题。"
-        "请仔细阅读故事和问题,只输出最终的答案文本。不要包含任何解释、推理或多余文字。"
+        "请仔细阅读故事和问题,然后给出最终的答案文本。"
     ),
     # ---------- reason(cot / del_tom):逐步推理,最终答案放最后一行 ----------
     ("reason", "en", "mcq_single"): (
@@ -155,6 +161,29 @@ _SYSTEM_PROMPTS: Dict[tuple, str] = {
     ("reason", "zh", "open"): (
         "你是一个认真阅读的人,正在回答一道关于故事的问题。"
         "请一步步推理角色的心理状态,然后给出最终答案。把最终答案放在最后一行。"
+    ),
+    # ---------- mcq_grouped:一个故事下多道子问题,每问各输出一个 \boxed{} ----------
+    ("bare", "en", "mcq_grouped"): (
+        "You are answering several multiple-choice theory-of-mind questions about one story. "
+        "For EACH question, in the given order, output your answer as \\boxed{X} where X is the "
+        "letter of the single best option. Output exactly one \\boxed{} per question, in order, "
+        "and nothing else (no explanation)."
+    ),
+    ("reason", "en", "mcq_grouped"): (
+        "You are answering several multiple-choice theory-of-mind questions about one story. "
+        "Think step by step about the mental states of the characters, then for EACH question, in "
+        "the given order, output your final answer as \\boxed{X} (the letter of the single best "
+        "option). Put one \\boxed{} per question, in order, on the last lines."
+    ),
+    ("bare", "zh", "mcq_grouped"): (
+        "你是一个认真阅读的人,正在回答同一个故事下的多道单选题。"
+        "请按给定顺序,对每一道子问题各输出一个 \\boxed{X},其中 X 是该问唯一最合适选项的字母。"
+        "每问恰好一个 \\boxed{},按顺序排列,不要包含任何解释或多余文字。"
+    ),
+    ("reason", "zh", "mcq_grouped"): (
+        "你是一个认真阅读的人,正在回答同一个故事下的多道单选题。"
+        "请一步步推理角色的心理状态,然后按给定顺序,对每一道子问题各输出一个 \\boxed{X}"
+        "(该问唯一最合适选项的字母)。把每问一个、按顺序排列的 \\boxed{} 放在最后几行。"
     ),
 }
 
@@ -192,6 +221,7 @@ __all__ = [
     "repeats_for",
     "shuffle_for",
     "is_voting_protocol",
+    "reasoning_for",
     "extractor_name_for",
     "system_prompt_for",
     "extract_direct",

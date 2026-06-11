@@ -117,6 +117,47 @@ def prompt_type(answer: AnswerBlock) -> PromptType:
     return "mcq_single"
 
 
+# 把官方各自的答案格式(ToMBench [[X]] / EmoBench JSON / BigToM Answer:<option> / 生成式)
+# 统一替换成本框架的 \boxed{} 协议。reasoning=True 时措辞允许“先推理再给答案”。
+# 供 per-dataset 的 build_system_prompt 复用，保证下游 \boxed 抽取通用。
+_BOXED_DIRECTIVE = {
+    ("en", "mcq_single", False): "Give your answer as \\boxed{X}, where X is the letter of the single best option.",
+    ("en", "mcq_single", True): "Reason step by step about the characters' mental states, then give your final answer as \\boxed{X}, where X is the letter of the single best option.",
+    ("en", "mcq_multi", False): "Give your answer as one \\boxed{} containing every correct option letter, comma-separated, e.g. \\boxed{A,C}.",
+    ("en", "mcq_multi", True): "Reason step by step, then give your final answer as one \\boxed{} containing every correct option letter, comma-separated, e.g. \\boxed{A,C}.",
+    ("en", "mcq_grouped", False): "For each question in order, give its answer as a separate \\boxed{X}, e.g. \\boxed{A} for question 1 then \\boxed{C} for question 2.",
+    ("en", "mcq_grouped", True): "Reason step by step, then for each question in order give its answer as a separate \\boxed{X}, e.g. \\boxed{A} for question 1 then \\boxed{C} for question 2.",
+    ("en", "open", False): "Give only your final answer text.",
+    ("en", "open", True): "Reason step by step, then give your final answer text.",
+    ("zh", "mcq_single", False): "请把答案放进 \\boxed{X},其中 X 是唯一最合适选项的字母。",
+    ("zh", "mcq_single", True): "请先一步步推理角色的心理状态,然后把最终答案放进 \\boxed{X},其中 X 是唯一最合适选项的字母。",
+    ("zh", "mcq_multi", False): "请把所有正确选项的字母放进同一个 \\boxed{} 中,用英文逗号分隔,例如 \\boxed{A,C}。",
+    ("zh", "mcq_multi", True): "请先一步步推理,然后把所有正确选项的字母放进同一个 \\boxed{} 中,用英文逗号分隔,例如 \\boxed{A,C}。",
+    ("zh", "mcq_grouped", False): "请按顺序对每一道问题各输出一个 \\boxed{X},例如第一问 \\boxed{A}、第二问 \\boxed{C}。",
+    ("zh", "mcq_grouped", True): "请先一步步推理,然后按顺序对每一道问题各输出一个 \\boxed{X},例如第一问 \\boxed{A}、第二问 \\boxed{C}。",
+    ("zh", "open", False): "只输出最终答案文本。",
+    ("zh", "open", True): "请先一步步推理,然后给出最终答案文本。",
+}
+
+
+def boxed_directive(lang: str, current_prompt_type: PromptType, reasoning: bool) -> str:
+    """返回 \\boxed{} 答题格式指令(替换官方各自的答案格式)。"""
+    lang = "zh" if str(lang).lower().startswith("zh") else "en"
+    return _BOXED_DIRECTIVE[(lang, current_prompt_type, reasoning)]
+
+
+def render_options_block(option_map: Dict[str, str]) -> str:
+    """渲染“字母. 文本”选项块；per-dataset prompt.py 复用，保证与默认模板一致。"""
+    return "\n".join(f"{letter}. {text}" for letter, text in option_map.items())
+
+
+def answer_instruction_for(lang: str, current_prompt_type: PromptType, include_instruction: bool) -> str:
+    """协议评测(include_instruction=False)时答题格式指令由 system prompt 承载，body 留空。"""
+    if not include_instruction:
+        return ""
+    return ANSWER_INSTRUCTIONS[(lang, current_prompt_type)]
+
+
 def build_prompt(
     sample: StandardizedSample,
     option_map: Optional[Dict[str, str]],
