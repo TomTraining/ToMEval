@@ -138,13 +138,50 @@ The returned dict must include:
 - `total`
 - `per_sample_results`
 
-Using helpers from `src/evaluation/task_metrics.py` is recommended.
+Using helpers from `src/evaluation/task_metrics.py` is recommended. Two helpers worth knowing:
+
+- `generic_group_metrics(...)` — emits `by_<x>` accuracy breakdowns from `(key, key_fn)` pairs; the visualizer turns each into a chart automatically.
+- `group_all_correct(records, results, key_fn, member_fn, required_members)` — a group-level "all-correct" secondary metric: a group passes only if every `required_members` member is answered correctly (e.g. FanToM's set-level ALL, where all ToM question types in one snippet must be right; TactfulToM's Comprehension∧Justification joint score). Returns `{rate, passed, total}`.
+
+## Custom Prompts (optional, faithful to the original paper)
+
+By default prompts are generated uniformly from the protocol (see [protocols.md](protocols.md)). If you need to reproduce the paper's exact wording, add `tasks/<dataset>/prompt.py`. It is loaded by convention (`src/evaluation/prompt_loaders.py`); any hook you omit falls back to the generic implementation. Add a comment marker like `prompt_style: <name>` in `config.yaml` for discoverability (it is documentation only — no code reads it).
+
+```python
+# tasks/MyDataset/prompt.py
+from typing import Dict, Optional
+from src.evaluation.types import StandardizedSample
+
+
+def build_prompt(sample: StandardizedSample, option_map: Optional[Dict[str, str]],
+                 include_instruction: bool = True) -> str:
+    """User-side body only: story / question / options layout, in the paper's wording.
+    Same signature as src.evaluation.prompts.build_prompt. The answer-format hint is
+    carried by the system prompt; only emit it here when include_instruction=True
+    (legacy / no-protocol mode)."""
+    ...
+
+
+def build_system_prompt(sample, protocol: str, lang: str, prompt_type: str) -> str:
+    """The official instruction block, with the answer format swapped to \\boxed{}."""
+    ...
+
+
+def prepare_samples(samples):
+    """Whole-sample transform run before prediction. Use it to bundle sub-questions
+    into one mcq_grouped sample: set meta.prompt_type_override = "mcq_grouped" and
+    meta.sub_questions = [{subtype, correct_letters, ...}, ...]. rule_judge_grouped
+    then requires every sub-question to be correct."""
+    return samples
+```
+
+Recap of the split: **system prompt** = answer style + format instruction (how to answer); **user prompt** = the actual story / question / options (what to answer). See ToMBench / EmoBench / FanToM for working examples.
 
 ## Shared Behavior You Get Automatically
 
 You do not need to reimplement:
 
-- prompt building
+- prompt building (generic by default; override per dataset via `prompt.py` as above)
 - open-vs-choice task routing
 - deterministic shuffle
 - prediction generation

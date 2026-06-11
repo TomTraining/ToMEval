@@ -66,7 +66,10 @@ pip install -r requirements.txt
 - `wrong_answers` 为空 → **开放题**（模型输出自由文本，由 judge 判分）。
 - `wrong_answers` 非空 → **选择题**（模型输出选项字母，规则判分）。
 - 题型自动判定：无干扰项且唯一正确答案 = `open`；多个正确答案 = `mcq_multi`；否则 = `mcq_single`。
+- `mcq_grouped`（多问合并）：一个 prompt 内含多道子问题（如 EmoBench EU 的「情绪 + 原因」两问），由数据集的 `prepare_samples` 钩子预先打包，规则判分要求每个子问题各对才算整体对。详见 [docs/add_new_dataset.md](docs/add_new_dataset.md)。
 - 数据集专属的分组字段放进 `meta`，可视化和分组指标会自动用到。
+
+> **复刻原论文 prompt（可选）**：默认 prompt 由框架按协议统一生成；若某数据集需要忠实复刻原论文的题面排版 / system prompt，可在 `tasks/<数据集>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子（约定式加载，缺省回退通用实现）。内置数据集（BigToM / EmoBench / FanToM / HiToM / SocialIQA / TactfulToM / ToMBench）均已接入，其中 EmoBench 额外用 `prepare_samples` 把 EU 子集合并为 `mcq_grouped` 多问。详见 [docs/add_new_dataset.md](docs/add_new_dataset.md)。
 
 ---
 
@@ -82,7 +85,7 @@ pip install -r requirements.txt
 python report/generate_*.py     ← 汇总成 Markdown 表格 / HTML 报告（存 tables/）
 ```
 
-框架自动完成：加载数据 → 按协议构造 Prompt → 并发调用模型 → 判分（选择题规则判分 / 开放题 LLM judge）→ 汇总指标 → 多轮取平均 → 出图。
+框架自动完成：加载数据 →（可选）数据集 `prepare_samples` 预处理 → 按协议（或数据集自定义 `prompt.py`）构造 Prompt → 并发调用模型 → 判分（选择题 / grouped 多问走规则判分，开放题走 LLM judge）→ 汇总指标 → 多轮取平均 → 出图。
 
 ### 第一步：配置模型
 
@@ -399,14 +402,16 @@ ToMEval/
 │   │   ├── data.py            # 标准化数据加载
 │   │   ├── prediction.py      # 预测生成
 │   │   ├── protocols.py       # 协议：采样参数 / system prompt / extractor
+│   │   ├── prompt_loaders.py  # 按数据集约定加载 tasks/<DS>/prompt.py 的自定义钩子
+│   │   ├── lang.py            # 样本语言归一化（meta.lang/language → en/zh）
 │   │   ├── voting.py          # del_tom 多数投票
-│   │   ├── judge.py           # 判分分派（MCQ 规则 + open 委托）
+│   │   ├── judge.py           # 判分分派（MCQ / grouped 规则 + open 委托）
 │   │   ├── open_judge.py      # 开放题判分模式（f1 / llm_simple / rubric）
 │   │   ├── prompts.py / storage.py / paths.py / metrics.py / task_metrics.py / types.py
 │   ├── llm/                   # OpenAI 兼容客户端（ContentClient / StructureClient）
 │   ├── dataloader/            # parquet 数据加载
 │   └── visualization/         # 数据集无关出图
-├── tasks/<数据集>/            # 各数据集入口：config.yaml / run.py / metrics.py
+├── tasks/<数据集>/            # 各数据集入口：config.yaml / run.py / metrics.py（可选 prompt.py 复刻原论文 prompt）
 ├── datasets/                  # 标准化后的测试数据集（parquet）
 ├── train_datasets/            # 训练数据集（filter 的输入）
 ├── filter/                    # 数据质量评估流水线（config.yaml / pipeline.py / eval/ / repair/）

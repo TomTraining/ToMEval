@@ -73,6 +73,14 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 > 注：`direct` 与 `direct_think` 共用「裸答」prompt，区别只在 `enable_thinking`（前者关、后者开）。
 > `cot` 与 `del_tom` 共用「推理」prompt。
 
+> **题型补充**：除上面三类，还有 `mcq_grouped`——一个 prompt 内含多道子问题（如 EmoBench EU 的情绪+原因），
+> 由数据集的 `prepare_samples` 钩子预先打包，按规则判分（每个子问题各对才算整体对）。
+>
+> **数据集级覆盖**：若数据集需忠实复刻原论文的 system prompt（如 ToMBench/EmoBench/FanToM），
+> 可在 `tasks/<数据集>/prompt.py` 提供 `build_system_prompt(sample, protocol, lang, prompt_type)`，
+> 覆盖上表的通用 system prompt（仍把答案格式统一换成 `\boxed{}`）。user prompt 同理可由 `build_prompt` 覆盖。
+> 详见 [add_new_dataset.md](add_new_dataset.md)。无论是否覆盖，分工不变：**system prompt 只放答题风格 + 格式指令，user prompt 放故事/问题/选项内容**。
+
 ---
 
 ## extractor（答案提取）

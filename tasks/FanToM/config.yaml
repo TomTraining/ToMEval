@@ -1,2 +1,7 @@
 dataset: FanToM
 path: FanToM/test
+
+# body prompt 复刻原论文(tasks/FanToM/prompt.py)：固定测试头 + 默认 short_context，
+# Answerability 题前缀 Target:，Info-Accessibility 题前缀 Information:。
+# 所需 fact_question/fact_answer/short_context 由 scripts/convert_fantom.py 补进 meta。
+prompt_style: fantom

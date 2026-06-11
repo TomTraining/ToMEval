@@ -1,2 +1,7 @@
 dataset: EmoBench
 path: EmoBench/test
+
+# body prompt 复刻原论文(tasks/EmoBench/prompt.py)：
+# EU 子集把"情绪+原因"两问 bundled 进同一 prompt(mcq_grouped，两问都对才得分)；
+# EA 子集单问 mcq_single。prepare_samples 在预测前合并 EU 配对。
+prompt_style: emobench

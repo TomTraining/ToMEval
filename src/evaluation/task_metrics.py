@@ -73,6 +73,40 @@ def base_metric_payload(per_sample_results: List[Dict[str, Any]]) -> Dict[str, A
     }
 
 
+def group_all_correct(
+    records: List[Dict[str, Any]],
+    per_sample_results: List[Dict[str, Any]],
+    key_fn: Callable[[Dict[str, Any]], str],
+    member_fn: Callable[[Dict[str, Any]], str],
+    required_members: Sequence[str],
+) -> Dict[str, Any]:
+    """组级“全对”二级指标:按 key_fn 分组，组内 required_members 指定的成员全部答对才算该组通过。
+
+    用于 FanToM 的 set 级 ALL(同一 snippet 内各题型全对)、TactfulToM 的 Comp∧Just 联合
+    (同一对话 comprehension 与 justification 都对)。仅统计“包含全部 required_members”的组，
+    避免缺成员的组虚高/虚低。返回 {rate, passed, total}。
+    """
+    groups: Dict[str, Dict[str, Any]] = {}
+    for record, result in zip(records, per_sample_results):
+        key = key_fn(record)
+        member = member_fn(record)
+        bucket = groups.setdefault(key, {"members": {}, "present": set()})
+        bucket["present"].add(member)
+        if member in required_members:
+            prev = bucket["members"].get(member, True)
+            bucket["members"][member] = prev and bool(result["is_correct"])
+
+    passed = 0
+    total = 0
+    for bucket in groups.values():
+        if not all(member in bucket["present"] for member in required_members):
+            continue
+        total += 1
+        if all(bucket["members"].get(member, False) for member in required_members):
+            passed += 1
+    return {"rate": safe_div(passed, total), "passed": passed, "total": total}
+
+
 def generic_group_metrics(
     records: List[Dict[str, Any]],
     per_sample_results: List[Dict[str, Any]],

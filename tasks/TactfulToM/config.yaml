@@ -1,2 +1,5 @@
 dataset: TactfulToM
 path: TactfulToM/test
+
+# body prompt 复刻原论文(tasks/TactfulToM/prompt.py)：以完整对话为输入推断信念。
+prompt_style: tactfultom

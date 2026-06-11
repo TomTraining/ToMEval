@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List
 
 from .lang import get_sample_lang
 from .prompts import extract_prediction_from_text
 from .storage import pred_content
+
+_BOXED_RE = r"\\box(?:ed)?\s*\{([^{}]*)\}"
 
 
 def backfill_meta(result: Dict[str, Any], record: Dict[str, Any]) -> None:
@@ -92,6 +95,46 @@ def rule_judge_mcq(record: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def rule_judge_grouped(record: Dict[str, Any]) -> Dict[str, Any]:
+    """grouped 多问规则判分:按顺序抽取每个子问题的 \\boxed{} 字母，全部对才算整体对。
+
+    子问题(题面/选项/正确字母)由 prepare_samples 预打包在 meta.sub_questions。
+    抽取取“最后 N 个 \\boxed{}”(N=子问题数)，兼容 cot 推理中途出现的中间 boxed。
+    额外回填 sub_results 便于按子问题(如 emotion/cause)做诊断聚合。
+    """
+    subs: List[Dict[str, Any]] = (record.get("meta") or {}).get("sub_questions") or []
+    model_output = pred_content(record)
+    if model_output in (None, ""):
+        return {"is_correct": False, "error_reason": "content_none", "extracted": None}
+    if not subs:
+        return {"is_correct": False, "error_reason": "no_sub_questions", "extracted": None}
+
+    # 抽取全文所有 \boxed{} 内的首个字母。
+    letters: List[Any] = []
+    for boxed in re.findall(_BOXED_RE, str(model_output)):
+        m = re.search(r"[A-Za-z]", boxed)
+        letters.append(m.group(0).upper() if m else None)
+
+    if len(letters) < len(subs):
+        return {"is_correct": False, "error_reason": "extraction_failed", "extracted": letters}
+
+    # 取最后 N 个作为各子问题的最终答案(顺序对应 sub_questions)。
+    final = letters[-len(subs):]
+    sub_results = []
+    all_ok = True
+    for sub, letter in zip(subs, final):
+        ok = letter in (sub.get("correct_letters") or [])
+        all_ok = all_ok and ok
+        sub_results.append({"subtype": sub.get("subtype"), "extracted": letter, "is_correct": ok})
+
+    return {
+        "is_correct": all_ok,
+        "error_reason": None if all_ok else "wrong_answer",
+        "extracted": final,
+        "sub_results": sub_results,
+    }
+
+
 def judge_repeat(
     records: List[Dict[str, Any]],
     judge_client: Any = None,
@@ -120,6 +163,10 @@ def judge_repeat(
         # MCQ 走规则判分，不消耗 judge API。
         if record["prompt_type"] in ("mcq_single", "mcq_multi"):
             per_sample_results[index] = rule_judge_mcq(record)
+            continue
+        # grouped 多问(如 EmoBench EU)：每子问题各对才算对，纯规则判分。
+        if record["prompt_type"] == "mcq_grouped":
+            per_sample_results[index] = rule_judge_grouped(record)
             continue
         open_records.append(record)
         open_indices.append(index)

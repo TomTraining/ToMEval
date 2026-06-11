@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 
-PromptType = Literal["open", "mcq_single", "mcq_multi"]
+# mcq_grouped：一个 prompt 内含多道子问题(如 EmoBench EU 的情绪+原因)，
+# 由 prepare_samples 预先合并，judge 要求每个子问题各对才算整体对。
+PromptType = Literal["open", "mcq_single", "mcq_multi", "mcq_grouped"]
 
 
 class AnswerBlock(TypedDict):

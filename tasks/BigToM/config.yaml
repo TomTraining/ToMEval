@@ -1,2 +1,5 @@
 dataset: BigToM
 path: BigToM/test
+
+# body prompt 复刻原论文(tasks/BigToM/prompt.py)：Story:/Question: + Choose one of the following。
+prompt_style: bigtom

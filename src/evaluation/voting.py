@@ -104,7 +104,10 @@ def vote_collapse(records: List[Dict[str, Any]], open_ctx: Any = None):
             voted_results.append(_vote_single(group, rep))
         elif ptype == "mcq_multi":
             voted_results.append(_vote_multi(group, rep))
-        else:  # open:退化为对代表样本做一次 LLM judge
+        else:
+            # open → 退化为对代表样本做一次 LLM judge；
+            # mcq_grouped(多问) → 不做逐字母投票，交给 judge_repeat 的 rule_judge_grouped
+            #   对代表样本规则判一次(del_tom×grouped 是边界组合，按代表样本退化处理)。
             voted_results.append(None)
             open_positions.append(len(voted_results) - 1)
             open_reps.append(rep)

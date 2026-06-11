@@ -1,2 +1,5 @@
 dataset: SocialIQA
 path: SocialIQA/test
+
+# body prompt 复刻原论文(tasks/SocialIQA/prompt.py)：Context/Question/Answers 3 选 1。
+prompt_style: socialiqa
