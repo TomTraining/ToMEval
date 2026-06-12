@@ -3,10 +3,9 @@ Structure Client - 负责结构化对象生成
 """
 
 import logging
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Type
+from typing import Any, List, Type
 
 from pydantic import BaseModel
 from tqdm import tqdm
@@ -18,12 +17,7 @@ class _ProbeSchema(BaseModel):
 from .client import LLMClient, LLMResponse
 from .llm_utils import build_extra_body, extract_json, format_schema_for_prompt
 
-# 配置日志
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-)
+# 日志已由基类 client.py 在模块导入时统一 basicConfig，这里不再重复配置。
 
 
 class StructureClient(LLMClient):
@@ -79,10 +73,7 @@ class StructureClient(LLMClient):
         extra_body = build_extra_body(self.top_k, self.enable_thinking)
 
         # 构建消息列表，如果配置了 system_prompt 则添加到开头
-        messages = []
-        if self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages = self._build_messages(prompt)
 
         for attempt in range(max_retry):
             try:
@@ -98,24 +89,10 @@ class StructureClient(LLMClient):
                     timeout=timeout,
                 )
                 latency = time.time() - start
-                prompt_tokens = 0
-                completion_tokens = 0
-                total_tokens = 0
-                if hasattr(response, "usage") and response.usage:
-                    prompt_tokens = response.usage.prompt_tokens
-                    completion_tokens = response.usage.completion_tokens
-                    total_tokens = response.usage.total_tokens
-
                 message = response.choices[0].message
                 result = message.parsed
                 reasoning = self._extract_reasoning(message)
-                self._track_usage(
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=total_tokens,
-                    latency=latency,
-                    success=True,
-                )
+                self._record_usage(response, latency, success=True)
                 return LLMResponse(content=result, reasoning=reasoning)
 
             except Exception as e:
@@ -149,10 +126,7 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
         extra_body = build_extra_body(self.top_k, self.enable_thinking)
 
         # 构建消息列表，如果配置了 system_prompt 则添加到开头
-        messages = []
-        if self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
-        messages.append({"role": "user", "content": enhanced_prompt})
+        messages = self._build_messages(enhanced_prompt)
 
         for attempt in range(max_retry):
             try:
@@ -168,14 +142,6 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
                 )
 
                 latency = time.time() - start
-                prompt_tokens = 0
-                completion_tokens = 0
-                total_tokens = 0
-                if hasattr(response, "usage") and response.usage:
-                    prompt_tokens = response.usage.prompt_tokens
-                    completion_tokens = response.usage.completion_tokens
-                    total_tokens = response.usage.total_tokens
-
                 message = response.choices[0].message
                 content = message.content or ""
                 reasoning = self._extract_reasoning(message)
@@ -190,13 +156,7 @@ Output ONLY the JSON object, no additional text or markdown formatting."""
 
                 # 用 Pydantic 验证（不符合就重试）
                 result = response_object.model_validate(json_data)
-                self._track_usage(
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=total_tokens,
-                    latency=latency,
-                    success=True,
-                )
+                self._record_usage(response, latency, success=True)
                 return LLMResponse(content=result, reasoning=reasoning)
 
             except Exception as e:

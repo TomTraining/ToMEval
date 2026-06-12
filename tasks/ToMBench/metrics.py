@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from src.evaluation.task_metrics import first_value, generic_group_metrics, meta
+from src.evaluation.task_metrics import by_meta, first_value, generic_group_metrics, meta
 
 
 def _task_name(record: Dict[str, Any]) -> str:
@@ -24,6 +24,6 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         per_sample_results,
         [
             ("by_task", lambda record: [_task_name(record)]),
-            ("by_ability", lambda record: [first_value(meta(record).get("ability"))]),
+            ("by_ability", by_meta("ability")),
         ],
     )

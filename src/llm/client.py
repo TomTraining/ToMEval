@@ -164,6 +164,38 @@ class LLMClient:
         )
 
     # -----------------------------------------------------------------------
+    # Request helpers (shared by Content / Structure clients)
+    # -----------------------------------------------------------------------
+
+    def _build_messages(self, prompt: str, system_prompt: str = None) -> list:
+        """构造 [system?, user] 消息列表。
+
+        system_prompt 为 None 时回退到 self.system_prompt（结构化客户端用法）；
+        ContentClient 协议评测时按样本传入 system_prompt 覆盖。空串不加 system 消息。
+        """
+        effective_system_prompt = system_prompt if system_prompt is not None else self.system_prompt
+        messages = []
+        if effective_system_prompt:
+            messages.append({"role": "system", "content": effective_system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    def _record_usage(self, response, latency: float, success: bool = True) -> None:
+        """从 response.usage 抽取 token 三元组并累计到统计（线程安全）。"""
+        prompt_tokens = completion_tokens = total_tokens = 0
+        if getattr(response, "usage", None):
+            prompt_tokens = response.usage.prompt_tokens
+            completion_tokens = response.usage.completion_tokens
+            total_tokens = response.usage.total_tokens
+        self._track_usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            latency=latency,
+            success=success,
+        )
+
+    # -----------------------------------------------------------------------
     # Usage Tracking (Thread-Safe)
     # -----------------------------------------------------------------------
 

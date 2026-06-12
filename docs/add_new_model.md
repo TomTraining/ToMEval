@@ -89,7 +89,7 @@ cd /path/to/ToMEval
 python run_eval.py
 ```
 
-这会依次运行 `experiment_config.yaml` 中 `datasets` 列表里所有启用的数据集（当前 6 个：BigToM, EmoBench, FanToM, HiToM, SocialIQA, ToMBench）。
+这会依次运行 `experiment_config.yaml` 中 `datasets` 列表里所有启用的数据集（当前 6 个：EmoBench, FanToM, HiToM, ToMBench, TactfulToM, V4p2）。
 
 ### 运行单个数据集
 

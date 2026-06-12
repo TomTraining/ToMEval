@@ -73,3 +73,6 @@ AGENTS.md
 tests/
 figures/
 .pytest_cache/
+
+# Generated report outputs (regenerable via scripts/report tools)
+report/v4p2_review_filter/

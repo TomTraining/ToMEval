@@ -12,12 +12,7 @@ from tqdm import tqdm
 from .client import LLMClient, LLMResponse
 from .llm_utils import build_extra_body
 
-# 配置日志
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-)
+# 日志已由基类 client.py 在模块导入时统一 basicConfig，这里不再重复配置。
 
 
 class ContentClient(LLMClient):
@@ -49,11 +44,7 @@ class ContentClient(LLMClient):
         extra_body = build_extra_body(self.top_k, self.enable_thinking)
 
         # 构建消息列表，如果配置了 system_prompt 则添加到开头
-        effective_system_prompt = system_prompt if system_prompt is not None else self.system_prompt
-        messages = []
-        if effective_system_prompt:
-            messages.append({"role": "system", "content": effective_system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages = self._build_messages(prompt, system_prompt)
 
         for attempt in range(max_retry):
             try:
@@ -71,14 +62,6 @@ class ContentClient(LLMClient):
                 )
 
                 latency = time.time() - start
-                prompt_tokens = 0
-                completion_tokens = 0
-                total_tokens = 0
-                if hasattr(response, "usage") and response.usage:
-                    prompt_tokens = response.usage.prompt_tokens
-                    completion_tokens = response.usage.completion_tokens
-                    total_tokens = response.usage.total_tokens
-
                 message = response.choices[0].message
                 text = message.content or ""
                 reasoning = self._extract_reasoning(message)
@@ -86,13 +69,7 @@ class ContentClient(LLMClient):
                 if self.enable_thinking:
                     text, reasoning = self._split_think_content(text, reasoning)
                 if text:
-                    self._track_usage(
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        total_tokens=total_tokens,
-                        latency=latency,
-                        success=True,
-                    )
+                    self._record_usage(response, latency, success=True)
                     return LLMResponse(content=text, reasoning=reasoning)
 
             except Exception as e:
