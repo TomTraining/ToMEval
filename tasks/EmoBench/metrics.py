@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from src.evaluation.task_metrics import (
-    first_value,
+    by_meta,
     generic_group_metrics,
     meta,
     safe_div,
@@ -23,11 +23,11 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         records,
         per_sample_results,
         [
-            ("by_subset", lambda record: [first_value(meta(record).get("subset"))]),
-            ("by_language", lambda record: [first_value(meta(record).get("language"))]),
-            ("by_question_subtype", lambda record: [first_value(meta(record).get("question_subtype"))]),
-            ("by_coarse_category", lambda record: [first_value(meta(record).get("coarse_category"))]),
-            ("by_finegrained_category", lambda record: [first_value(meta(record).get("finegrained_category"))]),
+            ("by_subset", by_meta("subset")),
+            ("by_language", by_meta("language")),
+            ("by_question_subtype", by_meta("question_subtype")),
+            ("by_coarse_category", by_meta("coarse_category")),
+            ("by_finegrained_category", by_meta("finegrained_category")),
             ("by_dimension", lambda record: value_list(meta(record).get("dimension"))),
         ],
     )

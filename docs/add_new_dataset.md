@@ -82,19 +82,18 @@ judge1:                              # required for llm_simple / rubric
 
 ### `run.py`
 
-Minimal example:
+每个数据集的 `run.py` 内容完全一致——从 `__file__` 推导同目录的 `config.yaml`，无需写死数据集名，直接复制即可：
 
 ```python
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.evaluation import run_standardized_qa_task
 
-
 if __name__ == "__main__":
-    run_standardized_qa_task("tasks/MyDataset/config.yaml")
+    run_standardized_qa_task(str(Path(__file__).parent / "config.yaml"))
 ```
 
 ### `metrics.py`
@@ -140,7 +139,7 @@ The returned dict must include:
 
 Using helpers from `src/evaluation/task_metrics.py` is recommended. Two helpers worth knowing:
 
-- `generic_group_metrics(...)` — emits `by_<x>` accuracy breakdowns from `(key, key_fn)` pairs; the visualizer turns each into a chart automatically.
+- `generic_group_metrics(...)` — emits `by_<x>` accuracy breakdowns from `(name, key_fn)` pairs; the visualizer turns each into a chart automatically. For the common case of grouping by a single `meta` field, use the `by_meta("<field>")` helper instead of writing the lambda by hand, e.g. `("by_dimension", by_meta("dimension"))`.
 - `group_all_correct(records, results, key_fn, member_fn, required_members)` — a group-level "all-correct" secondary metric: a group passes only if every `required_members` member is answered correctly (e.g. FanToM's set-level ALL, where all ToM question types in one snippet must be right; TactfulToM's Comprehension∧Justification joint score). Returns `{rate, passed, total}`.
 
 ## Custom Prompts (optional, faithful to the original paper)

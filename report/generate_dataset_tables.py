@@ -9,9 +9,13 @@ Dataset Tables Generator
 支持通过 --config yaml 文件或命令行参数指定过滤条件（dataset / models）。
 """
 import json
-import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from report.utils import parse_markdown_sections, parse_markdown_table
 
 
 ModelRun = Dict[str, Optional[str]]
@@ -177,65 +181,6 @@ def format_value(value: Any) -> str:
         return str(value)
 
 
-def parse_md_table(md_content: str) -> Dict[str, Dict[str, str]]:
-    """解析 Markdown 表格，返回 {row_key: {col_key: value}}
-
-    只解析标准的 | A | B | C | 格式的表格行，跳过标题行（---）。
-    表头第一列作为 row_key，其余列作为 col_key。
-    """
-    result: Dict[str, Dict[str, str]] = {}
-    lines = md_content.splitlines()
-    header: List[str] = []
-    for line in lines:
-        line = line.strip()
-        if not line.startswith("|"):
-            header = []
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        # 分隔行
-        if all(re.match(r"^-+$", c) for c in cells if c):
-            continue
-        if not header:
-            header = cells
-            continue
-        if len(cells) < 2:
-            continue
-        row_key = cells[0]
-        for i, col_key in enumerate(header[1:], start=1):
-            if col_key and i < len(cells):
-                result.setdefault(row_key, {})[col_key] = cells[i]
-    return result
-
-
-def _parse_md_sections(md_content: str) -> Dict[str, Dict[str, Dict[str, str]]]:
-    """将含多个 ## 子标题的 Markdown 文件解析为 {section_title: table_data}
-
-    每个 ## 标题作为一个 section，其下的表格用 parse_md_table 解析。
-    """
-    sections: Dict[str, Dict[str, Dict[str, str]]] = {}
-    current_section: Optional[str] = None
-    section_lines: List[str] = []
-
-    for line in md_content.splitlines():
-        if line.strip().startswith("## "):
-            if current_section is not None and section_lines:
-                table = parse_md_table("\n".join(section_lines))
-                if table:
-                    sections[current_section] = table
-            current_section = line.strip()[3:].strip()
-            section_lines = []
-        else:
-            if current_section is not None:
-                section_lines.append(line)
-
-    if current_section is not None and section_lines:
-        table = parse_md_table("\n".join(section_lines))
-        if table:
-            sections[current_section] = table
-
-    return sections
-
-
 def merge_table_data(
     existing: Dict[str, Dict[str, str]],
     new_models: List[str],
@@ -342,7 +287,7 @@ def generate_basic_metrics_table(
     lines = [f"# {dataset_name} - 基础指标", ""]
 
     if existing_path and existing_path.exists():
-        existing_table = parse_md_table(existing_path.read_text(encoding="utf-8"))
+        existing_table = parse_markdown_table(existing_path.read_text(encoding="utf-8"))
         existing_model_set: Set[str] = {col for row_vals in existing_table.values() for col in row_vals}
         # 不覆盖时，只合并新增模型
         models_to_merge = models if overwrite else [m for m in models if m not in existing_model_set]
@@ -393,7 +338,7 @@ def generate_other_metrics_table(
     # 解析已有文件（按 ## 分 section）
     existing_sections: Dict[str, Dict[str, Dict[str, str]]] = {}
     if existing_path and existing_path.exists():
-        existing_sections = _parse_md_sections(existing_path.read_text(encoding="utf-8"))
+        existing_sections = parse_markdown_sections(existing_path.read_text(encoding="utf-8"))
 
     # 从已有文件推断已有模型集合（任意 section 的列名均可）
     existing_model_set: Set[str] = set()
@@ -532,7 +477,7 @@ def generate_dataset_tables(
         overwrite = True
         basic_md = dataset_report_dir / "基础指标.md"
         if basic_md.exists():
-            existing_table = parse_md_table(basic_md.read_text(encoding="utf-8"))
+            existing_table = parse_markdown_table(basic_md.read_text(encoding="utf-8"))
             existing_models: Set[str] = {col for row_vals in existing_table.values() for col in row_vals}
             overlapping = [m for m in display_names if m in existing_models]
             if overlapping:

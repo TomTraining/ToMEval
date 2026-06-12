@@ -23,6 +23,16 @@ def first_value(value: Any, default: str = "unknown") -> str:
     return text or default
 
 
+def by_meta(key: str) -> Callable[[Dict[str, Any]], List[str]]:
+    """返回一个 group key_fn：取 record.meta[key] 的单值（缺失为 "unknown"）。
+
+    配合 generic_group_metrics 使用，等价于
+    ``lambda record: [first_value(meta(record).get(key))]``，把各 metrics.py 里
+    重复的 by-维度 lambda 收敛成一处。
+    """
+    return lambda record: [first_value(meta(record).get(key))]
+
+
 def value_list(value: Any) -> List[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
