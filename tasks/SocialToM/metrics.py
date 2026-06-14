@@ -1,9 +1,10 @@
-"""V4p2 分组指标：按维度层级 / 题型 / 视角 / 变体切面统计准确率，
+"""SocialToM 分组指标：按维度层级 / 题型 / 视角 / 长短文本切面统计准确率，
 并额外汇总 Q4 的平均 rubric 得分（总体 + 按维度）。
 
-二级指标 `qualified`：只在「人工审核合格」样本（meta.review_pass=True）上重算同一套指标，
-用于对比剔除审核不合格题前后的评测结果。审核标记由 scripts/v4p2_apply_review_flags.py
-预先写入数据集 meta；缺失该字段的样本默认视为合格。"""
+注：v5.3 数据无扰动变体（variant 恒为 base），by_variant 切面只会有单一桶，保留仅为
+schema 兼容。二级指标 `qualified` 只在「人工审核合格」样本（meta.review_pass=True）上重算
+同一套指标；v5.3 provenance 标明 FAIL 项已就地修复、裁判结论为最终权威，故全部样本默认合格，
+qualified 与 full 一致。缺失 review_pass 字段的样本默认视为合格。"""
 
 from __future__ import annotations
 

@@ -69,7 +69,9 @@ pip install -r requirements.txt
 - `mcq_grouped`（多问合并）：一个 prompt 内含多道子问题（如 EmoBench EU 的「情绪 + 原因」两问），由数据集的 `prepare_samples` 钩子预先打包，规则判分要求每个子问题各对才算整体对。详见 [docs/add_new_dataset.md](docs/add_new_dataset.md)。
 - 数据集专属的分组字段放进 `meta`，可视化和分组指标会自动用到。
 
-> **复刻原论文 prompt（可选）**：默认 prompt 由框架按协议统一生成；若某数据集需要忠实复刻原论文的题面排版 / system prompt，可在 `tasks/<数据集>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子（约定式加载，缺省回退通用实现）。内置数据集（BigToM / EmoBench / FanToM / HiToM / SocialIQA / TactfulToM / ToMBench）均已接入，其中 EmoBench 额外用 `prepare_samples` 把 EU 子集合并为 `mcq_grouped` 多问。详见 [docs/add_new_dataset.md](docs/add_new_dataset.md)。
+> **复刻原论文 prompt（可选）**：默认 prompt 由框架按协议统一生成；若某数据集需要忠实复刻原论文的题面排版 / system prompt，可在 `tasks/<数据集>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子（约定式加载，缺省回退通用实现）。当前 19 个数据集中除 SocialToM 外均已接入 `prompt.py`，其中 EmoBench 额外用 `prepare_samples` 把 EU 子集合并为 `mcq_grouped` 多问。详见 [docs/add_new_dataset.md](docs/add_new_dataset.md)。
+
+> 📚 **数据集总览**：19 个数据集各自考察什么、从哪个原始数据集**改造**而来、以及如何评测，集中整理在 **[docs/datasets.md](docs/datasets.md)**。
 
 ---
 
@@ -209,9 +211,9 @@ results/
 
 ```bash
 # 单模型出图
-python -m src.visualization --results results/V4p2/Qwen3-8B/exp_xxxx --out figures/V4p2
+python -m src.visualization --results results/SocialToM/Qwen3-8B/exp_xxxx --out figures/SocialToM
 # 多模型对比（传多个 --results）
-python -m src.visualization --results results/V4p2/A/exp_xxx results/V4p2/B/exp_yyy --out figures/V4p2
+python -m src.visualization --results results/SocialToM/A/exp_xxx results/SocialToM/B/exp_yyy --out figures/SocialToM
 ```
 
 详见 [docs/visualization.md](docs/visualization.md)。
