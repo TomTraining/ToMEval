@@ -40,7 +40,7 @@ datasets/
 │   │   └── data-00000-of-00001.arrow
 │   ├── train/
 │   └── SIP/
-├── Tomato/
+├── ToMato/
 │   ├── test/
 │   ├── train/
 │   └── SIP/
@@ -56,7 +56,7 @@ datasets/
 
 加载数据集。
 
-- `subset` (str): 子集路径，如 "ToMBench/test"、"Tomato/test"
+- `subset` (str): 子集路径，如 "ToMBench/test"、"ToMato/test"
 - `datasets_root` (可选): 自定义根目录，默认为 "datasets"
 
 返回 `List[Dict]`

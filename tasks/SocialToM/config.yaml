@@ -1,5 +1,5 @@
-dataset: V4p2
-path: V4p2/test
+dataset: SocialToM
+path: SocialToM/test
 
 # open 题(Q4)判分模式：rubric —— 数据集自带 rubric prompt + judge model 打总分。
 # 可选 f1 | llm_simple | rubric，详见 src/evaluation/open_judge.py。
@@ -15,7 +15,7 @@ rubric:
   max_score: 10                          # 总分量程(D1-D5 各 0-2)
 
 # ============================================================
-# LLM judge 配置（V4p2 是目前唯一需要 LLM judge 的数据集）。
+# LLM judge 配置（SocialToM 是目前唯一需要 LLM judge 的数据集）。
 # judge 参数全部在此声明，experiment_config.yaml 不再管理 judge model。
 # 采样参数(temperature/top_p/max_tokens 等)留空则用客户端默认值。
 # ============================================================
@@ -28,7 +28,7 @@ judge1:
   max_workers: 16
 
 # judge2：可选第二 judge。填写后 Q4 由两个 judge 分别打分取平均
-# （忠实 socmind-bench-v4 的双 judge 协议）；缺省则只用 judge1。
+# （忠实 socmind-bench 的双 judge 协议）；缺省则只用 judge1。
 # judge2:
 #   model_name: qwen3.5-flash
 #   api_key: sk-xxx

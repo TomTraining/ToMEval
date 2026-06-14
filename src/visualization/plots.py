@@ -6,7 +6,7 @@
 
 自动行为：
 - 每个 `by_<x>` 分组 -> 一张准确率柱状图（带样本数标注）。
-- 分组键形如 "row|col"（组合键）-> 自动透视成热力图（如 V4p2 的 维度×题型）。
+- 分组键形如 "row|col"（组合键）-> 自动透视成热力图（如 SocialToM 的 维度×题型）。
 - per_sample_results 中若含 judge1_score/judge2_score -> 出 judge 一致性图
   （散点 + Bland-Altman）；否则跳过。
 - 多个 metrics.json -> 额外出多模型对比图。
@@ -30,7 +30,7 @@ try:
 except Exception:  # pragma: no cover
     _HAS_SNS = False
 
-# 尽量挑一个支持中文的字体（V4p2 维度名等），挑不到就用默认，不报错。
+# 尽量挑一个支持中文的字体（SocialToM 维度名等），挑不到就用默认，不报错。
 for _font in ["PingFang SC", "Heiti SC", "Arial Unicode MS", "STHeiti", "SimHei"]:
     try:
         from matplotlib.font_manager import findfont, FontProperties
@@ -81,7 +81,7 @@ def is_composite(rates: Dict[str, Any]) -> bool:
 
 
 def score_group_keys(metrics: Dict[str, Any]) -> List[str]:
-    """非准确率的"分组均分"字典，如 V4p2 的 q4_mean_score_by_dim(0-10 分)。
+    """非准确率的"分组均分"字典，如 SocialToM 的 q4_mean_score_by_dim(0-10 分)。
 
     约定：键里含 `_by_`（分组）但不以 `by_` 开头（那是准确率），值为非空 dict。
     与 `by_*` 准确率分组在命名上天然区分，保持数据集无关。"""
@@ -245,7 +245,7 @@ def render_single(payload: Dict[str, Any], out_dir: Path, prefix: str = "") -> L
             plot_group_accuracy(gk, rates, count_dict, path)
         written.append(path)
 
-    # 分组平均分（如 V4p2 Q4 rubric：q4_mean_score_by_dim，0-10 分）。
+    # 分组平均分（如 SocialToM Q4 rubric：q4_mean_score_by_dim，0-10 分）。
     for sk in score_group_keys(metrics):
         scores = metrics[sk]
         overall_key = sk.split("_by_", 1)[0]  # q4_mean_score_by_dim -> q4_mean_score

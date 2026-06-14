@@ -17,13 +17,21 @@ protocol: cot
 stage: all
 
 # run_eval.py 批量评测的数据集列表(单跑 tasks/<DS>/run.py 时忽略此项)
+# 现已全部就绪、可直接启用的数据集(datasets/ 下均有 parquet + tasks/<DS>/prompt.py):
+#   ToM/社会认知 : BigToM EmoBench FanToM HiToM SocialIQA ToMBench TactfulToM
+#                  SimpleToM Belief_R ExploreToM ToMato ToMQA ToMi ToMChallenges
+#   语用/社交     : PUB SocialBench
+#   常识对照(非ToM): HellaSwag FictionalQA
+#   SocialToM     : socmind v5.3,Q1-Q4 混合题型,Q4 走 open_judge: rubric(LLM judge)
+#   (ExploreToM/FictionalQA/SocialBench/ToMChallenges 含开放题,已在各自 config.yaml 配 open_judge: f1)
+#   完整说明见 docs/datasets.md
 datasets:
   - EmoBench
   - FanToM
   - HiToM
   - ToMBench
   - TactfulToM
-  - V4p2
+  - SocialToM
 
 max_samples: 0
 normalized_datasets_path: datasets
