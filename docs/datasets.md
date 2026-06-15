@@ -45,7 +45,7 @@
 | ToMChallenges | xiaomeng-ma/ToMChallenges (CoNLL'23) | 720 | mcq_single + **open** | 规则 + **f1** | ✓ |
 | ToMQA | kayburns/tom-qa-dataset (EMNLP'18) | 12,000 | mcq_single | 规则 | ✓ |
 | ToMi | facebookresearch/ToMi (EMNLP'19) | 5,638 | mcq_single | 规则 | ✓ |
-| SocialToM | socmind v5.3（内部） | 336 | single / multi / **open** | 规则 + **rubric** | （通用模板） |
+| SocialToM | socmind v5（内部） | 1,704 | single / multi / **open** | 规则 + **rubric** | （通用模板） |
 
 > 样本量为 `datasets/<DS>/*.parquet` 实际行数。"复刻原论文 prompt" 指 `tasks/<DS>/prompt.py` 提供了忠实题面排版的钩子（见 [§5.2](#52-prompt-构造)）；SocialToM 走框架通用模板。
 
@@ -190,11 +190,12 @@
 
 ### 3.4 混合长题型
 
-#### SocialToM — socmind v5.3（Q1–Q4 + rubric judge）
-- **来源**：项目内 `dataset_v5_3_final.json`，socmind-bench / SocialToM 体系。是旧 V4p2 的新版数据。
-- **能力**：社会规范 / 文化理解，14 个三级维度（D1–D14），一条样本含四种题：
+#### SocialToM — socmind v5（Q1–Q4 + rubric judge）
+- **来源**：项目内 `dataset_v5/`（dataset_v5_1/2/3.json 三批合并，共 284 样本），socmind-bench / SocialToM 体系。是旧 V4p2 的新版数据。
+- **规模**：284 样本 × 6 题/样本 = **1,704 行**；覆盖一级维度 1/2/3、共 71 个三级维度（task_id）。
+- **能力**：社会规范 / 文化理解，一条样本含四种题：
   - Q1 单选（`mcq_single`）、Q2 不定项（`mcq_multi`）、Q3 多个"是/否/无法确定"判断子项（每子项 `mcq_single`）、**Q4 开放分析长答（`open`）**。
-- **改造**（`convert_socialtom.py`）：把每个样本的 Q1–Q4 展开为独立行，各自带 story/question/answer；Q4 的 correct 为参考要点串、wrong 为空；`meta` 固定 keyset（`id / dim / dim1 / dim2 / qtype / perspective / variant / length_mode / lang / q4_reference` 等）保证 parquet schema 一致。
+- **改造**（`convert_socialtom.py`）：合并 `dataset_v5/` 三批、按 id 去重；把每个样本的 Q1–Q4 展开为独立行，各自带 story/question/answer；兼容 `题目` 的 list/dict 两种形态、Q2 答案兼容 `answer_key.Q2` 与 `题目.Q2.答案`；Q4 的 correct 为参考要点串、wrong 为空；`meta` 固定 keyset（`id / dim / dim1 / dim2 / qtype / perspective / variant / length_mode / lang / q4_reference` 等）保证 parquet schema 一致。
 - **判分**：Q1–Q3 规则；**Q4 走 rubric LLM judge**（`open_judge: rubric`）：按 `meta.dim` 选 `q4_judge_prompts.json` 里的专属评分 prompt，judge 给 0–10 总分（D1–D5 各 0–2），平均分 ≥ `open_threshold`(7.0) 记为正确；可选 `judge2` 双 judge 取平均。judge 模型在 `tasks/SocialToM/config.yaml` 的 `judge1/judge2` 段配置，与被测模型解耦。
 
 ---
