@@ -191,11 +191,14 @@
 ### 3.4 混合长题型
 
 #### SocialToM — socmind v5（Q1–Q4 + rubric judge）
-- **来源**：项目内 `dataset_v5/`（dataset_v5_1/2/3.json 三批合并，共 284 样本），socmind-bench / SocialToM 体系。是旧 V4p2 的新版数据。
-- **规模**：284 样本 × 6 题/样本 = **1,704 行**；覆盖一级维度 1/2/3、共 71 个三级维度（task_id）。
+- **来源**：socmind-bench / SocialToM 体系（旧 V4p2 的新版数据），分三批、按"是否人工审核"取最新版本：
+  - 第1部分 `dataset_v5/dataset_v5_1.json`（120 样本，**未人工审核** → `review_pass=False`，对应一级维度 1）
+  - 第2部分 `brief/dataset_v5_2_brief.json`（108 样本，**已人工审核** → `review_pass=True`，维度 2）
+  - 第3部分 `brief/dataset_v5_3_brief.json`（56 样本，**已人工审核** → `review_pass=True`，维度 3）
+- **规模**：284 样本 × 6 题/样本 = **1,704 行**(已审核 984 / 未审核 720)；覆盖一级维度 1/2/3、共 71 个三级维度（task_id）。
 - **能力**：社会规范 / 文化理解，一条样本含四种题：
   - Q1 单选（`mcq_single`）、Q2 不定项（`mcq_multi`）、Q3 多个"是/否/无法确定"判断子项（每子项 `mcq_single`）、**Q4 开放分析长答（`open`）**。
-- **改造**（`convert_socialtom.py`）：合并 `dataset_v5/` 三批、按 id 去重；把每个样本的 Q1–Q4 展开为独立行，各自带 story/question/answer；兼容 `题目` 的 list/dict 两种形态、Q2 答案兼容 `answer_key.Q2` 与 `题目.Q2.答案`；Q4 的 correct 为参考要点串、wrong 为空；`meta` 固定 keyset（`id / dim / dim1 / dim2 / qtype / perspective / variant / length_mode / lang / q4_reference` 等）保证 parquet schema 一致。
+- **改造**（`convert_socialtom.py`）：三批合并、Q1–Q4 展开为独立行；兼容两种源格式 —— inline（原版，答案内联在 `题目`）与 brief（审核版，答案在 `answer_key`），以及 `题目` 的 list/dict 形态；brief 缺失的 `length_mode` 按 `(task_id, sample_idx, perspective)` 从原版回填；`meta.review_pass` 标记审核状态，供 `metrics.py` 的 `qualified` 二级指标只在已审核样本上重算；`meta` 固定 keyset 保证 parquet schema 一致。
 - **判分**：Q1–Q3 规则；**Q4 走 rubric LLM judge**（`open_judge: rubric`）：按 `meta.dim` 选 `q4_judge_prompts.json` 里的专属评分 prompt，judge 给 0–10 总分（D1–D5 各 0–2），平均分 ≥ `open_threshold`(7.0) 记为正确；可选 `judge2` 双 judge 取平均。judge 模型在 `tasks/SocialToM/config.yaml` 的 `judge1/judge2` 段配置，与被测模型解耦。
 
 ---
