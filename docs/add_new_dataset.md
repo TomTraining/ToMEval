@@ -58,7 +58,7 @@ If the dataset has open questions (`wrong_answers: []`), pick how they are grade
 - `rubric` — dataset-provided rubric prompts score a total; needs `judge1` (optional `judge2` averaged),
   a `rubric` block (`prompts_file` / `key_field` / `max_score`) and `open_threshold`.
 
-Judge models are configured **here** (per dataset), not in `experiment_config.yaml`. Example (rubric, as used by SocialToM):
+Judge models are configured **here** (per dataset), not in `experiment_config.yaml`. Example (rubric, as used by SocialMind):
 
 ```yaml
 dataset: MyDataset

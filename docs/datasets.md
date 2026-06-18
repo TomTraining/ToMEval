@@ -19,7 +19,7 @@
 | **ToM / 社会认知**（主） | BigToM · EmoBench · FanToM · HiToM · ToMBench · TactfulToM · SimpleToM · Belief_R · ExploreToM · ToMato · ToMQA · ToMi · ToMChallenges | 错误信念、高阶信念、情绪、意图、得体性、信念修正等 |
 | **社会智能 / 语用** | SocialIQA · PUB · SocialBench | 社会常识、语用理解（反讽 / 言外之意）、角色扮演社交 |
 | **常识对照（非 ToM）** | HellaSwag · FictionalQA | 作为对照基线：句子续写常识 / 虚构文档阅读，用于区分"会读题"和"会读心" |
-| **混合长题型（含 LLM judge）** | SocialToM | socmind v5.3，单条样本含 Q1–Q4 四种题型，Q4 开放分析题走 rubric LLM 判分 |
+| **混合长题型（含 LLM judge）** | SocialMind | socmind v5.3，单条样本含 Q1–Q4 四种题型，Q4 开放分析题走 rubric LLM 判分 |
 
 ---
 
@@ -45,9 +45,9 @@
 | ToMChallenges | xiaomeng-ma/ToMChallenges (CoNLL'23) | 720 | mcq_single + **open** | 规则 + **f1** | ✓ |
 | ToMQA | kayburns/tom-qa-dataset (EMNLP'18) | 12,000 | mcq_single | 规则 | ✓ |
 | ToMi | facebookresearch/ToMi (EMNLP'19) | 5,638 | mcq_single | 规则 | ✓ |
-| SocialToM | socmind v5（内部） | 1,704 | single / multi / **open** | 规则 + **rubric** | （通用模板） |
+| SocialMind | socmind v5（内部） | 1,704 | single / multi / **open** | 规则 + **rubric** | （通用模板） |
 
-> 样本量为 `datasets/<DS>/*.parquet` 实际行数。"复刻原论文 prompt" 指 `tasks/<DS>/prompt.py` 提供了忠实题面排版的钩子（见 [§5.2](#52-prompt-构造)）；SocialToM 走框架通用模板。
+> 样本量为 `datasets/<DS>/*.parquet` 实际行数。"复刻原论文 prompt" 指 `tasks/<DS>/prompt.py` 提供了忠实题面排版的钩子（见 [§5.2](#52-prompt-构造)）；SocialMind 走框架通用模板。
 
 ---
 
@@ -190,8 +190,8 @@
 
 ### 3.4 混合长题型
 
-#### SocialToM — socmind v5（Q1–Q4 + rubric judge）
-- **来源**：socmind-bench / SocialToM 体系（旧 V4p2 的新版数据）。
+#### SocialMind — socmind v5（Q1–Q4 + rubric judge）
+- **来源**：socmind-bench / SocialMind 体系（旧 V4p2 的新版数据）。
   - **base** 三批、统一取 brief 人工审核版（`meta.variant=base`）：
     - 第1部分 `brief/dataset_v5_1_brief.json`（120 样本，**已人工审核** → `review_pass=True`，对应一级维度 1）
     - 第2部分 `brief/dataset_v5_2_brief.json`（108 样本，**已人工审核** → `review_pass=True`，维度 2）
@@ -200,8 +200,8 @@
 - **规模**：base 284 + hardest 56 = **340 样本 × 6 题/样本 = 2,040 行**（全部审核通过，已审核 2,040 / 未审核 0）；其中 base 1,704 行（维度 1/2/3、共 71 个 task_id）、hardest 336 行（dim-3、14 个 task_id）。`meta.variant` 区分两难度，`metrics.py` 的 `by_variant` 切面可对比同批题在 base/hardest 上的表现。
 - **能力**：社会规范 / 文化理解，一条样本含四种题：
   - Q1 单选（`mcq_single`）、Q2 不定项（`mcq_multi`）、Q3 多个"是/否/无法确定"判断子项（每子项 `mcq_single`）、**Q4 开放分析长答（`open`）**。
-- **改造**（`convert_socialtom.py`）：各源合并、Q1–Q4 展开为独立行；按 `(源文件, review_pass, variant)` 声明数据源；兼容两种源格式 —— inline（原版，答案内联在 `题目`）与 brief（审核版，答案在 `answer_key`），以及 `题目` 的 list/dict 形态；brief 缺失的 `length_mode` 按 `(task_id, sample_idx, perspective)` 从原版回填（hardest 自带 length_mode）；`meta.variant` 进 id 避免 base/hardest 同样本碰撞；`meta.review_pass` 标记审核状态，供 `qualified` 二级指标只在已审核样本上重算；`meta` 固定 keyset 保证 parquet schema 一致。base 三个 brief 源为本地临时文件（gitignore），运行时若 base 源缺失但已有既有 parquet，脚本会从既有 parquet 复用 `variant=base` 行以保证全量不丢。
-- **判分**：Q1–Q3 规则；**Q4 走 rubric LLM judge**（`open_judge: rubric`）：按 `meta.dim` 选 `q4_judge_prompts.json` 里的专属评分 prompt，judge 给 0–10 总分（D1–D5 各 0–2），平均分 ≥ `open_threshold`(7.0) 记为正确；可选 `judge2` 双 judge 取平均。judge 模型在 `tasks/SocialToM/config.yaml` 的 `judge1/judge2` 段配置，与被测模型解耦。
+- **改造**（`convert_socialmind.py`）：各源合并、Q1–Q4 展开为独立行；按 `(源文件, review_pass, variant)` 声明数据源；兼容两种源格式 —— inline（原版，答案内联在 `题目`）与 brief（审核版，答案在 `answer_key`），以及 `题目` 的 list/dict 形态；brief 缺失的 `length_mode` 按 `(task_id, sample_idx, perspective)` 从原版回填（hardest 自带 length_mode）；`meta.variant` 进 id 避免 base/hardest 同样本碰撞；`meta.review_pass` 标记审核状态，供 `qualified` 二级指标只在已审核样本上重算；`meta` 固定 keyset 保证 parquet schema 一致。base 三个 brief 源为本地临时文件（gitignore），运行时若 base 源缺失但已有既有 parquet，脚本会从既有 parquet 复用 `variant=base` 行以保证全量不丢。
+- **判分**：Q1–Q3 规则；**Q4 走 rubric LLM judge**（`open_judge: rubric`）：按 `meta.dim` 选 `q4_judge_prompts.json` 里的专属评分 prompt，judge 给 0–10 总分（D1–D5 各 0–2），平均分 ≥ `open_threshold`(7.0) 记为正确；可选 `judge2` 双 judge 取平均。judge 模型在 `tasks/SocialMind/config.yaml` 的 `judge1/judge2` 段配置，与被测模型解耦。
 
 ---
 
@@ -266,7 +266,7 @@
 ### 5.2 Prompt 构造
 
 - **默认**：框架按 `协议风格 × 语言 × 题型` 生成统一的 system prompt + 题面。
-- **复刻原论文**（可选）：`tasks/<DS>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子即可忠实还原原论文排版（约定式加载，缺省回退通用实现）。目前除 SocialToM 外的 18 个数据集都接入了 `prompt.py`。
+- **复刻原论文**（可选）：`tasks/<DS>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子即可忠实还原原论文排版（约定式加载，缺省回退通用实现）。目前除 SocialMind 外的 18 个数据集都接入了 `prompt.py`。
 
 ### 5.3 判分
 
@@ -277,7 +277,7 @@
 |--------------|------|:---:|------|
 | `f1` | 预测与参考的 token/char 级 F1，按 `f1_threshold`(默认 0.5) 二值化 | 否 | ExploreToM·FictionalQA·SocialBench·ToMChallenges 的开放子集 |
 | `llm_simple` | 二元 LLM judge（"答案对不对"） | 是（`judge1`） | 默认开放题模式 |
-| `rubric` | 按维度专属 rubric 给 0–max_score 总分，均分 ≥ `open_threshold` 算对 | 是（`judge1`，可选 `judge2` 取平均） | SocialToM Q4 |
+| `rubric` | 按维度专属 rubric 给 0–max_score 总分，均分 ≥ `open_threshold` 算对 | 是（`judge1`，可选 `judge2` 取平均） | SocialMind Q4 |
 
 judge 模型在数据集自己的 `config.yaml` 里配置（`judge1/judge2`），与 `experiment_config.yaml` 里的被测模型完全解耦。
 
@@ -286,8 +286,8 @@ judge 模型在数据集自己的 `config.yaml` 里配置（`judge1/judge2`）�
 每个数据集的 `tasks/<DS>/metrics.py` 产出：
 
 - **基础指标**：`accuracy`、`correct`、`total`、`extraction_failed`（`\boxed{}` 抽取失败数）/`extraction_failed_rate`。
-- **分组指标**：`by_<x>`（如 `by_dimension` / `by_qtype` / `by_lang`）+ 对应 `<x>_counts`，由 `generic_group_metrics` 按 `meta` 字段声明。组合键（值形如 `"a|b"`，如 SocialToM 的 `by_dim3_qtype`）可视化时自动透视成热力图。
-- **分组均分**：非 0-1 的均分字典（如 SocialToM 的 `q4_mean_score_by_dim`，0–10 分）。
+- **分组指标**：`by_<x>`（如 `by_dimension` / `by_qtype` / `by_lang`）+ 对应 `<x>_counts`，由 `generic_group_metrics` 按 `meta` 字段声明。组合键（值形如 `"a|b"`，如 SocialMind 的 `by_dim3_qtype`）可视化时自动透视成热力图。
+- **分组均分**：非 0-1 的均分字典（如 SocialMind 的 `q4_mean_score_by_dim`，0–10 分）。
 - **组级全对指标**：要求一组样本全部答对才算通过（如多成员子问）。
 - 多轮（`repeats`）取平均存入 `avg_metrics`，单轮明细存 `all_metrics`。
 
@@ -299,4 +299,4 @@ judge 模型在数据集自己的 `config.yaml` 里配置（`judge1/judge2`）�
 
 `experiment_config.yaml` 的 `datasets` 列表控制批量评测哪些数据集。19 个数据集全部就绪（`datasets/<DS>/` 有 parquet、`tasks/<DS>/` 有 `config.yaml`+`run.py`），可按需启用。
 
-> 历史数据集 **V4p2**（socmind v4）已被其新版 **SocialToM**（socmind v5.3）取代并从仓库移除。
+> 历史数据集 **V4p2**（socmind v4）已被其新版 **SocialMind**（socmind v5.3）取代并从仓库移除。

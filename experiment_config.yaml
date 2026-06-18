@@ -22,7 +22,7 @@ stage: all
 #                  SimpleToM Belief_R ExploreToM ToMato ToMQA ToMi ToMChallenges
 #   语用/社交     : PUB SocialBench
 #   常识对照(非ToM): HellaSwag FictionalQA
-#   SocialToM     : socmind v5.3,Q1-Q4 混合题型,Q4 走 open_judge: rubric(LLM judge)
+#   SocialMind     : socmind v5.3,Q1-Q4 混合题型,Q4 走 open_judge: rubric(LLM judge)
 #   (ExploreToM/FictionalQA/SocialBench/ToMChallenges 含开放题,已在各自 config.yaml 配 open_judge: f1)
 #   完整说明见 docs/datasets.md
 datasets:
@@ -31,7 +31,7 @@ datasets:
   - HiToM
   - ToMBench
   - TactfulToM
-  - SocialToM
+  - SocialMind
 
 max_samples: 0
 normalized_datasets_path: datasets
