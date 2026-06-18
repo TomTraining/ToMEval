@@ -2,5 +2,5 @@ dataset: HiToM
 path: HiToM/test
 
 # body prompt 复刻原论文(tasks/HiToM/prompt.py)：故事+问题+选项后固定追加 4 条假设 Note。
-# 缺省此项的数据集(如 SocialToM)走通用模板。
+# 缺省此项的数据集(如 SocialMind)走通用模板。
 prompt_style: hitom
