@@ -1,8 +1,9 @@
 """SocialToM 分组指标：按维度层级 / 题型 / 视角 / 长短文本切面统计准确率，
 并额外汇总 Q4 的平均 rubric 得分（总体 + 按维度）。
 
-注：v5.3 数据无扰动变体（variant 恒为 base），by_variant 切面只会有单一桶，保留仅为
-schema 兼容。二级指标 `qualified` 只在「人工审核合格」样本（meta.review_pass=True）上重算
+注：variant 切面区分 base（dim 1/2/3 全量 284 样本）与 hardest（dim-3 加难版 56 样本，
+按模型错误率挑最难子题改写而成，与 base dim-3 一一对应），by_variant 可对比同批题在两难度上的
+表现。二级指标 `qualified` 只在「人工审核合格」样本（meta.review_pass=True）上重算
 同一套指标；v5.3 provenance 标明 FAIL 项已就地修复、裁判结论为最终权威，故全部样本默认合格，
 qualified 与 full 一致。缺失 review_pass 字段的样本默认视为合格。"""
 

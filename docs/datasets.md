@@ -191,14 +191,16 @@
 ### 3.4 混合长题型
 
 #### SocialToM — socmind v5（Q1–Q4 + rubric judge）
-- **来源**：socmind-bench / SocialToM 体系（旧 V4p2 的新版数据），分三批、统一取 brief 人工审核版：
-  - 第1部分 `brief/dataset_v5_1_brief.json`（120 样本，**已人工审核** → `review_pass=True`，对应一级维度 1）
-  - 第2部分 `brief/dataset_v5_2_brief.json`（108 样本，**已人工审核** → `review_pass=True`，维度 2）
-  - 第3部分 `brief/dataset_v5_3_brief.json`（56 样本，**已人工审核** → `review_pass=True`，维度 3）
-- **规模**：284 样本 × 6 题/样本 = **1,704 行**(三部分全部审核通过，已审核 1,704 / 未审核 0)；覆盖一级维度 1/2/3、共 71 个三级维度（task_id）。
+- **来源**：socmind-bench / SocialToM 体系（旧 V4p2 的新版数据）。
+  - **base** 三批、统一取 brief 人工审核版（`meta.variant=base`）：
+    - 第1部分 `brief/dataset_v5_1_brief.json`（120 样本，**已人工审核** → `review_pass=True`，对应一级维度 1）
+    - 第2部分 `brief/dataset_v5_2_brief.json`（108 样本，**已人工审核** → `review_pass=True`，维度 2）
+    - 第3部分 `brief/dataset_v5_3_brief.json`（56 样本，**已人工审核** → `review_pass=True`，维度 3）
+  - **hardest** 加难版 `dataset_v5_3_harder.json`（56 样本，**已人工审核** → `review_pass=True`，`meta.variant=hardest`）：socmind「hardest per type」批次，每道子题（Q1/Q2/Q3 各子项/Q4）按模型错误率从「改写候选 ∪ 原版」里挑最难的一版（Q3 取最难 3 条），仅覆盖 dim-3 的 14 个三级维度，与 base dim-3 的 56 样本一一对应。
+- **规模**：base 284 + hardest 56 = **340 样本 × 6 题/样本 = 2,040 行**（全部审核通过，已审核 2,040 / 未审核 0）；其中 base 1,704 行（维度 1/2/3、共 71 个 task_id）、hardest 336 行（dim-3、14 个 task_id）。`meta.variant` 区分两难度，`metrics.py` 的 `by_variant` 切面可对比同批题在 base/hardest 上的表现。
 - **能力**：社会规范 / 文化理解，一条样本含四种题：
   - Q1 单选（`mcq_single`）、Q2 不定项（`mcq_multi`）、Q3 多个"是/否/无法确定"判断子项（每子项 `mcq_single`）、**Q4 开放分析长答（`open`）**。
-- **改造**（`convert_socialtom.py`）：三批合并、Q1–Q4 展开为独立行；兼容两种源格式 —— inline（原版，答案内联在 `题目`）与 brief（审核版，答案在 `answer_key`），以及 `题目` 的 list/dict 形态；brief 缺失的 `length_mode` 按 `(task_id, sample_idx, perspective)` 从原版回填；`meta.review_pass` 标记审核状态，供 `metrics.py` 的 `qualified` 二级指标只在已审核样本上重算；`meta` 固定 keyset 保证 parquet schema 一致。
+- **改造**（`convert_socialtom.py`）：各源合并、Q1–Q4 展开为独立行；按 `(源文件, review_pass, variant)` 声明数据源；兼容两种源格式 —— inline（原版，答案内联在 `题目`）与 brief（审核版，答案在 `answer_key`），以及 `题目` 的 list/dict 形态；brief 缺失的 `length_mode` 按 `(task_id, sample_idx, perspective)` 从原版回填（hardest 自带 length_mode）；`meta.variant` 进 id 避免 base/hardest 同样本碰撞；`meta.review_pass` 标记审核状态，供 `qualified` 二级指标只在已审核样本上重算；`meta` 固定 keyset 保证 parquet schema 一致。base 三个 brief 源为本地临时文件（gitignore），运行时若 base 源缺失但已有既有 parquet，脚本会从既有 parquet 复用 `variant=base` 行以保证全量不丢。
 - **判分**：Q1–Q3 规则；**Q4 走 rubric LLM judge**（`open_judge: rubric`）：按 `meta.dim` 选 `q4_judge_prompts.json` 里的专属评分 prompt，judge 给 0–10 总分（D1–D5 各 0–2），平均分 ≥ `open_threshold`(7.0) 记为正确；可选 `judge2` 双 judge 取平均。judge 模型在 `tasks/SocialToM/config.yaml` 的 `judge1/judge2` 段配置，与被测模型解耦。
 
 ---
