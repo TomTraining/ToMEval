@@ -19,7 +19,7 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 _KNOWN_TASKS = [
-    "BigToM", "EmoBench", "FanToM", "HiToM", "SocialIQA", "ToMBench"
+    "BigToM", "EmoBench", "FanToM", "HiToM", "SocialIQA", "ToMBench", "SocialMind"
 ]
 _CACHE_VERSION = 1
 
