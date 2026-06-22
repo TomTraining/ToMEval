@@ -181,12 +181,19 @@ def load_bad_cases_from_predictions(
         correct_letters = ref_rec.get("correct_letters", [])
         gold = correct_letters[0] if correct_letters else ""
 
+        # SocialMind Q4 是开放题（无 correct_letters）：gold 取 q4_reference 拼接，
+        # 供诊断 prompt 呈现参考要点;_wrong_answer 改用模型原文（见下方组装处）。
+        ref_meta = ref_rec.get("meta", {}) or {}
+        is_sm_q4 = dataset_name == "SocialMind" and str(ref_meta.get("qtype")) == "Q4"
+        if is_sm_q4:
+            gold = "\n".join(str(p) for p in (ref_meta.get("q4_reference") or []) if str(p).strip())
+
         row_data = {
             "story":           ref_rec.get("story", ""),
             "question":        ref_rec.get("question", ""),
             "correct_answers": ref_rec.get("correct_answers", []),
             "wrong_answers":   ref_rec.get("wrong_answers", []),
-            "meta":            ref_rec.get("meta", {}),
+            "meta":            ref_meta,
             "prompt_type":     ref_rec.get("prompt_type", "mcq_single"),
         }
 
@@ -206,12 +213,14 @@ def load_bad_cases_from_predictions(
                 if not _judge_is_wrong(model_name, r):
                     continue
                 pred_str = str(r.get("raw_prediction", "") or r.get("pred", {}).get("content", "") or "")
+                # 开放题模型输出是自由文本而非字母:Q4 直接取原文（截断），其余题型取字母。
+                wrong_answer = pred_str.strip()[:500] if is_sm_q4 else _extract_letter(pred_str)
                 bad_case = {
                     "sample_idx":       sample_idx,
                     "dataset":          dataset_name,
                     "row_data":         row_data,
                     "_actual_prompt":   r.get("prompt", ""),
-                    "_wrong_answer":    _extract_letter(pred_str),
+                    "_wrong_answer":    wrong_answer,
                     "_wrong_reasoning": str(r.get("pred", {}).get("reasoning", "") or "").strip(),
                     "_gold_answer":     gold,
                     "_difficulty":      total_wrong_count,
@@ -423,6 +432,13 @@ def get_dimension_key(meta: Any, dataset_name: str) -> str:
         meta_id = str(meta.get("id", ""))
         parts = meta_id.split("__")
         return parts[1] if len(parts) > 1 else "unknown"
+
+    elif dataset_name == "SocialMind":
+        # SocialMind 题型异构（Q1-Q4），把 qtype 编进维度键 → 每份诊断报告 qtype 同质，
+        # 合成时据此选 qtype 专属 format/schema。dim 形如 "1.1.1"（含点不含下划线）。
+        dim, qtype = meta.get("dim", ""), meta.get("qtype", "")
+        base = f"{dim}__{qtype}" if dim and qtype else (str(dim) or "unknown")
+        return base + suffix   # SocialMind 恒为 zh → suffix == "__zh"
 
     else:
         dim = meta.get("dimension", meta.get("Dimension", ["unknown"]))

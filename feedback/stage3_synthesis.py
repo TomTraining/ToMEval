@@ -24,6 +24,7 @@ from .prompts import (
     build_stage2_generation_from_report_prompt,
     SYNTHESIS_FORMAT_REGISTRY,
     DATASET_SKILL_REGISTRY,
+    _socialmind_parse_dim,
 )
 
 logger = logging.getLogger(__name__)
@@ -362,6 +363,145 @@ class HiToMSynthesisOutput(BaseModel):
     questions: List[HiToMQuestionFlat]
 
 
+# ---- SocialMind（中文，4 题型异构，按 qtype 选 schema）----
+_SM_VERDICTS = ["是", "否", "无法确定"]
+
+
+def _sm_meta(meta_dim: str, perspective: str, domain: str,
+             length_mode: str, qtype: str, q4_reference: Optional[List[str]] = None) -> dict:
+    """构造 SocialMind 合成样本的 meta：dim1/dim2 由 dim 拆出，variant 标 synthetic。
+    与 eval parquet 的 meta 对齐（id/lang/history 由 stage3 后处理写入）。"""
+    parts = str(meta_dim).split(".")
+    dim1 = parts[0] if parts else ""
+    dim2 = ".".join(parts[:2]) if len(parts) >= 2 else dim1
+    return {
+        "dim": str(meta_dim), "dim1": dim1, "dim2": dim2, "qtype": qtype,
+        "perspective": perspective or "third_person",
+        "domain": domain or "", "length_mode": length_mode or "long",
+        "variant": "synthetic", "lang": "zh",
+        "q4_reference": list(q4_reference or []),
+    }
+
+
+class SocialMindQ1Flat(BaseModel):
+    story: str = Field(description="以①②③编号的完整中文故事")
+    question: str = Field(description="中文问题")
+    correct_answer: str = Field(description="正确答案中文句")
+    wrong_answer_1: str = Field(description="干扰项1")
+    wrong_answer_2: str = Field(description="干扰项2")
+    wrong_answer_3: str = Field(description="干扰项3")
+    meta_dim: str = Field(description="三级维度，如 1.1.1")
+    meta_perspective: str = Field(default="third_person")
+    meta_domain: str = Field(default="")
+    meta_length_mode: str = Field(default="long")
+
+    def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
+        return {
+            "story": self.story,
+            "question": self.question,
+            "answer": {
+                "correct_answers": [self.correct_answer],
+                "wrong_answers": [self.wrong_answer_1, self.wrong_answer_2, self.wrong_answer_3],
+            },
+            "meta": _sm_meta(self.meta_dim, self.meta_perspective, self.meta_domain,
+                             self.meta_length_mode, "Q1"),
+        }
+
+
+class SocialMindQ1Output(BaseModel):
+    questions: List[SocialMindQ1Flat]
+
+
+class SocialMindQ2Flat(BaseModel):
+    story: str = Field(description="以①②③编号的完整中文故事")
+    question: str = Field(description="中文多选问题")
+    correct_answers: List[str] = Field(description="正确答案（≥2 个）")
+    wrong_answers: List[str] = Field(description="干扰项")
+    meta_dim: str = Field(description="三级维度，如 1.1.1")
+    meta_perspective: str = Field(default="third_person")
+    meta_domain: str = Field(default="")
+    meta_length_mode: str = Field(default="long")
+
+    def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
+        correct = list(self.correct_answers or [])
+        if len(correct) < 2:
+            logger.warning(
+                f"SocialMind Q2 正确项 <2（{len(correct)}），会被反推成 mcq_single: dim={self.meta_dim}"
+            )
+        return {
+            "story": self.story,
+            "question": self.question,
+            "answer": {
+                "correct_answers": correct,
+                "wrong_answers": list(self.wrong_answers or []),
+            },
+            "meta": _sm_meta(self.meta_dim, self.meta_perspective, self.meta_domain,
+                             self.meta_length_mode, "Q2"),
+        }
+
+
+class SocialMindQ2Output(BaseModel):
+    questions: List[SocialMindQ2Flat]
+
+
+class SocialMindQ3Flat(BaseModel):
+    story: str = Field(description="以①②③编号的完整中文故事")
+    question: str = Field(description="判断题题面（含待判断陈述）")
+    correct_verdict: str = Field(description="是 / 否 / 无法确定 之一")
+    meta_dim: str = Field(description="三级维度，如 1.1.1")
+    meta_perspective: str = Field(default="third_person")
+    meta_domain: str = Field(default="")
+    meta_length_mode: str = Field(default="long")
+
+    def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
+        cv = str(self.correct_verdict).strip()
+        if cv not in _SM_VERDICTS:
+            cv = "无法确定"
+        wrong = [v for v in _SM_VERDICTS if v != cv]  # 另两个判定作干扰
+        return {
+            "story": self.story,
+            "question": self.question,
+            "answer": {"correct_answers": [cv], "wrong_answers": wrong},
+            "meta": _sm_meta(self.meta_dim, self.meta_perspective, self.meta_domain,
+                             self.meta_length_mode, "Q3"),
+        }
+
+
+class SocialMindQ3Output(BaseModel):
+    questions: List[SocialMindQ3Flat]
+
+
+class SocialMindQ4Flat(BaseModel):
+    story: str = Field(description="以①②③编号的完整中文故事")
+    question: str = Field(description="开放分析问题")
+    reference_points: List[str] = Field(description="参考答案要点（3-8 条）")
+    meta_dim: str = Field(description="三级维度，如 1.1.1（必须命中 q4 rubric 键）")
+    meta_perspective: str = Field(default="third_person")
+    meta_domain: str = Field(default="")
+    meta_length_mode: str = Field(default="long")
+
+    def to_storage_dict(self, synthesis_diagnosis=None) -> dict:
+        pts = [str(p).strip() for p in (self.reference_points or []) if str(p).strip()]
+        return {
+            "story": self.story,
+            "question": self.question,
+            # 1 正 0 误 -> 下游 prompt_type() 判为 open
+            "answer": {"correct_answers": ["\n".join(pts)], "wrong_answers": []},
+            "meta": _sm_meta(self.meta_dim, self.meta_perspective, self.meta_domain,
+                             self.meta_length_mode, "Q4", q4_reference=pts),
+        }
+
+
+class SocialMindQ4Output(BaseModel):
+    questions: List[SocialMindQ4Flat]
+
+
+SOCIALMIND_SCHEMA_BY_QTYPE: Dict[str, Any] = {
+    "Q1": SocialMindQ1Output,
+    "Q2": SocialMindQ2Output,
+    "Q3": SocialMindQ3Output,
+    "Q4": SocialMindQ4Output,
+}
 
 
 SYNTHESIS_SCHEMA_REGISTRY: Dict[str, Any] = {
@@ -411,6 +551,17 @@ def synthesize_from_reports(
         return [], {"total_reports": 0, "total_target": 0, "succeeded": 0, "failed": 0}
 
     output_schema = SYNTHESIS_SCHEMA_REGISTRY.get(dataset_name, _FallbackSynthesisOutput)
+
+    def _schema_for_report(r_idx: int):
+        """SocialMind 按 report 的 qtype 选 schema；其余数据集恒用 output_schema。
+        用 _meta.dimension（stage2 程序化写入、权威），避免读 LLM 回显的顶层 dimension。"""
+        if dataset_name != "SocialMind":
+            return output_schema
+        rep = reports[r_idx]
+        key = str((rep.get("_meta") or {}).get("dimension") or rep.get("dimension", ""))
+        _dim, qtype = _socialmind_parse_dim(key)
+        return SOCIALMIND_SCHEMA_BY_QTYPE.get(qtype, SocialMindQ1Output)
+
     total_target = len(reports) * samples_per_report
     logger.info(
         f"synthesize_from_reports: {len(reports)} reports × {samples_per_report} = "
@@ -453,10 +604,25 @@ def synthesize_from_reports(
             batch_prompts = gen_prompts[batch_start: batch_start + batch_size]
             batch_pairs = pending_pairs[batch_start: batch_start + batch_size]
 
-            gen_results_raw = client.batch_generate_structure(
-                batch_prompts, output_schema,
-                desc=f"Synthesizing {dataset_name}"
-            )
+            # SocialMind 一个 batch 可能混不同 qtype（schema），按 schema 子分组各调一次，
+            # 再按原顺序拼回，保持与 batch_pairs 对齐。其余数据集走单一 schema。
+            if dataset_name == "SocialMind":
+                groups: Dict[Any, List[int]] = {}
+                for i, (r_idx, _s) in enumerate(batch_pairs):
+                    groups.setdefault(_schema_for_report(r_idx), []).append(i)
+                gen_results_raw = [None] * len(batch_pairs)
+                for schema, idxs in groups.items():
+                    sub = client.batch_generate_structure(
+                        [batch_prompts[i] for i in idxs], schema,
+                        desc=f"Synthesizing {dataset_name}[{schema.__name__}]"
+                    )
+                    for i, res in zip(idxs, sub):
+                        gen_results_raw[i] = res
+            else:
+                gen_results_raw = client.batch_generate_structure(
+                    batch_prompts, output_schema,
+                    desc=f"Synthesizing {dataset_name}"
+                )
 
             batch_new: List[Dict[str, Any]] = []
             for pair, resp in zip(batch_pairs, gen_results_raw):

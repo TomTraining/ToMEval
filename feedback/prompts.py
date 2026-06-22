@@ -279,7 +279,121 @@ DATASET_SKILL_REGISTRY: Dict[str, str] = {
         "information sharing. Participants join/leave mid-conversation, creating "
         "asymmetric information access."
     ),
+    "SocialMind": (
+        "中文社会认知推理（三大能力）：①心智化（信念/欲望/意图/情绪/视角/共情）；"
+        "②社会互动的策略性（沟通/协商/博弈/合作冲突/信任欺骗/群体动态）；"
+        "③社会文化-规范的内化与动态平衡（规范内化/身份角色/权力制度/群体边界）。"
+        "故事为多主体中文叙事，句子以 ①②③ 编号，常含信息不对称与多层心理状态。"
+    ),
 }
+
+
+# ============ SocialMind 按题型的格式表 ============
+# SocialMind 题型异构（Q1 单选 / Q2 多选 / Q3 判断三值 / Q4 开放），无法用单条
+# dataset 级 format。按 qtype 路由（qtype 由诊断报告维度键 "dim__qtype__zh" 解析得到）。
+# 仅 description / complexity_hint / json_skeleton / n_correct / n_wrong 会被消费。
+
+SOCIALMIND_FORMAT_BY_QTYPE: Dict[str, Dict[str, Any]] = {
+    "Q1": {
+        "n_correct": 1,
+        "n_wrong": 3,
+        "description": (
+            "中文单选题（4 选项）：1 个正确答案 + 3 个干扰项，均为完整中文句子。"
+        ),
+        "complexity_hint": (
+            "故事为多主体中文叙事，句子用 ①②③ 编号；长文本约 600-800 汉字、"
+            "短文本约 300-400 汉字。问题针对某一主体的心理状态/信念/意图。"
+            "干扰项须是'跳过该认知操作时会选'的似是而非答案，不要明显荒谬。"
+        ),
+        "json_skeleton": {"questions": [{
+            "story": "<以①②③编号的完整中文故事>",
+            "question": "<中文问题>",
+            "correct_answer": "<正确答案中文句>",
+            "wrong_answer_1": "<干扰项1>",
+            "wrong_answer_2": "<干扰项2>",
+            "wrong_answer_3": "<干扰项3>",
+            "meta_dim": "1.1.1",
+            "meta_perspective": "first_person",
+            "meta_domain": "<场景领域，如 职场冲突>",
+            "meta_length_mode": "long",
+        }]},
+    },
+    "Q2": {
+        "n_correct": "varies",
+        "n_wrong": "variable",
+        "description": (
+            "中文多选题（共 5 选项）：2-3 个正确答案 + 2-3 个干扰项，正确项总数 ≥2、"
+            "选项总数=5。要求选出所有满足条件的主体/陈述。"
+        ),
+        "complexity_hint": (
+            "故事风格同 Q1（①②③编号、多主体）。问题为多选，常考察多个主体的"
+            "信念来源/视角差异等。每个干扰项都要对应一种具体的认知捷径错误。"
+        ),
+        "json_skeleton": {"questions": [{
+            "story": "<以①②③编号的完整中文故事>",
+            "question": "<中文问题（多选）>",
+            "correct_answers": ["<正确1>", "<正确2>"],
+            "wrong_answers": ["<干扰1>", "<干扰2>", "<干扰3>"],
+            "meta_dim": "1.1.1",
+            "meta_perspective": "first_person",
+            "meta_domain": "<场景领域>",
+            "meta_length_mode": "long",
+        }]},
+    },
+    "Q3": {
+        "n_correct": 1,
+        "n_wrong": 2,
+        "description": (
+            "中文判断题：对一条陈述判定 是 / 否 / 无法确定。只需给出 correct_verdict，"
+            "另两个判定自动作为干扰项。"
+        ),
+        "complexity_hint": (
+            "故事风格同 Q1（①②③编号、多主体）。给出故事 + 一条待判断的陈述；"
+            "正确答案是 是/否/无法确定 三者之一。'无法确定'用于故事信息不足以判定时。"
+        ),
+        "json_skeleton": {"questions": [{
+            "story": "<以①②③编号的完整中文故事>",
+            "question": "请判断下面这一陈述（是 / 否 / 无法确定）：\n<待判断陈述>",
+            "correct_verdict": "否",
+            "meta_dim": "1.1.1",
+            "meta_perspective": "first_person",
+            "meta_domain": "<场景领域>",
+            "meta_length_mode": "long",
+        }]},
+    },
+    "Q4": {
+        "n_correct": 1,
+        "n_wrong": 0,
+        "description": (
+            "中文开放分析题：给出 3-8 条参考答案要点（reference_points），无干扰项。"
+        ),
+        "complexity_hint": (
+            "故事风格同 Q1（①②③编号、多主体）。问题要求开放分析（如构建信念图谱、"
+            "多维剖析）；reference_points 为评分要点，每条一句、可独立判分。"
+        ),
+        "json_skeleton": {"questions": [{
+            "story": "<以①②③编号的完整中文故事>",
+            "question": "<开放分析问题>",
+            "reference_points": ["<要点1>", "<要点2>", "<要点3>"],
+            "meta_dim": "1.1.1",
+            "meta_perspective": "first_person",
+            "meta_domain": "<场景领域>",
+            "meta_length_mode": "long",
+        }]},
+    },
+}
+
+
+def _socialmind_parse_dim(dimension_str: str) -> tuple:
+    """'1.1.1__Q1__zh' -> ('1.1.1', 'Q1')。先剥尾部 __zh/__en，再 rpartition('__')。
+    dim 含点不含下划线，故 rpartition 不会误切。"""
+    s = str(dimension_str or "")
+    for suf in ("__zh", "__en"):
+        if s.endswith(suf):
+            s = s[: -len(suf)]
+            break
+    base, sep, qtype = s.rpartition("__")
+    return (base, qtype) if sep else (s, "")
 
 
 # ============ Stage 2: 批量维度诊断 Prompt ============
@@ -550,9 +664,18 @@ def build_stage2_generation_from_report_prompt(
         previous_question: 上一轮生成但未通过验证的题目（retry feedback）
         lang: 合成内容语言（"en"/"zh"，来自诊断报告 _meta.lang）
     """
-    fmt = SYNTHESIS_FORMAT_REGISTRY.get(dataset_name)
-    if fmt is None:
-        fmt = SYNTHESIS_FORMAT_REGISTRY["SocialIQA"]
+    # SocialMind 按 qtype 路由（qtype 从报告维度键 "dim__qtype__zh" 解析）。
+    # 用 _meta.dimension（stage2 程序化写入、权威）而非顶层 dimension（LLM 回显、可能被改写）。
+    sm_qtype = ""
+    sm_dim = ""
+    if dataset_name == "SocialMind":
+        _sm_key = str((report.get("_meta") or {}).get("dimension") or report.get("dimension", ""))
+        sm_dim, sm_qtype = _socialmind_parse_dim(_sm_key)
+        fmt = SOCIALMIND_FORMAT_BY_QTYPE.get(sm_qtype, SOCIALMIND_FORMAT_BY_QTYPE["Q1"])
+    else:
+        fmt = SYNTHESIS_FORMAT_REGISTRY.get(dataset_name)
+        if fmt is None:
+            fmt = SYNTHESIS_FORMAT_REGISTRY["SocialIQA"]
 
     # 从 difficulty_distribution 中选最高概率的难度
     difficulty_distribution = report.get("difficulty_distribution", {})
@@ -609,6 +732,20 @@ def build_stage2_generation_from_report_prompt(
             f"IMPORTANT: set meta_condition_type to exactly \"{dimension}\" "
             f"(this is the condition type diagnosed from the bad cases)."
         )
+
+    # 对 SocialMind：按 qtype 给精确的字段规则，并强制 meta_dim 等于诊断出的真实 dim
+    # （Q4 的 rubric 评分按 meta.dim 取，dim 必须命中 q4_judge_prompts.json 的键）。
+    if dataset_name == "SocialMind":
+        _sm_dim = sm_dim  # 来自上面 _meta.dimension 的权威解析
+        _SM_RULES = {
+            "Q1": "输出 story/question + correct_answer + wrong_answer_1/2/3（共 4 选项，1 正 3 误）。",
+            "Q2": "输出 correct_answers（2-3 个正确）+ wrong_answers（2-3 个干扰），选项总数为 5，正确项 ≥2。",
+            "Q3": "只输出 correct_verdict（是/否/无法确定 之一），另两个判定自动作为干扰项，不要给 wrong_answer。",
+            "Q4": "只输出 reference_points（3-8 条参考要点列表），不要任何 wrong_answer。",
+        }
+        format_specific_rules = _SM_RULES.get(sm_qtype, _SM_RULES["Q1"])
+        if _sm_dim:
+            format_specific_rules += f" 必须把 meta_dim 设为精确的 \"{_sm_dim}\"（诊断出的维度，不得改写）。"
 
     report_summary = json.dumps({
         "dimension": dimension,
