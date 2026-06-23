@@ -431,7 +431,7 @@ def run_stage2_dimension_diagnosis(
         return out_dir
 
     logger.info(f"    🤖 调用 LLM 生成 {len(all_prompts)} 份诊断报告（每批 {batch_size} 份）...")
-    client = runner.create_llm_client(synthesis_llm_config, None)
+    client = runner.create_llm_client(synthesis_llm_config)
 
     success_count = 0
     fallback_count = 0

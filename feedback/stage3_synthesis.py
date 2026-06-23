@@ -599,7 +599,7 @@ def synthesize_from_reports(
         ]
 
         success_this_round = 0
-        client = runner.create_llm_client(synthesis_llm_config, None)
+        client = runner.create_llm_client(synthesis_llm_config)
         for batch_start in range(0, len(gen_prompts), batch_size):
             batch_prompts = gen_prompts[batch_start: batch_start + batch_size]
             batch_pairs = pending_pairs[batch_start: batch_start + batch_size]
