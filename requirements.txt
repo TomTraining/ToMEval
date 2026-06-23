@@ -8,3 +8,4 @@ datasets
 huggingface_hub
 matplotlib>=3.7.0
 seaborn>=0.12.0
+datasketch>=1.6.0
