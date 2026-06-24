@@ -47,6 +47,11 @@ pass_k: 3                 # 弱模型 pass@k 的 trial 次数
 # ── shortcut 探测 ─────────────────────────────────────────────────────────────
 shortcut_k: 3             # shortcut 三维探测每维的 trial 次数
 
+# ── open 题判分 ───────────────────────────────────────────────────────────────
+# open（开放题，无选项）在 pass@k 与 shortcut/no_options 维度统一用 F1 判分：
+# 模型输出与任一参考答案的 F1 >= 该阈值即判对（中文按字、英文按词，复用 eval 侧 open_judge.f1）。
+open_f1_threshold: 0.5
+
 # ── 各阶段开关 ────────────────────────────────────────────────────────────────
 passk_enabled: true          # false = 跳过难度分桶，所有样本按 partial 走可回答性/shortcut（失去 easy/hard）
 answerability_enabled: true  # false = 跳过可回答性；优雅降级：假设全部可回答
@@ -57,4 +62,3 @@ repair_enabled: true      # false = 只跑单轮评估打标，不修复 / 不�
 
 # ── 修复迭代控制 ──────────────────────────────────────────────────────────────
 max_iter: 2               # 修复迭代上限（含第一轮）；超过仍未修好 → unfixable
-

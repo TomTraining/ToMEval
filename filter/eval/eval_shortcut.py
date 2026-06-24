@@ -12,7 +12,7 @@ is_shortcut = (no_story_pass >= ceil(k/2)) OR
 复用：
   - src.evaluation.prompts.OPEN_QA_TEMPLATE / CHOICE_QA_TEMPLATE / build_option_bundle
   - src.evaluation.prompts.extract_prediction_value
-  - src.evaluation.judge.judge_repeat（用于 no_options 维度的 open QA 判定）
+  - filter.utils.is_correct_open（no_options 维度 open QA 的 F1 判定）
   - filter.base.load_answer_models / load_judge_client
 """
 
@@ -26,8 +26,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from filter.base import load_answer_models, load_judge_client
-from filter.utils import is_correct_mcq, resolve_sample_id, row_to_sample, write_parquet
-from src.evaluation.judge import judge_repeat
+from filter.utils import (
+    DEFAULT_OPEN_F1_THRESHOLD,
+    is_correct_mcq,
+    is_correct_open,
+    resolve_sample_id,
+    row_to_sample,
+    write_parquet,
+)
 from src.evaluation.lang import get_sample_lang
 from src.evaluation.prompts import (
     CHOICE_QA_TEMPLATE,
@@ -152,54 +158,31 @@ def _run_no_options_dimension(
     dataset: str,
     k: int,
     simple_client: ContentClient,
-    judge_client,
+    judge_client=None,
+    open_f1_threshold: float = DEFAULT_OPEN_F1_THRESHOLD,
 ) -> List[int]:
-    """no_options 维度：每条样本 k 次 open QA，judge_repeat 判对错，返回 pass 计数。"""
+    """no_options 维度：每条样本 k 次 open QA，F1 判对错，返回 pass 计数。
+
+    判分用 F1（is_correct_open，复用 eval 侧 open_judge.max_f1，中文按字/英文按词），
+    与 passk 的 open 判分同款，不再消耗 judge model API。judge_client 仅为
+    向后兼容保留，不再使用。
+    """
     n = len(samples)
 
-    # 1) 跑 k 次 open QA 获取小模型回答
-    contents_per_trial: List[List[Optional[str]]] = []  # [trial][sample] -> content
+    pass_counts = [0] * n
     for trial in range(k):
         prompts = [build_no_options_prompt(s) for s in samples]
         responses = simple_client.batch_generate(
             prompts, desc=f"shortcut[{dataset}]/no_options trial {trial + 1}/{k}"
         )
-        contents_per_trial.append([
-            (resp.content if (resp is not None and resp.content is not None) else None)
-            for resp in responses
-        ])
-
-    # 2) 把 (sample_id, trial) 的有效回答收集到 records 给 judge_repeat
-    records: List[Dict[str, Any]] = []
-    record_keys: List[Tuple[int, int]] = []  # (sample_idx, trial)
-    for i, sample in enumerate(samples):
-        correct_answers = sample["answer"]["correct_answers"]
-        wrong_answers = sample["answer"]["wrong_answers"]
-        for trial in range(k):
-            content = contents_per_trial[trial][i]
-            records.append({
-                "sample_id": sample_ids[i],
-                "repeat": trial,
-                "prompt_type": "open",
-                "pred": {"content": content},
-                "correct_answers": correct_answers,
-                "wrong_answers": wrong_answers,
-                # 带上 meta，让 judge_prompt 按样本语言选择中文/英文措辞。
-                "meta": sample.get("meta"),
-            })
-            record_keys.append((i, trial))
-
-    if not records:
-        return [0] * n
-
-    # 3) judge 一次性批量判对错
-    verdicts = judge_repeat(records, judge_client)
-
-    # 4) 聚合 pass 计数
-    pass_counts = [0] * n
-    for (i, _trial), verdict in zip(record_keys, verdicts):
-        if verdict.get("is_correct"):
-            pass_counts[i] += 1
+        for i, resp in enumerate(responses):
+            if is_correct_open(
+                resp,
+                samples[i]["answer"]["correct_answers"],
+                meta=samples[i].get("meta"),
+                threshold=open_f1_threshold,
+            ):
+                pass_counts[i] += 1
     return pass_counts
 
 
@@ -211,6 +194,7 @@ def run_shortcut_on_df(
     simple_client: Optional[ContentClient] = None,
     judge_client=None,
     dimensions: Optional[List[str]] = None,
+    open_f1_threshold: float = DEFAULT_OPEN_F1_THRESHOLD,
 ) -> pd.DataFrame:
     """对 partial+answerable 子集跑三维 shortcut 探测。
 
@@ -220,8 +204,9 @@ def run_shortcut_on_df(
         k: 每维度 trial 次数
         threshold: "majority" / "any" / "all"
         simple_client: qwen3-8b client；不传则 load
-        judge_client: StructureClient；不传则 load
+        judge_client: 兼容保留，no_options 维度已改用 F1 判分，不再使用
         dimensions: 启用的探测维度；None=全部三维
+        open_f1_threshold: no_options 维度 open 题 F1 判分阈值
 
     Returns:
         DataFrame: [sample_id, no_story_pass, no_question_pass, no_options_pass, is_shortcut]
@@ -262,7 +247,8 @@ def run_shortcut_on_df(
         if "no_question" in dimensions else [0] * n
     )
     no_options_pass = (
-        _run_no_options_dimension(samples, sample_ids, dataset, k, simple_client, judge_client)
+        _run_no_options_dimension(samples, sample_ids, dataset, k, simple_client, judge_client,
+                                  open_f1_threshold=open_f1_threshold)
         if "no_options" in dimensions else [k] * n  # 该维度没启用 → 默认"全过"，不会反向触发 shortcut
     )
 
