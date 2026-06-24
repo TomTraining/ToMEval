@@ -53,11 +53,52 @@ def row_to_sample(row: Any) -> Dict[str, Any]:
     }
 
 
+# open 题 F1 判分的默认阈值（与 src/evaluation/open_judge 的 f1 模式同量纲）。
+# 可由 filter/config.yaml 的 open_f1_threshold 覆盖，经各 eval 阶段透传。
+DEFAULT_OPEN_F1_THRESHOLD = 0.5
+
+
+def is_correct_open(
+    response: Any,
+    correct_answers: List[str],
+    meta: Any = None,
+    threshold: float = DEFAULT_OPEN_F1_THRESHOLD,
+) -> bool:
+    """判断 open 题答案是否正确：模型输出与任一参考答案的 F1 >= 阈值。
+
+    复用 src.evaluation.open_judge.max_f1（SQuAD 式归一化，中文按字、英文按词），
+    按样本 meta.lang / meta.language 选分词方式，与 eval 侧 open_judge=f1 一致。
+
+    Args:
+        response: LLM 响应对象（取 response.content 作为模型输出文本）
+        correct_answers: 参考答案文本列表（open 题的 correct_answers）
+        meta: 样本 meta，用于判定语言（zh 走按字 F1）
+        threshold: F1 阈值，>= 该值判对
+
+    Returns:
+        是否正确
+    """
+    from src.evaluation.lang import get_sample_lang
+    from src.evaluation.open_judge import max_f1
+
+    if response is None or response.content is None:
+        return False
+    pred = str(response.content).strip()
+    golds = [str(c) for c in (correct_answers or []) if str(c).strip()]
+    if not pred or not golds:
+        return False
+    lang = get_sample_lang(meta)
+    return max_f1(pred, golds, lang) >= threshold
+
+
 def is_correct_mcq(prompt_type: str, response: Any, correct_letters: List[str]) -> bool:
     """判断 MCQ 答案是否正确。
 
+    仅用于 mcq_single / mcq_multi。open 题请改用 is_correct_open（F1 判分）——
+    open 题没有选项字母，correct_letters 恒为空，旧的“子串包含”分支已废弃。
+
     Args:
-        prompt_type: "mcq_single" / "mcq_multi" / "open"
+        prompt_type: "mcq_single" / "mcq_multi"
         response: LLM 响应对象
         correct_letters: 正确答案的字母列表
 
@@ -73,11 +114,8 @@ def is_correct_mcq(prompt_type: str, response: Any, correct_letters: List[str]) 
         return pred in correct_letters
     if prompt_type == "mcq_multi":
         return pred is not None and set(pred) == set(correct_letters)
-    # open：宽容文本包含
-    if pred is None:
-        return False
-    pred_norm = str(pred).strip().lower()
-    return any(str(c).strip().lower() in pred_norm for c in correct_letters)
+    # open 题不应再走本函数（保留兜底：无字母可比，判错）。
+    return False
 
 
 def write_parquet(df: pd.DataFrame, out_path: Path, desc: str = "") -> None:
@@ -140,6 +178,8 @@ __all__ = [
     "resolve_sample_id",
     "row_to_sample",
     "is_correct_mcq",
+    "is_correct_open",
+    "DEFAULT_OPEN_F1_THRESHOLD",
     "write_parquet",
     "normalize_answer_dict",
     "stringify_answer_list",

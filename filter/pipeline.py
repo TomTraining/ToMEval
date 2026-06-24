@@ -67,6 +67,7 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────────────
 
 _PASS_K = 3                    # pass@k 的 k 值
+_OPEN_F1_THRESHOLD = 0.5       # open 题 F1 判分阈值（与 filter/utils.DEFAULT_OPEN_F1_THRESHOLD 一致）
 _MAX_ITER_DEFAULT = 3          # 默认修复迭代上限
 _PASSK_ENABLED_DEFAULT = True  # 是否启用 pass@k 难度分桶（关闭则全部按 partial 走后续阶段）
 _ANSWERABILITY_ENABLED_DEFAULT = True  # 是否启用可回答性判断
@@ -114,6 +115,7 @@ def load_filter_config() -> Dict[str, Any]:
         "max_iter": int(max_iter),
         "pass_k": int(cfg.get("pass_k", _PASS_K)),          # 弱模型 pass@k 的 k
         "shortcut_k": int(cfg.get("shortcut_k", _PASS_K)),  # shortcut 探测的 k（独立于 pass_k）
+        "open_f1_threshold": float(cfg.get("open_f1_threshold", _OPEN_F1_THRESHOLD)),  # open 题 F1 判分阈值
         "passk_enabled": bool(cfg.get("passk_enabled", _PASSK_ENABLED_DEFAULT)),
         "answerability_enabled": bool(cfg.get("answerability_enabled", _ANSWERABILITY_ENABLED_DEFAULT)),
         "shortcut_enabled": bool(cfg.get("shortcut_enabled", _SHORTCUT_ENABLED)),
@@ -465,6 +467,7 @@ def run_single_iteration(
     passk_enabled: bool = True,
     answerability_enabled: bool = True,
     shortcut_enabled: bool = True,
+    open_f1_threshold: float = _OPEN_F1_THRESHOLD,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """一轮决策树评估 + 可选修复。
 
@@ -499,7 +502,7 @@ def run_single_iteration(
             logger.info(f"[iter{iter_n}] ⏭️  Phase B: 读取已有结果 ({len(passk_df)} rows)")
         else:
             logger.info(f"[iter{iter_n}] 📊 Phase B: pass@k 评估 (k={pass_k})")
-            passk_df = run_passk_on_df(input_df, dataset, k=pass_k, simple_client=clients["simple"])
+            passk_df = run_passk_on_df(input_df, dataset, k=pass_k, simple_client=clients["simple"], open_f1_threshold=open_f1_threshold)
             write_passk_parquet(passk_df, passk_path)
     else:
         # pass@k 关闭：不做难度分桶，所有样本按 partial（难度未知）走后续阶段
@@ -566,6 +569,7 @@ def run_single_iteration(
                     simple_client=clients["simple"],
                     judge_client=clients["judge"],
                     dimensions=_SHORTCUT_DIMENSIONS,
+                    open_f1_threshold=open_f1_threshold,
                 )
             else:
                 shortcut_df = pd.DataFrame(columns=shortcut_empty_cols)
@@ -681,6 +685,7 @@ def run_filter_loop(
     answerability_enabled = bool(config.get("answerability_enabled", _ANSWERABILITY_ENABLED_DEFAULT))
     shortcut_enabled = bool(config.get("shortcut_enabled", _SHORTCUT_ENABLED))
     repair_enabled = bool(config.get("repair_enabled", True))
+    open_f1_threshold = float(config.get("open_f1_threshold", _OPEN_F1_THRESHOLD))
 
     split_stem = split_file.stem
     split_root = _split_dir(config["output_root"], dataset, split_stem)
@@ -748,7 +753,7 @@ def run_filter_loop(
             dataset, iter_n, current_input_df, out_dir, clients,
             repair_enabled=repair_enabled, pass_k=pass_k, shortcut_k=shortcut_k,
             passk_enabled=passk_enabled, answerability_enabled=answerability_enabled,
-            shortcut_enabled=shortcut_enabled,
+            shortcut_enabled=shortcut_enabled, open_f1_threshold=open_f1_threshold,
         )
         iters_run += 1
         label_counts_by_iter.append({
@@ -784,7 +789,7 @@ def run_filter_loop(
             dataset, extra_iter, current_input_df, out_dir, clients,
             repair_enabled=False, pass_k=pass_k, shortcut_k=shortcut_k,
             passk_enabled=passk_enabled, answerability_enabled=answerability_enabled,
-            shortcut_enabled=shortcut_enabled,
+            shortcut_enabled=shortcut_enabled, open_f1_threshold=open_f1_threshold,
         )
         iters_run += 1
         label_counts_by_iter.append({

@@ -18,7 +18,14 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from filter.base import load_answer_models
-from filter.utils import is_correct_mcq, resolve_sample_id, row_to_sample, write_parquet
+from filter.utils import (
+    DEFAULT_OPEN_F1_THRESHOLD,
+    is_correct_mcq,
+    is_correct_open,
+    resolve_sample_id,
+    row_to_sample,
+    write_parquet,
+)
 from src.evaluation.prompts import (
     build_option_bundle,
     build_prompt,
@@ -47,6 +54,7 @@ def run_passk_on_df(
     dataset: str,
     k: int = 3,
     simple_client: Optional[ContentClient] = None,
+    open_f1_threshold: float = DEFAULT_OPEN_F1_THRESHOLD,
 ) -> pd.DataFrame:
     """对 df 跑 pass@k，返回每条样本的 pass_at_k + bucket。
 
@@ -55,6 +63,7 @@ def run_passk_on_df(
         dataset: 数据集名称（用于 build_option_bundle 的 shuffle 种子）
         k: trial 次数
         simple_client: 可选注入；不传则从 config.yaml 加载 simple
+        open_f1_threshold: open 题 F1 判分阈值（>= 该值判对）
 
     Returns:
         DataFrame：[sample_id, prompt_type, correct_letters, pass_at_k, bucket]
@@ -99,8 +108,18 @@ def run_passk_on_df(
         )
 
         for i, resp in enumerate(responses):
-            target_letters = per_row_correct_letters[i] or correct_letters_per_row[i]
-            if is_correct_mcq(prompt_types[i], resp, target_letters):
+            if prompt_types[i] == "open":
+                # open 题无选项字母，按 F1 判分（模型输出 vs correct_answers 文本）。
+                ok = is_correct_open(
+                    resp,
+                    samples[i]["answer"]["correct_answers"],
+                    meta=samples[i].get("meta"),
+                    threshold=open_f1_threshold,
+                )
+            else:
+                target_letters = per_row_correct_letters[i] or correct_letters_per_row[i]
+                ok = is_correct_mcq(prompt_types[i], resp, target_letters)
+            if ok:
                 pass_counts[i] += 1
 
     buckets = [_bucket_of(pc, k) for pc in pass_counts]
