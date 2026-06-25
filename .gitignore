@@ -52,7 +52,8 @@ venv/
 ENV/
 
 # Local-only (omit from upstream eval_code)
-scripts/
+scripts/*
+!scripts/sync_to_tomresults.py
 experiment_configs/
 logs/
 __pycache__/
