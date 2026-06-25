@@ -21,6 +21,7 @@
   - [第一步：配置模型](#第一步配置模型)
   - [第二步：运行评测](#第二步运行评测)
   - [第三步：查看结果](#第三步查看结果)
+  - [同步结果到 ToMResults](#同步结果到-tomresults)
   - [第四步：可视化出图](#第四步可视化出图)
   - [第五步：生成对比表格](#第五步生成对比表格)
   - [接入不同模型](#接入不同模型)
@@ -200,6 +201,46 @@ results/
 
 > `pred.content` 是模型的原始文本输出；`pred.reasoning` 是 thinking 模式下剥离出的思考过程。
 > `is_correct` / `error_reason` 不在这里——它们是判分结果，落在 `metrics.json` 的 `per_sample_results`。
+
+### 同步结果到 ToMResults
+
+评测完成后，可以用 `scripts/sync_to_tomresults.py` 把最新有效的 `exp_*` 结果同步到 ToMResults 仓库。ToMResults 的结果目录结构为 `results/<model>/<dataset>/`，同步时会复制 `config.json`、`metrics.json`、`prediction.jsonl`，并自动重建 `leaderboard.json`。
+
+本地同步：
+
+```bash
+python3 scripts/sync_to_tomresults.py \
+  --tomresults-dir /Users/weihao/Desktop/ToMResults \
+  --dataset SocialMind \
+  --model qwen3-8b \
+  --results-root /Users/weihao/Desktop/ToMEval/results
+```
+
+默认情况下，如果目标仓库中同一模型 / 数据集的 `run_timestamp` 已经相同或更新，脚本会跳过同步；需要强制覆盖时加 `--force`：
+
+```bash
+python3 scripts/sync_to_tomresults.py \
+  --tomresults-dir /Users/weihao/Desktop/ToMResults \
+  --dataset SocialMind \
+  --model qwen3-8b \
+  --results-root /Users/weihao/Desktop/ToMEval/results \
+  --force
+```
+
+如果要通过 PR 更新 ToMResults，可以让脚本创建结果分支、提交并推送：
+
+```bash
+python3 scripts/sync_to_tomresults.py \
+  --tomresults-dir /Users/weihao/Desktop/ToMResults \
+  --dataset SocialMind \
+  --model qwen3-8b \
+  --results-root /Users/weihao/Desktop/ToMEval/results \
+  --git-branch \
+  --commit \
+  --push
+```
+
+`--push` 会把结果分支推到 ToMResults 的 `origin`，之后在 GitHub 上从该分支创建 PR 到 `main`。不要直接把结果推送到 ToMResults 的 `main` 分支。
 
 ### 第四步：可视化出图
 
