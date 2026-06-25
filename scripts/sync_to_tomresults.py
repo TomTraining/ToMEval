@@ -2,6 +2,7 @@
 import argparse
 import json
 import shutil
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -115,6 +116,74 @@ def sync_result(source_exp_dir, tomresults_dir, dataset, model, force):
     return True, target_dir
 
 
+def default_branch_name(model, dataset, run_timestamp):
+    return f"results/{model}-{dataset}-{run_timestamp}"
+
+
+def run_git(tomresults_dir, args, check=True):
+    command = ["git", *args]
+    result = subprocess.run(
+        command,
+        cwd=tomresults_dir,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if check and result.returncode != 0:
+        command_text = " ".join(command)
+        message = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"{command_text} failed: {message}")
+    return result
+
+
+def checkout_result_branch(tomresults_dir, branch_name):
+    exists = run_git(
+        tomresults_dir,
+        ["rev-parse", "--verify", "--quiet", branch_name],
+        check=False,
+    ).returncode == 0
+
+    if exists:
+        run_git(tomresults_dir, ["checkout", branch_name])
+        print(f"Checked out existing branch: {branch_name}")
+    else:
+        run_git(tomresults_dir, ["checkout", "-b", branch_name])
+        print(f"Created and checked out branch: {branch_name}")
+
+
+def allowed_git_paths(model, dataset):
+    result_path = f"results/{model}/{dataset}"
+    return [
+        "leaderboard.json",
+        f"{result_path}/config.json",
+        f"{result_path}/metrics.json",
+        f"{result_path}/prediction.jsonl",
+    ]
+
+
+def commit_synced_files(tomresults_dir, model, dataset, run_timestamp):
+    paths = allowed_git_paths(model, dataset)
+    run_git(tomresults_dir, ["add", *paths])
+
+    diff_result = run_git(tomresults_dir, ["diff", "--cached", "--quiet"], check=False)
+    if diff_result.returncode == 0:
+        print("Commit skipped: no staged changes.")
+        return None
+
+    message = f"Add results for {model} on {dataset} at {run_timestamp}"
+    run_git(tomresults_dir, ["commit", "-m", message])
+    commit_hash = run_git(tomresults_dir, ["rev-parse", "--short", "HEAD"]).stdout.strip()
+    print(f"Committed synced files: {commit_hash}")
+    return commit_hash
+
+
+def push_result_branch(tomresults_dir, branch_name):
+    if not branch_name:
+        branch_name = run_git(tomresults_dir, ["branch", "--show-current"]).stdout.strip()
+    run_git(tomresults_dir, ["push", "-u", "origin", branch_name])
+    print(f"Pushed branch: {branch_name}")
+
+
 def metric_value(metrics, key):
     avg_metrics = metrics.get("avg_metrics", {})
     value = avg_metrics.get(key)
@@ -197,7 +266,29 @@ def parse_args():
     parser.add_argument("--model", required=True)
     parser.add_argument("--results-root", required=True, type=Path)
     parser.add_argument("--force", action="store_true", help="Overwrite even when target is same or newer.")
-    return parser.parse_args()
+    parser.add_argument(
+        "--git-branch",
+        action="store_true",
+        help="Create or switch to a result branch inside ToMResults before syncing.",
+    )
+    parser.add_argument(
+        "--branch-name",
+        help="Result branch name. Defaults to results/<model>-<dataset>-<run_timestamp>.",
+    )
+    parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="Commit the synced ToMResults files after syncing.",
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="Push the committed ToMResults branch to origin.",
+    )
+    args = parser.parse_args()
+    if args.push and not args.commit:
+        parser.error("--push requires --commit")
+    return args
 
 
 def main():
@@ -206,10 +297,51 @@ def main():
     results_root = args.results_root.expanduser().resolve()
 
     source_exp_dir = find_latest_valid_exp(results_root, args.dataset, args.model)
-    sync_result(source_exp_dir, tomresults_dir, args.dataset, args.model, args.force)
-    rebuild_leaderboard(tomresults_dir)
+    run_timestamp = exp_timestamp(source_exp_dir)
+    branch_name = args.branch_name or default_branch_name(args.model, args.dataset, run_timestamp)
+    commit_hash = None
 
-    print("Next step: run git status / commit / push inside ToMResults when ready.")
+    print(f"Branch name: {branch_name if args.git_branch else 'not requested'}")
+    if args.git_branch:
+        checkout_result_branch(tomresults_dir, branch_name)
+
+    copied, _target_dir = sync_result(
+        source_exp_dir,
+        tomresults_dir,
+        args.dataset,
+        args.model,
+        args.force,
+    )
+    if copied:
+        rebuild_leaderboard(tomresults_dir)
+    else:
+        print("No result update; leaderboard.json was not rebuilt.")
+
+    if args.commit:
+        if copied:
+            commit_hash = commit_synced_files(
+                tomresults_dir,
+                args.model,
+                args.dataset,
+                run_timestamp,
+            )
+        else:
+            print("Commit skipped: no newer result was synced.")
+    else:
+        print("Commit: not requested")
+
+    if args.push:
+        if commit_hash is None:
+            print("Push skipped: no commit was created.")
+        else:
+            push_result_branch(tomresults_dir, branch_name if args.git_branch else None)
+    else:
+        print("Push: not requested")
+
+    if args.git_branch:
+        print(f"GitHub PR hint: create a PR from {branch_name} to main.")
+    else:
+        print("Next step: run git status / commit / push inside ToMResults when ready.")
 
 
 if __name__ == "__main__":
