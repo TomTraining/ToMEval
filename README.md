@@ -242,6 +242,36 @@ python3 scripts/sync_to_tomresults.py \
 
 `--push` 会把结果分支推到 ToMResults 的 `origin`，之后在 GitHub 上从该分支创建 PR 到 `main`。不要直接把结果推送到 ToMResults 的 `main` 分支。
 
+创建真实 PR 前，可以先用 `--dry-run-pr` 检查即将创建的 PR 标题、正文、head、base 和 repo；该模式只打印信息，不请求 GitHub API：
+
+```bash
+python3 scripts/sync_to_tomresults.py \
+  --tomresults-dir /Users/weihao/Desktop/ToMResults \
+  --dataset SocialMind \
+  --model qwen3-8b \
+  --results-root /Users/weihao/Desktop/ToMEval/results \
+  --force \
+  --git-branch \
+  --commit \
+  --dry-run-pr
+```
+
+确认无误后，可以用 `--open-pr` 在推送结果分支后自动向 ToMResults 创建 PR：
+
+```bash
+GITHUB_TOKEN=<your_token> python3 scripts/sync_to_tomresults.py \
+  --tomresults-dir /Users/weihao/Desktop/ToMResults \
+  --dataset SocialMind \
+  --model qwen3-8b \
+  --results-root /Users/weihao/Desktop/ToMEval/results \
+  --git-branch \
+  --commit \
+  --push \
+  --open-pr
+```
+
+`--open-pr` 必须配合 `--push` 使用。GitHub token 从环境变量读取，默认变量名是 `GITHUB_TOKEN`；不要把 token 写进代码、日志或提交记录。PR 默认提交到 `TomTraining/ToMResults` 的 `main` 分支，也可用 `--repo`、`--base-branch` 和 `--github-token-env` 覆盖。若没有新的 `run_timestamp`，脚本默认跳过同步，不会创建无意义 PR；实际使用时建议等新结果产生后再运行，避免对已经在 `main` 中存在的结果重复开 PR。
+
 ### 第四步：可视化出图
 
 `visualize` 阶段（或 `python -m src.visualization`）是**数据集无关**的：它只读 `metrics.json` 里的 `by_*` 分组指标，自动出图到 `figures/<数据集>/<模型>/`：
