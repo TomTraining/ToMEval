@@ -50,11 +50,23 @@ def read_prediction_file(prediction_path: Path) -> List[Dict[str, Any]]:
 
 
 def save_metrics(output_dir: Path, all_metrics: List[Dict[str, Any]]) -> Path:
+    """落盘评测指标，拆成两份：
+
+    - metrics.json        只放跨 repeat 平均后的 avg_metrics（含 dimensions 树）。
+    - detailed_metrics.jsonl  逐样本明细：把各 repeat 的 per_sample_results 平铺，每行一条
+      （每条自带 sample_id / repeat / prompt_type，足以还原归属）。
+
+    per_sample_results 不再进 metrics.json；all_metrics 里的 accuracy/correct/total 等标量
+    已被 avg_metrics 覆盖，故也不重复落盘。
+    """
+    # avg_metrics 只平均数值与嵌套 dict，per_sample_results（list）天然不会进去，无需额外清理。
+    metrics_payload = {"avg_metrics": average_metrics(all_metrics)}
     metrics_path = output_dir / "metrics.json"
-    # table 阶段只读取 metrics.json，所以这里统一固化 repeat 明细和平均指标。
-    metrics_payload = {
-        "avg_metrics": average_metrics(all_metrics),
-        "all_metrics": all_metrics,
-    }
     metrics_path.write_text(json.dumps(metrics_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    detailed_path = output_dir / "detailed_metrics.jsonl"
+    with detailed_path.open("w", encoding="utf-8") as file:
+        for metrics in all_metrics:
+            for item in metrics.get("per_sample_results") or []:
+                file.write(json.dumps(item, ensure_ascii=False) + "\n")
     return metrics_path

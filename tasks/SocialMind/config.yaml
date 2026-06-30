@@ -22,10 +22,15 @@ rubric:
 
 # judge1：主 judge（必填）。
 judge1:
-  model_name: Qwen3-8B
-  api_key: not-needed
-  api_url: http://0.0.0.0:8000/v1
+  model_name: qwen3-8b
+  api_key: <YOUR_API_KEY>
+  api_url: https://api.tokenkey.dev/v1
   max_workers: 16
+  # 该 API 端点的非流式调用强制要求 enable_thinking=false（否则 400）；
+  # 不写则 from_config 默认 True，build_extra_body 不会下发该参数，导致 judge 全部 BadRequest。
+  enable_thinking: false
+  # 该端点 max_tokens 上限为 8192，from_config 默认 32768 会被拒（400）；rubric 只输出短 JSON，2048 足够。
+  max_tokens: 2048
 
 # judge2：可选第二 judge。填写后 Q4 由两个 judge 分别打分取平均
 # （忠实 socmind-bench 的双 judge 协议）；缺省则只用 judge1。

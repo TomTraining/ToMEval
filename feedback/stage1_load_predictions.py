@@ -61,30 +61,53 @@ def _find_prediction_file(results_root: Path, dataset_name: str, model: str, exp
 
 
 def _find_metrics_file(pred_file: Path) -> Optional[Path]:
-    """返回与 prediction.jsonl 同目录的 metrics.json，不存在则返回 None。"""
-    m = pred_file.parent / "metrics.json"
-    return m if m.exists() else None
+    """返回与 prediction.jsonl 同目录的逐样本明细文件，不存在则返回 None。
+
+    新版 storage.save_metrics 把逐样本结果落到 detailed_metrics.jsonl（metrics.json 只剩
+    avg_metrics）。为兼容旧产物，detailed_metrics.jsonl 缺失时退回旧版 metrics.json。
+    """
+    detailed = pred_file.parent / "detailed_metrics.jsonl"
+    if detailed.exists():
+        return detailed
+    legacy = pred_file.parent / "metrics.json"
+    return legacy if legacy.exists() else None
 
 
 def _load_judge_results(metrics_file: Path) -> Dict[Tuple[str, int], bool]:
-    """从 metrics.json 加载 judge model 的判断结果。
+    """从逐样本明细加载 judge model 的判断结果。
 
     返回 {(sample_id_str, repeat): is_correct} 字典。
     当同一 (sample_id, repeat) 在多个 run 中出现时，任一 run 判为错误即视为错误
     （与 bad case 取并集的语义一致）。
+
+    新版读 detailed_metrics.jsonl（每行一条 per_sample 明细）；旧版退回 metrics.json
+    的 all_metrics[].per_sample_results。
     """
-    with open(metrics_file, encoding="utf-8") as f:
-        data = json.load(f)
+
+    def _merge(results: Dict[Tuple[str, int], bool], r: Dict[str, Any]) -> None:
+        key = (str(r["sample_id"]), int(r.get("repeat", 0)))
+        # 任一 run 答错则标记为错误
+        if not r.get("is_correct", True):
+            results[key] = False
+        elif key not in results:
+            results[key] = True
 
     results: Dict[Tuple[str, int], bool] = {}
+    if metrics_file.suffix == ".jsonl":
+        with open(metrics_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                _merge(results, json.loads(line))
+        return results
+
+    # 旧版 metrics.json 布局
+    with open(metrics_file, encoding="utf-8") as f:
+        data = json.load(f)
     for run in data.get("all_metrics", []):
         for r in run.get("per_sample_results", []):
-            key = (str(r["sample_id"]), int(r.get("repeat", 0)))
-            # 任一 run 答错则标记为错误
-            if not r.get("is_correct", True):
-                results[key] = False
-            elif key not in results:
-                results[key] = True
+            _merge(results, r)
     return results
 
 
@@ -127,13 +150,13 @@ def load_bad_cases_from_predictions(
             continue
         logger.info(f"    📄 读取: {pred_file.relative_to(results_root)}")
 
-        # 加载 judge model 判断结果（metrics.json 与 prediction.jsonl 同目录）
+        # 加载 judge model 判断结果（detailed_metrics.jsonl / 旧版 metrics.json 与 prediction.jsonl 同目录）
         metrics_file = _find_metrics_file(pred_file)
         if metrics_file is not None:
             judge_tables[model] = _load_judge_results(metrics_file)
             logger.info(f"       ✓ 加载 judge 结果: {metrics_file.name} ({len(judge_tables[model])} 条)")
         else:
-            logger.warning(f"       ⚠️  未找到 metrics.json，将用规则判断对错: {pred_file.parent}")
+            logger.warning(f"       ⚠️  未找到 detailed_metrics.jsonl/metrics.json，将用规则判断对错: {pred_file.parent}")
 
         model_records: Dict[int, List[Dict]] = {}
         with open(pred_file, encoding="utf-8") as f:

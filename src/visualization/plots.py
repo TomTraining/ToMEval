@@ -1,12 +1,22 @@
 """通用评测可视化绘图。
 
 设计原则：**数据集无关**——只消费 results/.../metrics.json（任意经
-`generic_group_metrics` 聚合的数据集都会产出 `by_*` 分组字典 + `*_counts`），
+`hierarchical_metrics` 聚合的数据集都会产出嵌套的 `dimensions` 树），
 以及其中的 per_sample_results。任何 ToMEval 数据集都能直接出图。
 
+metrics 结构（见 src/evaluation/task_metrics.py）：
+    avg_metrics.dimensions = {
+        "<二级维度>": {"<split>": {"acc": float, "n": int,
+                                   "dimensions": {...三级...}}},
+        ...
+    }
+固定带一个 type 维度（按题型 prompt_type 切分）。
+
 自动行为：
-- 每个 `by_<x>` 分组 -> 一张准确率柱状图（带样本数标注）。
-- 分组键形如 "row|col"（组合键）-> 自动透视成热力图（如 SocialMind 的 维度×题型）。
+- 每个维度节点（含三级）-> 一张准确率柱状图（带样本数 n 标注）。
+- 某维度各 split 都带同名单一子维度 -> 额外透视成 行×列 热力图
+  （如 SocialMind dim1×dim2、EmoBench coarse×finegrained）。
+- 顶层"分组均分"字典（键含 `_by_`，如 SocialMind q4_mean_score_by_dim）-> 均分柱状图。
 - per_sample_results 中若含 judge1_score/judge2_score -> 出 judge 一致性图
   （散点 + Bland-Altman）；否则跳过。
 - 多个 metrics.json -> 额外出多模型对比图。
@@ -46,45 +56,91 @@ plt.rcParams["axes.unicode_minus"] = False
 # 数据加载                                                                      #
 # --------------------------------------------------------------------------- #
 def load_metrics(path: str | Path) -> Dict[str, Any]:
-    """接受 metrics.json 文件或包含它的目录，返回原始 payload。"""
+    """接受 metrics.json 文件或包含它的目录，返回原始 payload。
+
+    逐样本明细已从 metrics.json 拆到同目录的 detailed_metrics.jsonl（每行一条
+    per_sample 结果）。这里把它读回来挂在 payload["per_sample_results"] 上，
+    judge 一致性图等下游消费方无需感知拆分。
+    """
     p = Path(path)
     if p.is_dir():
         p = p / "metrics.json"
-    return json.loads(p.read_text(encoding="utf-8"))
+    payload = json.loads(p.read_text(encoding="utf-8"))
+    detailed_path = p.with_name("detailed_metrics.jsonl")
+    if detailed_path.exists():
+        with detailed_path.open(encoding="utf-8") as file:
+            payload["per_sample_results"] = [json.loads(line) for line in file if line.strip()]
+    return payload
 
 
 def primary_metrics(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """优先用 avg_metrics；为空则退回 all_metrics[0]。"""
-    if payload.get("avg_metrics"):
-        return payload["avg_metrics"]
-    all_metrics = payload.get("all_metrics") or []
-    return all_metrics[0] if all_metrics else {}
+    """取 avg_metrics（metrics.json 现在只固化平均指标）。"""
+    return payload.get("avg_metrics") or {}
 
 
-def counts_metrics(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """样本数计数只在 all_metrics[0] 里（avg 不保留计数）。"""
-    all_metrics = payload.get("all_metrics") or []
-    return all_metrics[0] if all_metrics else {}
+def iter_dimension_nodes(
+    metrics: Dict[str, Any],
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """深度遍历 metrics["dimensions"] 树，返回 [(路径名, splits 字典), ...]。
+
+    路径名形如 "ability" 或 "dim1/夫妻/dim2"（三级维度带父 split 前缀），用于图名与标题。
+    splits 字典即 {split: {"acc", "n", ["dimensions"]}}。
+    """
+    out: List[Tuple[str, Dict[str, Any]]] = []
+
+    def walk(dimensions: Dict[str, Any], prefix: str) -> None:
+        if not isinstance(dimensions, dict):
+            return
+        for dim_name, splits in dimensions.items():
+            if not isinstance(splits, dict) or not splits:
+                continue
+            path = f"{prefix}{dim_name}"
+            out.append((path, splits))
+            # 递归三级：各 split 下若挂了子 dimensions，带上 "父维度.split" 前缀继续。
+            for split_key, split in splits.items():
+                child = split.get("dimensions") if isinstance(split, dict) else None
+                if isinstance(child, dict) and child:
+                    walk(child, f"{path}/{split_key}/")
+
+    walk(metrics.get("dimensions") or {}, "")
+    return out
 
 
-def group_keys(metrics: Dict[str, Any]) -> List[str]:
-    # generic_group_metrics 会同时产出 by_<x>(准确率字典) 和 by_<x>_counts(样本数字典)，
-    # 这里只取准确率分组，排除计数字典。
-    return [
-        k for k, v in metrics.items()
-        if k.startswith("by_") and not k.endswith("_counts") and isinstance(v, dict)
-    ]
+def split_rates_counts(splits: Dict[str, Any]) -> Tuple[Dict[str, float], Dict[str, int]]:
+    """从 splits 字典抽出准确率字典与样本数字典。"""
+    rates = {k: float(v.get("acc", 0.0)) for k, v in splits.items() if isinstance(v, dict)}
+    counts = {k: int(v.get("n", 0)) for k, v in splits.items() if isinstance(v, dict)}
+    return rates, counts
 
 
-def is_composite(rates: Dict[str, Any]) -> bool:
-    return bool(rates) and all("|" in str(k) for k in rates)
+def heatmap_from_splits(splits: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, float]]]:
+    """若某维度每个 split 都恰好挂同一个子维度，则可透视成 行×列 热力图。
+
+    返回 (子维度名, {"row|col": acc})；不满足条件返回 None。
+    例：SocialMind dim1 各 split 下都有 dim2 -> dim1×dim2 热力图。
+    """
+    child_names = set()
+    for split in splits.values():
+        child = split.get("dimensions") if isinstance(split, dict) else None
+        if not isinstance(child, dict) or len(child) != 1:
+            return None
+        child_names.add(next(iter(child)))
+    if len(child_names) != 1:
+        return None
+    child_name = next(iter(child_names))
+    rates: Dict[str, float] = {}
+    for row_key, split in splits.items():
+        sub_splits = split["dimensions"][child_name] or {}
+        for col_key, sub in sub_splits.items():
+            if isinstance(sub, dict):
+                rates[f"{row_key}|{col_key}"] = float(sub.get("acc", 0.0))
+    return (child_name, rates) if rates else None
 
 
 def score_group_keys(metrics: Dict[str, Any]) -> List[str]:
     """非准确率的"分组均分"字典，如 SocialMind 的 q4_mean_score_by_dim(0-10 分)。
 
-    约定：键里含 `_by_`（分组）但不以 `by_` 开头（那是准确率），值为非空 dict。
-    与 `by_*` 准确率分组在命名上天然区分，保持数据集无关。"""
+    约定：键里含 `_by_`（分组）但不以 `by_` 开头（那是历史准确率命名），值为非空 dict。"""
     return [
         k for k, v in metrics.items()
         if "_by_" in k and not k.startswith("by_") and not k.endswith("_counts")
@@ -93,10 +149,8 @@ def score_group_keys(metrics: Dict[str, Any]) -> List[str]:
 
 
 def all_per_sample(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    out: List[Dict[str, Any]] = []
-    for m in payload.get("all_metrics") or []:
-        out.extend(m.get("per_sample_results") or [])
-    return out
+    """逐样本明细：由 load_metrics 从 detailed_metrics.jsonl 读到 payload 上。"""
+    return payload.get("per_sample_results") or []
 
 
 # --------------------------------------------------------------------------- #
@@ -225,25 +279,34 @@ def plot_judge_agreement(per_sample: List[Dict[str, Any]], out_dir: Path) -> boo
     return True
 
 
+def _safe_name(path_name: str) -> str:
+    """把维度路径名（可能含 / 与空格）转成安全的文件名片段。"""
+    return path_name.replace("/", "__").replace(" ", "_")
+
+
 def render_single(payload: Dict[str, Any], out_dir: Path, prefix: str = "") -> List[Path]:
     """对单个 metrics payload 出全套图，返回生成的文件列表。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     metrics = primary_metrics(payload)
-    counts = counts_metrics(payload)
     written: List[Path] = []
 
-    for gk in group_keys(metrics):
-        rates = metrics[gk]
+    # 遍历 dimensions 树：每个维度的 splits 出一张准确率柱状图（带 n 标注）；
+    # 若该维度各 split 恰好都挂同一个子维度，额外透视成 父×子 热力图。
+    for path_name, splits in iter_dimension_nodes(metrics):
+        rates, counts = split_rates_counts(splits)
         if not rates:
             continue
-        if is_composite(rates):
-            path = out_dir / f"{prefix}{gk}_heatmap.png"
-            plot_heatmap(gk, rates, path)
-        else:
-            count_dict = counts.get(f"{gk}_counts")
-            path = out_dir / f"{prefix}{gk}.png"
-            plot_group_accuracy(gk, rates, count_dict, path)
-        written.append(path)
+        name = _safe_name(path_name)
+        bar_path = out_dir / f"{prefix}{name}.png"
+        plot_group_accuracy(path_name, rates, counts, bar_path)
+        written.append(bar_path)
+
+        heatmap = heatmap_from_splits(splits)
+        if heatmap is not None:
+            child_name, hm_rates = heatmap
+            hm_path = out_dir / f"{prefix}{name}_x_{_safe_name(child_name)}_heatmap.png"
+            plot_heatmap(f"{path_name} × {child_name}", hm_rates, hm_path)
+            written.append(hm_path)
 
     # 分组平均分（如 SocialMind Q4 rubric：q4_mean_score_by_dim，0-10 分）。
     for sk in score_group_keys(metrics):
@@ -267,10 +330,10 @@ def plot_radar_comparison(
     group_name: str,
     keys: List[str],
     labels: List[str],
-    metrics_list: List[Dict[str, Any]],
+    rates_list: List[Dict[str, float]],
     out_path: Path,
 ) -> None:
-    """多模型在某分组(类别>=3)上的准确率雷达图。"""
+    """多模型在某维度(类别>=3)上的准确率雷达图。rates_list[i] 为第 i 个模型的 {split: acc}。"""
     n = len(keys)
     angles = [i / n * 2 * math.pi for i in range(n)]
     angles += angles[:1]  # 闭合
@@ -283,8 +346,8 @@ def plot_radar_comparison(
     ax.set_xticklabels(keys, fontsize=8)
     ax.set_ylim(0, 1.0)
     ax.set_rlabel_position(180 / n)
-    for lab, m in zip(labels, metrics_list):
-        vals = [float(m.get(group_name, {}).get(k, 0.0)) for k in keys]
+    for lab, rates in zip(labels, rates_list):
+        vals = [float(rates.get(k, 0.0)) for k in keys]
         vals += vals[:1]
         ax.plot(angles, vals, linewidth=1.5, label=lab)
         ax.fill(angles, vals, alpha=0.12)
@@ -318,34 +381,42 @@ def plot_model_comparison(
     p = out_dir / "model_comparison_overall.png"
     fig.savefig(p, dpi=150); plt.close(fig); written.append(p)
 
-    # 各共享的非组合 by_* 分组：分组柱状图（模型并排）
-    shared = set(group_keys(metrics_list[0]))
-    for m in metrics_list[1:]:
-        shared &= set(group_keys(m))
-    for gk in sorted(shared):
-        if any(is_composite(m.get(gk, {})) for m in metrics_list):
-            continue
-        keys = sorted(set().union(*[set(m.get(gk, {}).keys()) for m in metrics_list]))
+    # 各共享维度（按维度路径名对齐）：分组柱状图（模型并排）。
+    # 每个模型的 dimensions 树展平成 {路径名: {split: acc}}，取各模型都有的路径。
+    per_model_dims: List[Dict[str, Dict[str, float]]] = []
+    for m in metrics_list:
+        flat: Dict[str, Dict[str, float]] = {}
+        for path, splits in iter_dimension_nodes(m):
+            rates, _ = split_rates_counts(splits)
+            flat[path] = rates
+        per_model_dims.append(flat)
+
+    shared = set(per_model_dims[0])
+    for flat in per_model_dims[1:]:
+        shared &= set(flat)
+    for path in sorted(shared):
+        keys = sorted(set().union(*[set(flat.get(path, {}).keys()) for flat in per_model_dims]))
         if not keys:
             continue
+        safe = path.replace("/", "_")
         fig, ax = plt.subplots(figsize=(max(7, len(keys) * 0.6 * len(labels) + 2), 5))
         n = len(labels)
         bw = 0.8 / n
-        for mi, (lab, m) in enumerate(zip(labels, metrics_list)):
-            vals = [float(m.get(gk, {}).get(k, 0.0)) for k in keys]
+        for mi, (lab, flat) in enumerate(zip(labels, per_model_dims)):
+            vals = [float(flat.get(path, {}).get(k, 0.0)) for k in keys]
             xs = [j + (mi - (n - 1) / 2) * bw for j in range(len(keys))]
             ax.bar(xs, vals, width=bw, label=lab)
         ax.set_xticks(range(len(keys)))
         ax.set_xticklabels(keys, rotation=45, ha="right", fontsize=8)
-        ax.set_ylim(0, 1.05); ax.set_ylabel("Accuracy"); ax.set_title(f"{gk} by model")
+        ax.set_ylim(0, 1.05); ax.set_ylabel("Accuracy"); ax.set_title(f"{path} by model")
         ax.legend(fontsize=8)
         fig.tight_layout()
-        p = out_dir / f"model_comparison_{gk}.png"
+        p = out_dir / f"model_comparison_{safe}.png"
         fig.savefig(p, dpi=150); plt.close(fig); written.append(p)
 
-        # 类别数 >=3 时额外出雷达图（如 by_dim2 的二级维度对比）。
+        # 类别数 >=3 时额外出雷达图（如二级维度 dim2 的多模型对比）。
         if len(keys) >= 3:
-            rp = out_dir / f"model_comparison_{gk}_radar.png"
-            plot_radar_comparison(gk, keys, labels, metrics_list, rp)
+            rp = out_dir / f"model_comparison_{safe}_radar.png"
+            plot_radar_comparison(path, keys, labels, [flat.get(path, {}) for flat in per_model_dims], rp)
             written.append(rp)
     return written

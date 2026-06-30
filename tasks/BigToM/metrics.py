@@ -4,19 +4,22 @@ from collections import defaultdict
 from typing import Any, Dict, List
 
 from src.evaluation.task_metrics import (
-    base_metric_payload,
-    count_dict,
-    flatten_group,
+    add_dimension,
+    hierarchical_metrics,
+    make_split,
     meta,
-    rate_dict,
     safe_div,
-    update_group,
     value_list,
 )
 
 
 def _normalize_belief_type(value: str) -> str:
     return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _belief_types(record: Dict[str, Any]) -> List[str]:
+    types = [_normalize_belief_type(item) for item in value_list(meta(record).get("dimension"))]
+    return types or ["unknown"]
 
 
 def _pair_key(record: Dict[str, Any]) -> str:
@@ -33,34 +36,30 @@ def _pair_key(record: Dict[str, Any]) -> str:
 
 
 def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    metrics = base_metric_payload(per_sample_results)
-    by_condition: Dict[str, Dict[str, int]] = {}
-    by_belief_type: Dict[str, Dict[str, int]] = {}
+    metrics = hierarchical_metrics(
+        records,
+        per_sample_results,
+        [
+            ("condition", lambda r: [str(meta(r).get("condition_type") or "unknown")]),
+            ("belief_type", _belief_types),
+        ],
+    )
+
+    # tb_and_fb：同一故事的 true-belief 与 false-belief 两问都对才算该 pair 通过。
+    # 该联合分无法从两个边际 accuracy 反推，作为单 split（overall=全部 pair）的二级维度收进 dimensions。
     pair_stats: Dict[str, Dict[str, int]] = defaultdict(
         lambda: {"tb_correct": 0, "tb_total": 0, "fb_correct": 0, "fb_total": 0}
     )
-
     for record, result in zip(records, per_sample_results):
-        record_meta = meta(record)
-        is_correct = result["is_correct"]
-
-        update_group(by_condition, record_meta.get("condition_type"), is_correct)
-
-        belief_types = {_normalize_belief_type(item) for item in value_list(record_meta.get("dimension"))}
-        if not belief_types:
-            belief_types = {"unknown"}
-        for belief_type in belief_types:
-            update_group(by_belief_type, belief_type, is_correct)
-
+        belief_types = set(_belief_types(record))
         pair_key = _pair_key(record)
+        is_correct = result["is_correct"]
         if "true_belief" in belief_types:
             pair_stats[pair_key]["tb_total"] += 1
-            if is_correct:
-                pair_stats[pair_key]["tb_correct"] += 1
+            pair_stats[pair_key]["tb_correct"] += int(is_correct)
         if "false_belief" in belief_types:
             pair_stats[pair_key]["fb_total"] += 1
-            if is_correct:
-                pair_stats[pair_key]["fb_correct"] += 1
+            pair_stats[pair_key]["fb_correct"] += int(is_correct)
 
     tb_fb_total_pairs = 0
     tb_fb_correct_pairs = 0
@@ -70,13 +69,7 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
             if stats["tb_correct"] == stats["tb_total"] and stats["fb_correct"] == stats["fb_total"]:
                 tb_fb_correct_pairs += 1
 
-    by_belief_type_rates = rate_dict(by_belief_type)
-    by_belief_type_rates["tb_and_fb"] = safe_div(tb_fb_correct_pairs, tb_fb_total_pairs)
-
-    metrics.update(flatten_group(by_condition, "by_condition"))
-    metrics.update({f"by_belief_type.{key}": value for key, value in by_belief_type_rates.items()})
-    metrics["by_condition"] = rate_dict(by_condition)
-    metrics["condition_counts"] = count_dict(by_condition)
-    metrics["by_belief_type"] = by_belief_type_rates
-    metrics["belief_type_counts"] = {**count_dict(by_belief_type), "tb_and_fb": tb_fb_total_pairs}
+    add_dimension(metrics, "tb_and_fb", {
+        "overall": make_split(safe_div(tb_fb_correct_pairs, tb_fb_total_pairs), tb_fb_total_pairs),
+    })
     return metrics
