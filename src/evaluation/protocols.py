@@ -29,7 +29,7 @@ PROTOCOLS = ("direct", "direct_think", "cot", "del_tom")
 
 # 与历史 sampling_params_for_v4 一致的权威采样参数表。
 _SAMPLING: Dict[str, Dict[str, Any]] = {
-    "direct": dict(temperature=0.0, top_p=0.95, max_tokens=8192, n_samples=1, enable_thinking=False),
+    "direct": dict(temperature=0.0, top_p=0.95, max_tokens=32768, n_samples=1, enable_thinking=False),
     "direct_think": dict(temperature=0.6, top_p=0.95, max_tokens=32768, n_samples=1, enable_thinking=True),
     "cot": dict(temperature=0.6, top_p=0.95, max_tokens=32768, n_samples=1, enable_thinking=True),
     "del_tom": dict(temperature=0.6, top_p=0.95, max_tokens=32768, n_samples=8, enable_thinking=True),
