@@ -1,35 +1,44 @@
-"""SocialMind 分组指标：按维度层级 / 题型 / 视角 / 长短文本切面统计准确率，
-并额外汇总 Q4 的平均 rubric 得分（总体 + 按维度）。
+"""SocialMind 分层指标：维度层级 dim1→dim2→dim3 嵌套为三级，题型/视角/难度变体/长短文本
+作为平铺的二级维度；Q4 rubric 平均分（0-10，非 0-1 准确率）作 q4_score 汇总型维度
+（overall + 按三级维度切 split）。
 
 注：variant 切面区分 base（dim 1/2/3 全量 284 样本）与 hardest（dim-3 加难版 56 样本，
-按模型错误率挑最难子题改写而成，与 base dim-3 一一对应），by_variant 可对比同批题在两难度上的
-表现。二级指标 `qualified` 只在「人工审核合格」样本（meta.review_pass=True）上重算
-同一套指标；v5.3 provenance 标明 FAIL 项已就地修复、裁判结论为最终权威，故全部样本默认合格，
-qualified 与 full 一致。缺失 review_pass 字段的样本默认视为合格。"""
+按模型错误率挑最难子题改写而成，与 base dim-3 一一对应），variant 维度可对比同批题在两难度上的
+表现。`qualified` 只在「人工审核合格」样本（meta.review_pass=True）上重算同一套指标，作为
+顶层镜像（{accuracy, dimensions, ...}）；v5.3 provenance 标明 FAIL 项已就地修复、裁判结论为
+最终权威，故全部样本默认合格，qualified 与全量一致。缺失 review_pass 字段的样本默认视为合格。"""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from src.evaluation.task_metrics import (
+    add_dimension,
     first_value,
-    generic_group_metrics,
+    hierarchical_metrics,
+    make_split,
     meta,
     safe_div,
 )
 
-# 分组切面定义：full 与 qualified 二级指标共用同一套切面。
-GROUP_SPECS: List[Tuple[str, Any]] = [
-    ("by_dim1", lambda r: [first_value(meta(r).get("dim1"))]),
-    ("by_dim2", lambda r: [first_value(meta(r).get("dim2"))]),
-    ("by_dim3", lambda r: [first_value(meta(r).get("dim"))]),
-    ("by_qtype", lambda r: [first_value(meta(r).get("qtype"))]),
-    ("by_perspective", lambda r: [first_value(meta(r).get("perspective"))]),
-    ("by_variant", lambda r: [first_value(meta(r).get("variant"))]),
+
+def _dim_key(key: str):
+    return lambda r: [first_value(meta(r).get(key))]
+
+
+# 二级维度声明：dim1→dim2→dim3 天然层级嵌套，其余切面平铺。
+DIM_SPECS: List[Any] = [
+    # 维度层级：一级维度 dim1，其下嵌套二级维度 dim2，再嵌套三级维度 dim（dim3）。
+    ("dim1", _dim_key("dim1"), [
+        ("dim2", _dim_key("dim2"), [
+            ("dim3", _dim_key("dim")),
+        ]),
+    ]),
+    ("qtype", _dim_key("qtype")),
+    ("perspective", _dim_key("perspective")),
+    ("variant", _dim_key("variant")),
     # 长/短文本情景：meta.length_mode 取 long/short。
-    ("by_length", lambda r: [first_value(meta(r).get("length_mode"))]),
-    # 组合键 "维度|题型"：可视化模块据 "|" 自动透视成热力图。
-    ("by_dim3_qtype", lambda r: [f"{first_value(meta(r).get('dim'))}|{first_value(meta(r).get('qtype'))}"]),
+    ("length", _dim_key("length_mode")),
 ]
 
 
@@ -38,11 +47,12 @@ def _is_qualified(record: Dict[str, Any]) -> bool:
     return bool(meta(record).get("review_pass", True))
 
 
-def _q4_score_summary(
+def _add_q4_dimension(
+    metrics: Dict[str, Any],
     records: List[Dict[str, Any]],
     per_sample_results: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    """Q4 rubric 平均分：总体 + 按三级维度。"""
+) -> None:
+    """Q4 rubric 平均分（0-10）作 q4_score 汇总型维度：overall split + 按三级维度切 split。"""
     overall: List[float] = []
     by_dim: Dict[str, List[float]] = {}
     for record, result in zip(records, per_sample_results):
@@ -53,21 +63,20 @@ def _q4_score_summary(
         dim = first_value(meta(record).get("dim"))
         by_dim.setdefault(dim, []).append(float(score))
     if not overall:
-        return {}
-    return {
-        "q4_mean_score": sum(overall) / len(overall),
-        "q4_count": len(overall),
-        "q4_mean_score_by_dim": {k: sum(v) / len(v) for k, v in sorted(by_dim.items())},
-    }
+        return
+    splits = {"overall": make_split(sum(overall) / len(overall), len(overall))}
+    for dim, scores in sorted(by_dim.items()):
+        splits[dim] = make_split(sum(scores) / len(scores), len(scores))
+    add_dimension(metrics, "q4_score", splits)
 
 
 def _block(
     records: List[Dict[str, Any]],
     per_sample_results: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """一套完整指标（分组准确率 + Q4 平均分）。"""
-    block = generic_group_metrics(records, per_sample_results, GROUP_SPECS)
-    block.update(_q4_score_summary(records, per_sample_results))
+    """一套完整指标（分层准确率 + Q4 平均分维度）。"""
+    block = hierarchical_metrics(records, per_sample_results, DIM_SPECS)
+    _add_q4_dimension(block, records, per_sample_results)
     return block
 
 
@@ -77,7 +86,7 @@ def compute_metrics(
 ) -> Dict[str, Any]:
     metrics = _block(records, per_sample_results)
 
-    # 二级指标：仅人工审核合格样本（review_pass=True）。
+    # qualified 镜像：仅人工审核合格样本（review_pass=True）上重算同一套指标。
     pairs = [
         (r, res) for r, res in zip(records, per_sample_results) if _is_qualified(r)
     ]
@@ -87,7 +96,7 @@ def compute_metrics(
     total = len(records)
     n_qualified = len(qualified_records)
     qualified = _block(qualified_records, qualified_results)
-    # 二级指标自带的 per_sample_results 与顶层重复，去掉以免膨胀。
+    # 镜像自带的 per_sample_results 与顶层重复，去掉以免膨胀。
     qualified.pop("per_sample_results", None)
 
     metrics["review_pass_count"] = n_qualified
