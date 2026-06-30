@@ -1,0 +1,61 @@
+{
+  "project": "BenchEval",
+  "last_updated": "2026-06-30",
+  "rules": {
+    "single_active_feature": true,
+    "passing_requires_evidence": true,
+    "do_not_skip_verification": true
+  },
+  "status_legend": {
+    "not_started": "功能还没开始做。",
+    "in_progress": "这个功能是当前唯一正在进行的任务。",
+    "blocked": "因为已记录的阻塞问题，当前无法继续推进。",
+    "passing": "要求的验证已经通过，并且证据已经记录。"
+  },
+  "features": [
+    {
+      "id": "docs-001",
+      "priority": 1,
+      "area": "docs",
+      "title": "任务背景与愿景文档",
+      "user_visible_behavior": "docs/vision.md 说明 BenchEval 从 ToM 专用外扩到任意数据集的目标、三原则（自动化/轻量化/可视化）、全自动迭代训练闭环。",
+      "status": "passing",
+      "verification": [
+        "docs/vision.md 存在且包含三原则与端到端闭环说明。",
+        "README 文档索引已收录该文档。"
+      ],
+      "evidence": ["docs/vision.md", "README.md 文档索引段"],
+      "notes": "任务1。背景知识沉淀，供后续所有外扩工作参照。"
+    },
+    {
+      "id": "docs-002",
+      "priority": 2,
+      "area": "docs",
+      "title": "模块级复用参考手册",
+      "user_visible_behavior": "docs/module_reference.md 列出 src/filter/feedback/report/scripts 各模块职责、关键函数、import 路径与复用点，便于检索复用、减少冗余代码。",
+      "status": "passing",
+      "verification": [
+        "docs/module_reference.md 存在且覆盖 src/llm、src/evaluation、src/dataloader、src/visualization、filter、feedback、report、scripts、tasks。",
+        "含跨模块复用速查表（需求 → 复用点 → import 路径）。",
+        "README 文档索引已收录该文档。"
+      ],
+      "evidence": ["docs/module_reference.md", "README.md 文档索引段"],
+      "notes": "任务2。三个子代理精读 src/、tasks+report+scripts、filter+feedback 后整合而成。"
+    },
+    {
+      "id": "refactor-003",
+      "priority": 3,
+      "area": "refactor",
+      "title": "冗余清理 backlog（每完成约10个任务起一个清理任务）",
+      "user_visible_behavior": "docs/refactor_backlog.md 汇总代码库中已识别的重复实现与冗余文件，按优先级列出可复用的收敛落点，作为周期性清理的任务来源。",
+      "status": "passing",
+      "verification": [
+        "docs/refactor_backlog.md 存在且列出全部已识别冗余点（scripts 样板、两套 client 加载、parquet IO 分叉、两套 summary 生成、两套 markdown 解析等）。",
+        "每个条目含位置、影响面、收敛建议、验证方式。",
+        "README 文档索引已收录该文档。"
+      ],
+      "evidence": ["docs/refactor_backlog.md", "README.md 文档索引段"],
+      "notes": "任务3。本文档是 backlog 来源；实际清理需逐项作为 single active feature 执行并验证，未执行前不得标记对应清理项为 passing。"
+    }
+  ]
+}

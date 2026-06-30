@@ -458,6 +458,9 @@ ToMEval/
 
 | 文档 | 内容 |
 |---|---|
+| [docs/vision.md](docs/vision.md) | **项目愿景**：从 ToM 专用扩展到任意测试集的全自动迭代式数据合成框架（三原则：自动化 / 轻量化 / 可视化） |
+| [docs/module_reference.md](docs/module_reference.md) | **模块复用参考手册**：每个模块用途、关键函数、import 路径、跨模块复用速查（写新流程前先查这里） |
+| [docs/refactor_backlog.md](docs/refactor_backlog.md) | **冗余清理 backlog**：已识别的重复代码/冗余文件清单，按优先级排序，供"每10个任务一次清理"使用 |
 | [docs/protocols.md](docs/protocols.md) | 四个评测协议的采样参数、system prompt、extractor、投票、shuffle |
 | [docs/visualization.md](docs/visualization.md) | 可视化模块用法与自动出图行为 |
 | [docs/add_new_dataset.md](docs/add_new_dataset.md) | 如何新增数据集（含开放题 `open_judge` 配置） |
