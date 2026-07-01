@@ -1,0 +1,78 @@
+# ============================================================================
+# 智能体(Agent)专用评测配置
+# 用法:python run_eval.py --experiment-config experiment_config_agent.yaml
+# 与 experiment_config.yaml 的区别:这里 predictor 固定为 agent,走黑盒 HTTP 后端,
+# 忽略 protocol,采样/多轮/工具全部由 agent 内部决定,repeats 固定 1。
+# 对接说明见 docs/agent_eval.md,内部实现见 docs/agent_eval_plan.md。
+# ============================================================================
+
+# llm 段:agent 模式下,这里配的是「真实模型后端」——代理会把 agent 的调用统一
+# 转发到这个后端,并强制改回下面的 model_name、抹掉 usage、限流、拒流式。
+llm:
+  model_name: <your-model-name>          # 统一模型名(所有参赛 agent 相同)
+  api_key: <your-api-key>                 # 真实后端的 api key
+  api_url: <your-api-base-url>            # 真实后端的 OpenAI 兼容地址,如 https://.../v1
+  max_workers: 16  # 代理转发到真实后端的默认并发上限(agent.max_concurrency 缺省时取此值)
+
+# agent 模式下 protocol 被忽略,仅为占位保留(非 agent 时才生效)。
+protocol: direct
+
+# 关键开关:predictor=agent 切换到智能体评测(黑盒 HTTP 后端)。
+predictor: agent
+
+agent:
+  # start_command:启动 agent HTTP 服务的命令(list 或 shell 字符串);
+  # 缺省则假定 agent 已在外部起好,仅探活。
+  start_command: [python, agents/mock/server.py]
+  cwd: null                       # 启动命令的工作目录(默认当前目录)
+  host: 127.0.0.1
+  port: 8100                      # 我们通过 PORT 环境变量注入给 agent
+  health_path: /health
+  predict_path: /predict
+  health_timeout: 120             # 等 agent /health 就绪的最长秒数
+  predict_timeout: 300            # 单条 /predict 超时(秒),同时作代理转发后端的超时
+  max_retry: 2                    # 单条 /predict 失败重试次数
+  max_workers: 16                 # 我们并发发题给 agent 的线程数
+  # max_concurrency:代理同时转发到真实后端的并发上限(缺省取 llm.max_workers)。
+  # max_concurrency: 16
+  # env_names:agent 侧接收连接信息的环境变量名(占位符);LLM_API_URL 会被替换成代理地址。
+  env_names:
+    api_url: LLM_API_URL
+    api_key: LLM_API_KEY
+    model: LLM_MODEL
+    port: PORT
+
+# 评测阶段:
+#   predict   只生成预测
+#   metric    只判分聚合(复用最新 exp 目录)
+#   visualize 只按 metrics.json 出图到 figures/<数据集>/<模型>/(复用最新 exp 目录)
+#   all       预测 + 判分 + 出图(端到端)
+stage: all
+
+# 批量评测的数据集列表。agent 逐条答题,判分/指标全部复用现有流水线,
+# 因此成绩可与非 agent 模型横向对比。完整说明见 docs/datasets.md
+datasets:
+  - Belief_R
+  - BigToM
+  - EmoBench
+  - ExploreToM
+  - FanToM
+  - FictionalQA
+  - HellaSwag
+  - HiToM
+  - PUB
+  - SimpleToM
+  - SocialBench
+  - SocialIQA
+  - SocialMind
+  - TactfulToM
+  - ToMBench
+  - ToMChallenges
+  - ToMQA
+  - ToMato
+  - ToMi
+
+max_samples: 40
+normalized_datasets_path: datasets
+results_path: results          # 预测/判分结果根目录:results/<数据集>/<模型>/exp_<时间戳>/
+figures_path: figures          # visualize 阶段出图根目录:figures/<数据集>/<模型>/

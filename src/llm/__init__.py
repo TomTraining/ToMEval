@@ -9,6 +9,7 @@ LLM 模块
 from .client import LLMClient, LLMUsage, LLMResponse
 from .content_client import ContentClient
 from .structure_client import StructureClient
+from .agent_client import AgentClient
 
 __all__ = [
     "LLMClient",
@@ -16,4 +17,5 @@ __all__ = [
     "LLMResponse",
     "ContentClient",
     "StructureClient",
+    "AgentClient",
 ]

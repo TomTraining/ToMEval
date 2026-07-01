@@ -12,7 +12,7 @@ from .prompt_loaders import (
     load_task_system_prompt_builder,
 )
 from .prompts import build_option_bundle, build_prompt, prompt_type
-from .protocols import extractor_name_for, shuffle_for, system_prompt_for
+from .protocols import AGENT_EXTRACTOR, extractor_name_for, shuffle_for, system_prompt_for
 from .storage import serialize_llm_response
 from .types import PredictionRecord, StandardizedSample
 
@@ -23,11 +23,16 @@ def predict_records(
     client: Any,
     repeats: int,
     protocol: Optional[str] = None,
+    agent_mode: bool = False,
 ) -> List[PredictionRecord]:
     records: List[PredictionRecord] = []
     # 协议评测下：选项是否 shuffle、答题指令是否进 user prompt、用哪个 extractor 全部由协议决定。
+    # agent 模式:extractor 固定为 "agent"(直通归一化);shuffle 沿用默认(True);
+    # 答题格式指令不进 body(agent 吃结构化字段,按契约直接返回字母)。
     use_shuffle = shuffle_for(protocol)
-    extractor = extractor_name_for(protocol)
+    extractor = AGENT_EXTRACTOR if agent_mode else extractor_name_for(protocol)
+    # 渲染 body 是否带答题格式指令:仅 legacy(无协议、非 agent)才带。
+    include_instruction = protocol is None and not agent_mode
 
     # 数据集自定义 prompt 钩子（缺省回退通用实现）：
     # - prepare：预测前整体变换样本（如 EmoBench 合并 emotion+cause 成 grouped 多问样本）。
@@ -47,6 +52,8 @@ def predict_records(
         grouped_prompts: Dict[str, List[str]] = defaultdict(list)
         grouped_system: Dict[str, List[str]] = defaultdict(list)
         grouped_indices: Dict[str, List[int]] = defaultdict(list)
+        # agent 模式:与 grouped_prompts 一一对应的结构化样本(发给 agent 的 /predict body)。
+        grouped_agent_payloads: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
 
         for sample_index, sample in enumerate(samples):
             # grouped 多问样本由 prepare_samples 预先打包好选项(meta.sub_questions)，
@@ -64,9 +71,22 @@ def predict_records(
                     shuffle=use_shuffle,
                 )
                 current_prompt_type = prompt_type(sample["answer"])
-            # 设了协议：答题格式指令改由 system prompt 承载，user prompt 去掉 answer_instruction。
-            prompt = builder(sample, option_map, include_instruction=protocol is None)
-            if protocol is None:
+            # 设了协议 / agent 模式:答题格式指令不进 body(协议走 system prompt，agent 走结构化字段)。
+            prompt = builder(sample, option_map, include_instruction=include_instruction)
+            if agent_mode:
+                # 发给 agent 的结构化样本:绝不含 correct_letters/wrong_letters/answer。
+                lang = get_sample_lang(sample.get("meta"))
+                agent_payload: Dict[str, Any] = {
+                    "sample_id": sample["sample_id"],
+                    "prompt_type": current_prompt_type,
+                    "lang": lang,
+                    "story": sample["story"],
+                    "question": sample["question"],
+                }
+                if option_map:
+                    agent_payload["options"] = option_map
+                system_prompt = ""
+            elif protocol is None:
                 system_prompt = ""
             else:
                 lang = get_sample_lang(sample.get("meta"))
@@ -98,6 +118,8 @@ def predict_records(
             grouped_prompts[current_prompt_type].append(prompt)
             grouped_system[current_prompt_type].append(system_prompt)
             grouped_indices[current_prompt_type].append(sample_index)
+            if agent_mode:
+                grouped_agent_payloads[current_prompt_type].append(agent_payload)
 
         responses_by_index: Dict[int, LLMResponse] = {}
         prompt_type_labels = {
@@ -113,7 +135,15 @@ def predict_records(
             desc = f"Generating ({prompt_type_labels.get(current_prompt_type, current_prompt_type)})"
             # 未设协议时 system_prompts=None，沿用客户端单一 system_prompt（旧行为）。
             system_prompts = grouped_system[current_prompt_type] if protocol is not None else None
-            responses = client.batch_generate(prompts, desc=desc, system_prompts=system_prompts)
+            if agent_mode:
+                # agent 模式:把结构化样本交给 AgentClient，system_prompts 无意义。
+                responses = client.batch_generate(
+                    prompts,
+                    desc=desc,
+                    payloads=grouped_agent_payloads[current_prompt_type],
+                )
+            else:
+                responses = client.batch_generate(prompts, desc=desc, system_prompts=system_prompts)
             for sample_index, response in zip(grouped_indices[current_prompt_type], responses):
                 responses_by_index[sample_index] = response
 
