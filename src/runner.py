@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List
 
 import yaml
@@ -12,9 +13,19 @@ from src.dataloader import load_dataset
 logger = logging.getLogger(__name__)
 
 
+def _expand_env_vars(value: Any) -> Any:
+    if isinstance(value, str):
+        return os.path.expandvars(value)
+    if isinstance(value, dict):
+        return {key: _expand_env_vars(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_expand_env_vars(item) for item in value]
+    return value
+
+
 def load_experiment_config(config_path: str) -> Dict[str, Any]:
     with open(config_path, encoding="utf-8") as file:
-        config = yaml.safe_load(file) or {}
+        config = _expand_env_vars(yaml.safe_load(file) or {})
 
     llm_config = dict(config.get("llm", {}))
     repeats = config.get("repeats", 1)
@@ -50,14 +61,14 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
 
 
 def create_llm_client(llm_config: Dict[str, Any]) -> Any:
-    config = llm_config.copy()
+    config = _expand_env_vars(llm_config.copy())
     from src.llm import StructureClient
 
     return StructureClient.from_config(config)
 
 
 def create_content_client(llm_config: Dict[str, Any]) -> Any:
-    config = llm_config.copy()
+    config = _expand_env_vars(llm_config.copy())
     from src.llm import ContentClient
 
     return ContentClient.from_config(config)
