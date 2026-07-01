@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -11,6 +12,42 @@ from pathlib import Path
 
 
 REQUIRED_RESULT_FILES = ("config.json", "metrics.json", "prediction.jsonl")
+LEGACY_METRIC_FIELDS = (
+    "by_dim1",
+    "by_dim1_counts",
+    "by_dim2",
+    "by_dim2_counts",
+    "by_dim3",
+    "by_dim3_counts",
+    "by_dim3_qtype",
+    "by_dim3_qtype_counts",
+    "by_qtype",
+    "by_qtype_counts",
+    "by_perspective",
+    "by_perspective_counts",
+    "by_length",
+    "by_length_counts",
+    "by_variant",
+    "by_variant_counts",
+    "q4_mean_score",
+    "q4_count",
+    "q4_mean_score_by_dim",
+)
+QTYPE_CODE_NAMES = {
+    "Q1": "Single Choice",
+    "Q2": "Multiple Choice",
+    "Q3": "Judgment & Reasoning",
+    "Q4": "Open Analysis",
+}
+BREAKDOWN_DEFS = (
+    ("dimension_level_1", "Dimension Level 1", "dim1", "by_dim1", "by_dim1_counts", "dim1"),
+    ("dimension_level_2", "Dimension Level 2", "dim2", "by_dim2", "by_dim2_counts", "dim2"),
+    ("dimension_level_3", "Dimension Level 3", "dim3", "by_dim3", "by_dim3_counts", "dim3"),
+    ("question_type", "Question Type", "qtype", "by_qtype", "by_qtype_counts", "qtype"),
+    ("perspective", "Perspective", "perspective", "by_perspective", "by_perspective_counts", None),
+    ("length", "Length", "length", "by_length", "by_length_counts", None),
+    ("variant", "Variant", "variant", "by_variant", "by_variant_counts", "variant"),
+)
 
 
 def load_json(path):
@@ -280,6 +317,220 @@ def int_metric_value(metrics, key):
     return value
 
 
+def load_socialmind_name_maps():
+    config_path = Path(__file__).resolve().parents[1] / "tasks" / "SocialMind" / "dim_config.py"
+    maps = {"dim1": {}, "dim2": {}, "dim3": {}, "qtype": dict(QTYPE_CODE_NAMES), "variant": {}}
+    if not config_path.is_file():
+        return maps
+
+    spec = importlib.util.spec_from_file_location("socialmind_dim_config", config_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    maps["dim1"] = dict(getattr(module, "DIM1_NAMES_EN", {}) or getattr(module, "DIM1_NAMES", {}) or {})
+    maps["dim2"] = dict(getattr(module, "DIM2_NAMES_EN", {}) or getattr(module, "DIM2_NAMES", {}) or {})
+    maps["dim3"] = dict(getattr(module, "DIM3_NAMES_EN", {}) or getattr(module, "DIM3_NAMES", {}) or {})
+    maps["variant"] = dict(getattr(module, "VARIANT_NAMES_EN", {}) or getattr(module, "VARIANT_NAMES", {}) or {})
+
+    qtype_names = getattr(module, "QTYPE_NAMES_EN", {}) or {}
+    maps["qtype"].update({
+        "Q1": qtype_names.get("单选", QTYPE_CODE_NAMES["Q1"]),
+        "Q2": qtype_names.get("多选", QTYPE_CODE_NAMES["Q2"]),
+        "Q3": qtype_names.get("判断推理", QTYPE_CODE_NAMES["Q3"]),
+        "Q4": qtype_names.get("开放分析", QTYPE_CODE_NAMES["Q4"]),
+    })
+    return maps
+
+
+def display_name(name_maps, map_key, item_id):
+    if map_key and item_id in name_maps.get(map_key, {}):
+        return name_maps[map_key][item_id]
+    return item_id
+
+
+def sorted_items(mapping):
+    return sorted(mapping.items(), key=lambda item: str(item[0]))
+
+
+def item_from_split(item_id, split, name_maps, map_key):
+    if not isinstance(split, dict):
+        return None
+    score = split.get("acc")
+    count = split.get("n")
+    if score is None and count is None:
+        return None
+    item = {
+        "id": str(item_id),
+        "name": display_name(name_maps, map_key, str(item_id)),
+    }
+    if score is not None:
+        item["score"] = score
+    if count is not None:
+        item["count"] = int(count) if isinstance(count, (int, float)) else count
+    return item
+
+
+def items_from_scores(scores, counts, name_maps, map_key):
+    if not isinstance(scores, dict):
+        return []
+    counts = counts if isinstance(counts, dict) else {}
+    items = []
+    for item_id, score in sorted_items(scores):
+        item = {
+            "id": str(item_id),
+            "name": display_name(name_maps, map_key, str(item_id)),
+            "score": score,
+        }
+        if item_id in counts:
+            count = counts[item_id]
+            item["count"] = int(count) if isinstance(count, (int, float)) else count
+        items.append(item)
+    return items
+
+
+def add_breakdown(breakdowns, key, label, items):
+    items = [item for item in items if item is not None]
+    if items:
+        breakdowns[key] = {"label": label, "items": items}
+
+
+def dimension_items(dimensions, dim_name, name_maps, map_key):
+    source = dimensions.get(dim_name)
+    if not isinstance(source, dict):
+        return []
+    return [
+        item_from_split(item_id, split, name_maps, map_key)
+        for item_id, split in sorted_items(source)
+    ]
+
+
+def nested_dimension_items(dimensions, path, name_maps, map_key):
+    def walk(node, remaining):
+        if not remaining or not isinstance(node, dict):
+            return []
+        dim_name = remaining[0]
+        if dim_name not in node:
+            return []
+        dim = node[dim_name]
+        if not isinstance(dim, dict):
+            return []
+        if len(remaining) == 1:
+            return [
+                item_from_split(item_id, split, name_maps, map_key)
+                for item_id, split in sorted_items(dim)
+            ]
+
+        items = []
+        for split in dim.values():
+            child = split.get("dimensions") if isinstance(split, dict) else None
+            items.extend(walk(child, remaining[1:]))
+        return items
+
+    by_id = {}
+    for item in walk(dimensions, path):
+        if item is not None:
+            by_id[item["id"]] = item
+    return [by_id[item_id] for item_id in sorted(by_id)]
+
+
+def build_breakdowns_from_dimensions(avg_metrics, name_maps):
+    dimensions = avg_metrics.get("dimensions")
+    if not isinstance(dimensions, dict) or not dimensions:
+        return {}
+
+    breakdowns = {}
+    add_breakdown(
+        breakdowns,
+        "dimension_level_1",
+        "Dimension Level 1",
+        dimension_items(dimensions, "dim1", name_maps, "dim1"),
+    )
+    add_breakdown(
+        breakdowns,
+        "dimension_level_2",
+        "Dimension Level 2",
+        nested_dimension_items(dimensions, ("dim1", "dim2"), name_maps, "dim2"),
+    )
+    add_breakdown(
+        breakdowns,
+        "dimension_level_3",
+        "Dimension Level 3",
+        nested_dimension_items(dimensions, ("dim1", "dim2", "dim3"), name_maps, "dim3"),
+    )
+
+    for key, label, dim_name, _scores_key, _counts_key, map_key in BREAKDOWN_DEFS[3:]:
+        add_breakdown(
+            breakdowns,
+            key,
+            label,
+            dimension_items(dimensions, dim_name, name_maps, map_key),
+        )
+    return breakdowns
+
+
+def build_breakdowns_from_legacy(avg_metrics, name_maps):
+    breakdowns = {}
+    for key, label, _dim_name, scores_key, counts_key, map_key in BREAKDOWN_DEFS:
+        add_breakdown(
+            breakdowns,
+            key,
+            label,
+            items_from_scores(avg_metrics.get(scores_key), avg_metrics.get(counts_key), name_maps, map_key),
+        )
+    return breakdowns
+
+
+def breakdown_to_legacy_scores(breakdowns, breakdown_key):
+    breakdown = breakdowns.get(breakdown_key)
+    if not isinstance(breakdown, dict):
+        return None, None
+    scores = {}
+    counts = {}
+    for item in breakdown.get("items") or []:
+        item_id = item.get("id")
+        if item_id is None:
+            continue
+        if "score" in item:
+            scores[str(item_id)] = item["score"]
+        if "count" in item:
+            counts[str(item_id)] = item["count"]
+    return (scores or None), (counts or None)
+
+
+def derive_legacy_fields_from_dimensions(avg_metrics, breakdowns):
+    derived = {}
+    for breakdown_key, scores_key, counts_key in (
+        ("dimension_level_1", "by_dim1", "by_dim1_counts"),
+        ("dimension_level_2", "by_dim2", "by_dim2_counts"),
+        ("dimension_level_3", "by_dim3", "by_dim3_counts"),
+        ("question_type", "by_qtype", "by_qtype_counts"),
+        ("perspective", "by_perspective", "by_perspective_counts"),
+        ("length", "by_length", "by_length_counts"),
+        ("variant", "by_variant", "by_variant_counts"),
+    ):
+        scores, counts = breakdown_to_legacy_scores(breakdowns, breakdown_key)
+        if scores is not None:
+            derived[scores_key] = scores
+        if counts is not None:
+            derived[counts_key] = counts
+
+    q4_score = (avg_metrics.get("dimensions") or {}).get("q4_score")
+    if isinstance(q4_score, dict):
+        overall = q4_score.get("overall")
+        if isinstance(overall, dict):
+            if overall.get("acc") is not None:
+                derived["q4_mean_score"] = overall.get("acc")
+            if overall.get("n") is not None:
+                derived["q4_count"] = overall.get("n")
+        by_dim = {
+            key: split.get("acc")
+            for key, split in q4_score.items()
+            if key != "overall" and isinstance(split, dict) and split.get("acc") is not None
+        }
+        if by_dim:
+            derived["q4_mean_score_by_dim"] = by_dim
+    return derived
+
+
 def build_entry(config_path):
     result_dir = config_path.parent
     metrics_path = result_dir / "metrics.json"
@@ -288,7 +539,15 @@ def build_entry(config_path):
 
     config = load_json(config_path)
     metrics = load_json(metrics_path)
+    avg_metrics = metrics.get("avg_metrics", {})
     experiment_config = config.get("experiment_config", {})
+    name_maps = load_socialmind_name_maps() if (config.get("dataset") or result_dir.name) == "SocialMind" else {
+        "dim1": {},
+        "dim2": {},
+        "dim3": {},
+        "qtype": dict(QTYPE_CODE_NAMES),
+        "variant": {},
+    }
 
     dataset = config.get("dataset") or result_dir.name
     model = config.get("model") or result_dir.parent.name
@@ -296,7 +555,12 @@ def build_entry(config_path):
     accuracy = metric_value(metrics, "accuracy")
     overall_score = accuracy * 100 if isinstance(accuracy, (int, float)) else None
 
-    return {
+    breakdowns = build_breakdowns_from_dimensions(avg_metrics, name_maps)
+    if not breakdowns:
+        breakdowns = build_breakdowns_from_legacy(avg_metrics, name_maps)
+    derived_legacy_fields = derive_legacy_fields_from_dimensions(avg_metrics, breakdowns)
+
+    entry = {
         "dataset": dataset,
         "model": model,
         "run_timestamp": config.get("run_timestamp"),
@@ -307,9 +571,21 @@ def build_entry(config_path):
         "overall_score": overall_score,
         "correct": int_metric_value(metrics, "correct"),
         "total": int_metric_value(metrics, "total"),
-        "q4_mean_score": metric_value(metrics, "q4_mean_score"),
         "result_path": result_path,
+        "source_exp_dir": config.get("source_exp_dir"),
     }
+
+    for key in LEGACY_METRIC_FIELDS:
+        value = metric_value(metrics, key)
+        if value is None:
+            value = derived_legacy_fields.get(key)
+        if value is not None:
+            entry[key] = value
+
+    if breakdowns:
+        entry["breakdowns"] = breakdowns
+
+    return entry
 
 
 def rebuild_leaderboard(tomresults_dir):
@@ -347,7 +623,7 @@ def parse_args():
     parser.add_argument("--tomresults-dir", required=True, type=Path)
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--results-root", required=True, type=Path)
+    parser.add_argument("--results-root", default=Path("results"), type=Path)
     parser.add_argument("--force", action="store_true", help="Overwrite even when target is same or newer.")
     parser.add_argument(
         "--git-branch",
