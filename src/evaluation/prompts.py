@@ -211,6 +211,11 @@ def extract_prediction_from_text(
     if current_prompt_type == "open":
         return text
 
+    # agent 后端已按契约直接返回选项字母(不含 \boxed{})：mcq_single 是单个字母，
+    # mcq_multi 是逗号分隔字母(如 "A,C")。这里只做归一化(大写、去重、拆分)，不再找 \boxed{}。
+    if extractor == "agent":
+        return _normalize_agent_letters(current_prompt_type, text)
+
     # 协议感知的 boxed 提取：direct 取第一个 \boxed{}，cot 取最后一个，legacy 沿用历史的“最后一个”。
     # 三者均无 boxed 时返回 None（MCQ 严格模式：视为提取失败）。
     if extractor == "direct":
@@ -234,4 +239,25 @@ def extract_prediction_from_text(
         return letters or None
 
     m = re.search(r"[A-Za-z]", boxed)
+    return m.group(0).upper() if m else None
+
+
+def _normalize_agent_letters(current_prompt_type: PromptType, text: str) -> Any:
+    """把 agent 返回的选项字母归一化成判分所需形态。
+
+    - mcq_multi:抽取所有字母、去重、返回列表(兼容 "A,C" / "A, C" / "AC" / ["A","C"] 序列化后的文本)。
+    - mcq_single / mcq_grouped:返回首个字母(大写)。
+    无任何字母时返回 None → 落进现有 extraction_failed 判错，不 crash。
+    """
+    if current_prompt_type == "mcq_multi":
+        letters: List[str] = []
+        seen = set()
+        for token in re.findall(r"[A-Za-z]", text):
+            letter = token.upper()
+            if letter not in seen:
+                letters.append(letter)
+                seen.add(letter)
+        return letters or None
+
+    m = re.search(r"[A-Za-z]", text)
     return m.group(0).upper() if m else None

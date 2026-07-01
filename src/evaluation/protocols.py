@@ -27,6 +27,11 @@ from .types import PromptType
 
 PROTOCOLS = ("direct", "direct_think", "cot", "del_tom")
 
+# predictor(区别于采样协议 protocol):agent 走黑盒 HTTP 后端,由参赛方内部决定怎么调 model,
+# 我们不设采样参数、不注入 system prompt、不做投票。答案提取用专门的 "agent" extractor(直通归一化)。
+AGENT_PREDICTOR = "agent"
+AGENT_EXTRACTOR = "agent"
+
 # 与历史 sampling_params_for_v4 一致的权威采样参数表。
 _SAMPLING: Dict[str, Dict[str, Any]] = {
     "direct": dict(temperature=0.0, top_p=0.95, max_tokens=32768, n_samples=1, enable_thinking=False),

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tomeval/agent/predict_response.schema.json",
+  "title": "ToMEval Agent Predict Response",
+  "description": "参赛 agent /predict 返回体。成功时带 prediction;失败时带 error;二者恰有其一。注意:prediction 的合法格式取决于【请求里的 prompt_type】,而 prompt_type 不在响应内,故本 schema 只做信封与结构级校验;按 prompt_type 的严格格式由评测框架(scripts/check_agent_conformance.py 与运行时归一化)依据它发出的 prompt_type 选取 $defs 中对应子 schema 强校验。",
+  "type": "object",
+  "required": ["sample_id"],
+  "additionalProperties": false,
+  "properties": {
+    "sample_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "必须与请求的 sample_id 一致。"
+    },
+    "prediction": {
+      "description": "成功作答时的预测。结构级:字符串或大写字母数组。严格的按题型格式见 $defs,由框架依 prompt_type 选取。",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z]$" }
+        }
+      ]
+    },
+    "error": { "$ref": "#/$defs/error" }
+  },
+  "oneOf": [
+    {
+      "description": "成功:有 prediction,无 error。",
+      "required": ["prediction"],
+      "not": { "required": ["error"] }
+    },
+    {
+      "description": "失败:有 error,无 prediction。",
+      "required": ["error"],
+      "not": { "required": ["prediction"] }
+    }
+  ],
+  "$defs": {
+    "mcq_single_prediction": {
+      "type": "string",
+      "pattern": "^[A-Z]$",
+      "description": "prompt_type=mcq_single 时:单个大写字母。"
+    },
+    "mcq_multi_prediction": {
+      "type": "array",
+      "description": "prompt_type=mcq_multi 时:大写字母数组,升序、去重、至少一个。禁止字符串形态 \"A,C\"。",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z]$" }
+    },
+    "mcq_grouped_prediction": {
+      "type": "array",
+      "description": "prompt_type=mcq_grouped 时:每个子问一个大写字母,顺序对应 sub_questions,长度必须等于子问数;允许重复(不同子问可同选一字母),不排序。",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[A-Z]$" }
+    },
+    "open_prediction": {
+      "type": "string",
+      "minLength": 1,
+      "description": "prompt_type=open 时:自由文本(非空)。"
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "retryable"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "MODEL_TIMEOUT",
+            "MODEL_ERROR",
+            "UNSUPPORTED_PROMPT_TYPE",
+            "INVALID_REQUEST",
+            "OVERLOADED",
+            "INTERNAL"
+          ],
+          "description": "标准错误码。语义与 HTTP 状态码、可重试性对应,见 docs/agent_eval.md §4。"
+        },
+        "message": {
+          "type": "string",
+          "description": "人读的错误描述(可选,便于诊断)。"
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "true=评测框架会退避后重试;false=直接判该样本为错。必须与 code 语义一致。"
+        }
+      }
+    }
+  }
+}

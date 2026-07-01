@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
@@ -51,16 +52,19 @@ def run_prediction_stage(
         logger.info(f"Correct answers: {example['answer']['correct_answers']}")
         logger.info(f"Wrong answers: {example['answer']['wrong_answers'][:2] if len(example['answer']['wrong_answers']) > 2 else example['answer']['wrong_answers']}")
 
-    client = runner.create_content_client(experiment_config["llm_config"])
     logger.info(f"\nStarting batch prediction (repeats={experiment_config['repeats']})...")
 
-    records = predict_records(
-        samples,
-        task_config["dataset"],
-        client,
-        experiment_config["repeats"],
-        protocol=experiment_config.get("protocol"),
-    )
+    if experiment_config.get("agent_mode"):
+        records = _predict_via_agent(samples, task_config, experiment_config, output_dir)
+    else:
+        client = runner.create_content_client(experiment_config["llm_config"])
+        records = predict_records(
+            samples,
+            task_config["dataset"],
+            client,
+            experiment_config["repeats"],
+            protocol=experiment_config.get("protocol"),
+        )
 
     # 展示第一个预测结果的输出示例
     if records:
@@ -76,6 +80,64 @@ def run_prediction_stage(
     logger.info(f"\n✓ Saved {len(records)} predictions to: {prediction_path}")
     logger.info("=" * 80 + "\n")
     return prediction_path
+
+
+def _predict_via_agent(
+    samples: List[Dict[str, Any]],
+    task_config: Dict[str, Any],
+    experiment_config: Dict[str, Any],
+    output_dir: Path,
+) -> List[Dict[str, Any]]:
+    """agent 模式预测:起代理+agent → 发题 → 从代理读累计 → 写 efficiency.json。
+
+    效率主口径是模型代理的累计计数:agent 只能经代理访问模型,token/调用数由代理从后端
+    响应的 usage 累加,agent 伪造不了(它连 usage 都看不到)。效率只记录、不进排名。
+    """
+    from .agent_launcher import launch_agent
+
+    agent_config = experiment_config.get("agent_config") or {}
+    llm_config = experiment_config["llm_config"]
+
+    with launch_agent(agent_config, llm_config) as (client, proxy):
+        wall_start = time.time()
+        records = predict_records(
+            samples,
+            task_config["dataset"],
+            client,
+            experiment_config["repeats"],
+            protocol=None,
+            agent_mode=True,
+        )
+        wall_clock = time.time() - wall_start
+        proxy_usage = proxy.snapshot()
+
+    total = len(samples) or 1
+    total_tokens = proxy_usage.get("total_tokens", 0)
+    model_calls = proxy_usage.get("model_calls", 0)
+    efficiency: Dict[str, Any] = {
+        "dataset": task_config["dataset"],
+        "num_samples": len(samples),
+        "wall_clock_seconds": round(wall_clock, 3),
+        # 代理侧权威口径(agent 经代理访问模型的真实消耗)。
+        "total_tokens": total_tokens,
+        "prompt_tokens": proxy_usage.get("prompt_tokens", 0),
+        "completion_tokens": proxy_usage.get("completion_tokens", 0),
+        "model_calls": model_calls,
+        "tokens_per_sample": round(total_tokens / total, 2),
+        "calls_per_sample": round(model_calls / total, 3),
+        # 诊断:代理挡下的请求(流式)、agent 试图偷换 model 的次数、转发失败数。
+        "rejected_calls": proxy_usage.get("rejected_calls", 0),
+        "swapped_model_attempts": proxy_usage.get("swapped_model_attempts", 0),
+        "backend_failed_calls": proxy_usage.get("failed_calls", 0),
+        # agent /predict 侧的调用数(与 model_calls 不同:一条样本 agent 可能多次调模型)。
+        "agent_predict_calls": client.get_usage().total_calls,
+        "agent_predict_failed": client.get_usage().failed_calls,
+    }
+
+    efficiency_path = output_dir / "efficiency.json"
+    efficiency_path.write_text(json.dumps(efficiency, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info(f"✓ 效率指标 -> {efficiency_path}: {json.dumps(efficiency, ensure_ascii=False)}")
+    return records
 
 
 def run_metric_stage(

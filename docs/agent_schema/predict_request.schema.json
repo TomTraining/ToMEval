@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tomeval/agent/predict_request.schema.json",
+  "title": "ToMEval Agent Predict Request",
+  "description": "评测框架 POST 给参赛 agent /predict 的单条样本。绝不包含正确答案。",
+  "type": "object",
+  "required": ["sample_id", "prompt_type", "lang", "story", "question"],
+  "additionalProperties": false,
+  "properties": {
+    "sample_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "样本唯一标识。响应必须原样带回。"
+    },
+    "prompt_type": {
+      "type": "string",
+      "enum": ["mcq_single", "mcq_multi", "mcq_grouped", "open"],
+      "description": "题型。决定 prediction 的合法格式(见 predict_response.schema.json)。"
+    },
+    "lang": {
+      "type": "string",
+      "enum": ["en", "zh"],
+      "description": "样本语言。"
+    },
+    "story": {
+      "type": "string",
+      "description": "故事/背景。可能为空串(少数题型)。"
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "description": "问题。"
+    },
+    "options": {
+      "type": "object",
+      "description": "选项字母→文本映射。mcq_single/mcq_multi 必有;open 无此字段;mcq_grouped 见 sub_questions。字母由评测框架生成(含 shuffle),agent 必须原样使用。",
+      "minProperties": 2,
+      "patternProperties": {
+        "^[A-Z]$": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "sub_questions": {
+      "type": "array",
+      "description": "仅 mcq_grouped:同一故事下的多道子问题,按顺序作答。",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["question", "options"],
+        "additionalProperties": false,
+        "properties": {
+          "question": { "type": "string", "minLength": 1 },
+          "options": {
+            "type": "object",
+            "minProperties": 2,
+            "patternProperties": { "^[A-Z]$": { "type": "string" } },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "prompt_type": { "enum": ["mcq_single", "mcq_multi"] } } },
+      "then": { "required": ["options"] }
+    },
+    {
+      "if": { "properties": { "prompt_type": { "const": "mcq_grouped" } } },
+      "then": { "required": ["sub_questions"] }
+    }
+  ]
+}
