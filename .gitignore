@@ -40,6 +40,11 @@ wheels/
 results/
 result/
 
+# Pipeline outputs (regenerable; feedback 合成产物 / filter 评估产物，含 smoke 隔离输出)
+feedback_output/
+filter_output/
+filter_output_smoke/
+
 # Jupyter Notebook
 .ipynb_checkpoints/
 *.ipynb
@@ -53,6 +58,14 @@ ENV/
 
 # Local-only (omit from upstream eval_code)
 scripts/
+# 例外：smoke 测试流程（编排脚本 + 隔离配置）纳入版本控制；
+# 但展开后含真实 key 的 .resolved 临时文件绝不入库。
+!scripts/
+!scripts/run_smoke_pipeline.py
+!scripts/smoke/
+!scripts/smoke/*.yaml
+scripts/**/*.resolved
+scripts/**/__pycache__/
 experiment_configs/
 logs/
 __pycache__/

@@ -32,6 +32,8 @@ def parse_model_entry(entry: Any) -> Tuple[str, str]:
 def format_metric_value(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.4f}"
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
     return str(value)
 
 

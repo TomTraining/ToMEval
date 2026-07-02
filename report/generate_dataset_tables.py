@@ -15,28 +15,15 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from report.utils import parse_markdown_sections, parse_markdown_table
+from report.utils import (
+    find_experiment_dir,
+    format_metric_value,
+    parse_markdown_sections,
+    parse_markdown_table,
+)
 
 
 ModelRun = Dict[str, Optional[str]]
-
-
-def resolve_exp_dir(model_dir: Path, exp_suffix: Optional[str], dataset_name: str, model_name: str) -> Optional[Path]:
-    """Resolve the experiment directory for one dataset/model pair."""
-    if exp_suffix:
-        exp_dir = model_dir / f"exp_{exp_suffix}"
-        if not exp_dir.exists():
-            raise FileNotFoundError(
-                f"指定的实验目录不存在: {exp_dir}\n"
-                f"  数据集: {dataset_name}  模型: {model_name}\n"
-                f"  可用实验: {[d.name for d in sorted(model_dir.glob('exp_*'))]}"
-            )
-        return exp_dir
-
-    exp_dirs = sorted(model_dir.glob("exp_*"))
-    if not exp_dirs:
-        return None
-    return exp_dirs[-1]
 
 
 def collect_metrics(
@@ -84,7 +71,7 @@ def collect_metrics(
                 if not model_dir.is_dir():
                     continue
 
-                exp_dir = resolve_exp_dir(model_dir, run_exp_suffix, dataset_name, model_name)
+                exp_dir = find_experiment_dir(results_dir, dataset_name, model_name, run_exp_suffix)
                 if exp_dir is None:
                     continue
 
@@ -109,7 +96,7 @@ def collect_metrics(
             if models_filter and model_name not in models_filter:
                 continue
 
-            exp_dir = resolve_exp_dir(model_dir, exp_suffix, dataset_name, model_name)
+            exp_dir = find_experiment_dir(results_dir, dataset_name, model_name, exp_suffix)
             if exp_dir is None:
                 continue
 
@@ -162,23 +149,6 @@ def get_dict_metrics(metrics_data: Dict[str, Dict[str, Dict[str, Any]]]) -> List
                         dict_metrics.add(key)
 
     return sorted(dict_metrics)
-
-
-def format_value(value: Any) -> str:
-    """格式化指标值
-
-    Args:
-        value: 指标值
-
-    Returns:
-        格式化后的字符串
-    """
-    if isinstance(value, float):
-        return f"{value:.4f}"
-    elif isinstance(value, dict):
-        return json.dumps(value, ensure_ascii=False)
-    else:
-        return str(value)
 
 
 def merge_table_data(
@@ -280,7 +250,7 @@ def generate_basic_metrics_table(
         for model in models:
             if model in metrics_data.get(dataset_name, {}):
                 value = metrics_data[dataset_name][model].get("avg_metrics", {}).get(metric, "")
-                new_rows[metric][model] = format_value(value) if value != "" else "-"
+                new_rows[metric][model] = format_metric_value(value) if value != "" else "-"
             else:
                 new_rows[metric][model] = "-"
 
@@ -359,7 +329,7 @@ def generate_other_metrics_table(
             for model in models_to_merge:
                 if model in metrics_data.get(dataset_name, {}):
                     value = metrics_data[dataset_name][model].get("avg_metrics", {}).get(metric, "")
-                    new_scalar[metric][model] = format_value(value) if value != "" else "-"
+                    new_scalar[metric][model] = format_metric_value(value) if value != "" else "-"
                 else:
                     new_scalar[metric][model] = "-"
 
@@ -400,7 +370,7 @@ def generate_other_metrics_table(
             for model in models_to_merge:
                 if model in metrics_data.get(dataset_name, {}):
                     dv = metrics_data[dataset_name][model].get("avg_metrics", {}).get(dict_metric, {})
-                    new_dict[sub_key][model] = format_value(dv[sub_key]) if isinstance(dv, dict) and sub_key in dv else "-"
+                    new_dict[sub_key][model] = format_metric_value(dv[sub_key]) if isinstance(dv, dict) and sub_key in dv else "-"
                 else:
                     new_dict[sub_key][model] = "-"
 
@@ -489,7 +459,7 @@ def generate_dataset_tables(
                     for metric in _basic_keys:
                         old_val = existing_table.get(metric, {}).get(model, "-")
                         new_raw = display_metrics_data[dataset_name].get(model, {}).get("avg_metrics", {}).get(metric, "")
-                        new_val = format_value(new_raw) if new_raw != "" else "-"
+                        new_val = format_metric_value(new_raw) if new_raw != "" else "-"
                         print(f"  {metric:<12} {old_val:>12} {new_val:>12}")
                 try:
                     ans = input("\n是否覆盖以上模型的旧结果？(y/n，默认 n): ").strip().lower()
@@ -522,7 +492,7 @@ def generate_dataset_tables(
             display_name = run.get("display") or dir_name
             model_dir = results_path / dataset_name / dir_name
             run_exp_suffix = run.get("exp_suffix") or exp_suffix
-            exp_dir = resolve_exp_dir(model_dir, run_exp_suffix, dataset_name, dir_name)
+            exp_dir = find_experiment_dir(results_dir, dataset_name, dir_name, run_exp_suffix)
             config_file = exp_dir / "config.json" if exp_dir else model_dir / "config.json"
 
             if config_file.exists():

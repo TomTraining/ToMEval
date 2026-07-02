@@ -58,6 +58,7 @@ from filter.repair import (
     repair_samples,
     write_repaired_parquet,
 )
+from filter.utils import write_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +194,7 @@ def load_split_df(
     # 持久化采样结果，供 finalize 使用
     split_root.mkdir(parents=True, exist_ok=True)
     sampled_path = split_root / "sampled_input.parquet"
-    df.to_parquet(sampled_path, index=False)
+    write_parquet(df, sampled_path, desc="load_split")
 
     return df
 
@@ -592,7 +593,7 @@ def run_single_iteration(
             answerability_enabled=answerability_enabled,
             shortcut_enabled=shortcut_enabled,
         )
-        labels_df.to_parquet(labels_path, index=False)
+        write_parquet(labels_df, labels_path, desc=f"iter{iter_n} labels")
 
     if len(labels_df) != len(input_df):
         logger.error(
@@ -655,7 +656,7 @@ def _mark_unfixable(out_dir: Path, labels_df: pd.DataFrame, iter_n: int) -> pd.D
         return labels_df
     labels_df = labels_df.copy()
     labels_df.loc[unfixable_mask, "label"] = _LABEL_UNFIXABLE
-    labels_df.to_parquet(out_dir / "labels.parquet", index=False)
+    write_parquet(labels_df, out_dir / "labels.parquet", desc="finalize-unfixable")
     summary = build_summary(labels_df, iter_n)
     _write_json(summary, out_dir / "summary.json")
     logger.info(f"[iter{iter_n}] 最后一轮仍未修复 → 标 unfixable: {int(unfixable_mask.sum())}")
@@ -946,14 +947,14 @@ def run_finalize(dataset: str, config: Dict[str, Any]) -> Path:
     out_path = datasets_root / f"{dataset}_filtered.parquet"
 
     if not keep_frames:
-        pd.DataFrame().to_parquet(out_path, index=False)
+        write_parquet(pd.DataFrame(), out_path, desc="finalize")
         logger.warning(f"[finalize] {dataset} 无 hard/medium 样本，写空 parquet → {out_path}")
         return out_path
 
     merged = pd.concat(keep_frames, ignore_index=True)
     merged = merged.drop_duplicates(subset="__sample_id", keep="last")
     merged = merged.drop(columns=["__sample_id", "__iter"], errors="ignore").reset_index(drop=True)
-    merged.to_parquet(out_path, index=False)
+    write_parquet(merged, out_path, desc="finalize")
     logger.info(f"[finalize] {dataset} → {out_path} rows={len(merged)}")
     return out_path
 

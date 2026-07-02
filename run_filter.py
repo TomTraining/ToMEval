@@ -11,9 +11,10 @@
 
 用法：
   python run_filter.py
+  FILTER_CONFIG=path/to/config.yaml python run_filter.py   # 指定其他配置（如 smoke 测试）
 
 配置说明：
-  - 数据集、模型、路径等在 filter/config.yaml 中设置
+  - 数据集、模型、路径等在 filter/config.yaml 中设置（可用 FILTER_CONFIG 环境变量覆盖路径）
   - 只跑部分数据集：在 config.yaml 的 datasets 列表里注释掉不需要的
 """
 
@@ -55,7 +56,8 @@ def main() -> int:
         logging.error(f"配置加载失败: {e}")
         return 2
 
-    cfg_path = Path("filter/config.yaml")
+    # 复用 base._CONFIG_PATH：默认 filter/config.yaml，可由 FILTER_CONFIG 环境变量覆盖
+    from filter.base import _CONFIG_PATH as cfg_path
     cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
     datasets = cfg.get("datasets", [])
     if not datasets:

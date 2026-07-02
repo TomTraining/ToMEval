@@ -1,0 +1,59 @@
+# ── Smoke 测试专用 filter 配置（隔离，不影响 filter/config.yaml）──────────────
+#
+# 用途：ToMBench 端到端 smoke 流程的第 3 段（filter 质量评估 + 修复）。
+# 由 scripts/run_smoke_pipeline.py 通过环境变量 FILTER_CONFIG 指向本文件调用。
+# strong（answerability/judge/repair）= deepseek-v4-flash；simple（pass@k）= qwen3-8b；均走 tokenkey.dev。
+# API key 从 .env 注入。
+#
+# ⚠ 当前只测 ToMBench；后续换/加数据集时改 datasets 段。
+#   filter 输入期望 {input_root}/{dataset}/synthetic.parquet，
+#   由编排脚本把 feedback_output/datasets/ToMBench.parquet 搬运到 train_datasets/ToMBench/synthetic.parquet。
+
+# ── 数据集配置（smoke 只跑 ToMBench）─────────────────────────────────────────
+datasets:
+  - ToMBench
+
+# ── 模型配置 ──────────────────────────────────────────────────────────────────
+# strong: 强模型 deepseek-v4-flash，用于 answerability 判断和 repair
+# simple: 被测模型 qwen3-8b，用于 pass@k 评估
+models:
+  strong:
+    api_url: ${TOKENKEY_BASE_URL}
+    api_key: ${TOKENKEY_DEEPSEEK_KEY}       # 由 .env 注入
+    model_name: deepseek-v4-flash
+    max_workers: 8
+    temperature: 0.6
+    max_tokens: 8192
+  simple:
+    api_url: ${TOKENKEY_BASE_URL}
+    api_key: ${TOKENKEY_QWEN_KEY}           # 由 .env 注入
+    model_name: qwen3-8b
+    max_workers: 8
+    temperature: 0.6
+    max_tokens: 8192
+
+# ── 数据路径 ──────────────────────────────────────────────────────────────────
+paths:
+  input_root: train_datasets                # {input_root}/{dataset}/synthetic.parquet
+  output_root: filter_output_smoke          # 隔离输出，避免覆盖生产 filter_output
+
+# ── 采样控制（smoke：小样本）─────────────────────────────────────────────────
+sampling:
+  enabled: true
+  max_samples: 10                           # 每数据集最多评估 10 条
+
+# ── pass@k / shortcut 探测 ────────────────────────────────────────────────────
+pass_k: 3
+shortcut_k: 3
+
+# ── open 题判分 ───────────────────────────────────────────────────────────────
+open_f1_threshold: 0.5
+
+# ── 各阶段开关 ────────────────────────────────────────────────────────────────
+passk_enabled: true
+answerability_enabled: true
+shortcut_enabled: true
+
+# ── 修复开关 / 迭代控制（smoke：单轮）────────────────────────────────────────
+repair_enabled: true
+max_iter: 1                                 # smoke：单轮，跑通即可

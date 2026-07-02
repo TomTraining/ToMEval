@@ -1,0 +1,29 @@
+# ── Smoke 测试专用 eval 配置（隔离，不影响根目录 experiment_config.yaml）────────
+#
+# 用途：ToMBench 端到端 smoke 流程的第 1 段（eval）。被测模型 qwen3-8b 走 tokenkey.dev。
+# 由 scripts/run_smoke_pipeline.py 编排调用；API key 从 .env 注入（${TOKENKEY_QWEN_KEY}）。
+#
+# ⚠ 当前只测 ToMBench；后续要换/加数据集时，改下面 datasets 列表即可
+#   （对应的 tasks/<DS>/ 需已就绪；feedback/filter 的 smoke 配置也要同步改数据集名）。
+
+llm:
+  model_name: qwen3-8b                       # 落盘目录名 results/<DS>/qwen3-8b/；feedback 的 models.name 必须与此一致
+  api_key: ${TOKENKEY_QWEN_KEY}              # 由 .env 注入
+  api_url: ${TOKENKEY_BASE_URL}              # tokenkey.dev
+  max_workers: 8
+
+# smoke 用 direct 协议：enable_thinking=False（tokenkey 上 qwen3-8b 非流式调用要求 thinking 关闭，
+# cot/direct_think/del_tom 均为 enable_thinking=True 会 400），temperature 0.0，repeats=1，最省 token。
+# smoke 只验证流程能跑通，不追求评测质量；换真实评测时再按需选 cot。
+protocol: direct
+
+stage: all                                   # 预测 + 判分 + 出图
+
+# smoke 只跑 ToMBench 单集（后续可扩展；单跑 tasks/<DS>/run.py 时忽略此列表）。
+datasets:
+  - ToMBench
+
+max_samples: 20                              # 小样本：每数据集最多 20 条
+normalized_datasets_path: datasets
+results_path: results                        # 与生产共用 results/ 根，靠 model_name=qwen3-8b 区分
+figures_path: figures

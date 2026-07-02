@@ -1,0 +1,51 @@
+# ── Smoke 测试专用 feedback 配置（隔离，不影响 feedback/config.yaml）──────────────
+#
+# 用途：ToMBench 端到端 smoke 流程的第 2 段（feedback 数据合成）。
+# teacher（诊断 + 合成）用强模型 deepseek-v4-flash 走 tokenkey.dev。
+# 由 scripts/run_smoke_pipeline.py 编排调用；API key 从 .env 注入。
+#
+# ⚠ 当前只测 ToMBench；后续换/加数据集时，改下面 synthesis_datasets 段
+#   （models.name 必须与 eval 的 llm.model_name=qwen3-8b 一致，否则读不到 results/<DS>/<model>/ 预测）。
+
+stage: all            # all / load / diagnose / synth / dedupe
+max_bad_cases: 20     # smoke：每数据集最多 20 条 bad case，控制耗时
+
+# ── 合成模型（teacher，强模型 deepseek-v4-flash @ tokenkey）────────────────────
+synthesis_model:
+  api_url: ${TOKENKEY_BASE_URL}
+  api_key: ${TOKENKEY_DEEPSEEK_KEY}         # 由 .env 注入
+  model_name: deepseek-v4-flash
+  temperature: 0.6
+  max_tokens: 32768
+  max_workers: 8
+  enable_thinking: false
+  system_prompt: ""
+  request_interval_seconds: 1
+
+# ── 路径配置 ─────────────────────────────────────────────────────────────────
+output_path: feedback_output
+predictions_root: results                   # 读 eval 产物：results/<DS>/qwen3-8b/exp_*/prediction.jsonl
+
+# ── 守门员配置 ────────────────────────────────────────────────────────────────
+leakage_guard:
+  test_root: ./datasets
+  threshold: 0.6
+  internal_threshold: 0.85
+  num_perm: 128
+  ngram: 4
+
+# ── 合成参数（smoke：量调小）──────────────────────────────────────────────────
+synthesis:
+  max_retries_per_diagnosis: 3
+  bad_cases_per_report: 1
+  diagnosis_batch_size: 10
+  synthesis_batch_size: 20
+
+# ── 数据集列表（smoke 只跑 ToMBench）──────────────────────────────────────────
+synthesis_datasets:
+  - name: ToMBench
+    target_samples: 10                      # smoke：目标合成 10 条
+    samples_per_report: 5
+    models:
+      - name: qwen3-8b                      # 必须与 eval 的 llm.model_name 一致
+        exp: ~                              # ~ = 自动取最新 exp_*

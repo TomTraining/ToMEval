@@ -1,6 +1,7 @@
 {
   "project": "BenchEval",
-  "last_updated": "2026-06-30",
+  "last_updated": "2026-07-02",
+  "_comment_refactor": "refactor-R1..R6 + refactor-cleanup 对应 docs/refactor_backlog.md，按优先级逐项作为 single active feature 执行。",
   "rules": {
     "single_active_feature": true,
     "passing_requires_evidence": true,
@@ -10,7 +11,8 @@
     "not_started": "功能还没开始做。",
     "in_progress": "这个功能是当前唯一正在进行的任务。",
     "blocked": "因为已记录的阻塞问题，当前无法继续推进。",
-    "passing": "要求的验证已经通过，并且证据已经记录。"
+    "passing": "要求的验证已经通过，并且证据已经记录。",
+    "cancelled": "已决定不再执行该功能，条目保留仅供追溯。"
   },
   "features": [
     {
@@ -24,7 +26,10 @@
         "docs/vision.md 存在且包含三原则与端到端闭环说明。",
         "README 文档索引已收录该文档。"
       ],
-      "evidence": ["docs/vision.md", "README.md 文档索引段"],
+      "evidence": [
+        "docs/vision.md",
+        "README.md 文档索引段"
+      ],
       "notes": "任务1。背景知识沉淀，供后续所有外扩工作参照。"
     },
     {
@@ -39,14 +44,17 @@
         "含跨模块复用速查表（需求 → 复用点 → import 路径）。",
         "README 文档索引已收录该文档。"
       ],
-      "evidence": ["docs/module_reference.md", "README.md 文档索引段"],
+      "evidence": [
+        "docs/module_reference.md",
+        "README.md 文档索引段"
+      ],
       "notes": "任务2。三个子代理精读 src/、tasks+report+scripts、filter+feedback 后整合而成。"
     },
     {
       "id": "refactor-003",
       "priority": 3,
       "area": "refactor",
-      "title": "冗余清理 backlog（每完成约10个任务起一个清理任务）",
+      "title": "冗余清理 backlog",
       "user_visible_behavior": "docs/refactor_backlog.md 汇总代码库中已识别的重复实现与冗余文件，按优先级列出可复用的收敛落点，作为周期性清理的任务来源。",
       "status": "passing",
       "verification": [
@@ -54,8 +62,153 @@
         "每个条目含位置、影响面、收敛建议、验证方式。",
         "README 文档索引已收录该文档。"
       ],
-      "evidence": ["docs/refactor_backlog.md", "README.md 文档索引段"],
+      "evidence": [
+        "docs/refactor_backlog.md",
+        "README.md 文档索引段"
+      ],
       "notes": "任务3。本文档是 backlog 来源；实际清理需逐项作为 single active feature 执行并验证，未执行前不得标记对应清理项为 passing。"
+    },
+    {
+      "id": "refactor-R1",
+      "priority": 4,
+      "area": "refactor",
+      "title": "R1: 抽取 scripts/_common.py，消除 15 份 convert 样板重复",
+      "user_visible_behavior": "scripts/_common.py 提供 out_path/make_row/write_standard_parquet 公共实现，各 convert_*.py 改为 import 复用，去除路径计算/落盘三件套/行字面量/分布打印的逐脚本重复。",
+      "status": "cancelled",
+      "verification": [
+        "新建 scripts/_common.py 与 scripts/__init__.py，公共函数覆盖路径、建表落盘、行构造、分布打印。",
+        "至少 2-3 个 convert 脚本改用公共实现并重跑，新旧 parquet 内容逐字节/逐行一致。"
+      ],
+      "evidence": [],
+      "notes": "backlog R1（P1，风险低）。convert 脚本离线一次性运行，输出 parquet 可 diff 验证。convert_socialmind.py 内部 row()/make_meta() 上移为公共实现。"
+    },
+    {
+      "id": "refactor-R2",
+      "priority": 5,
+      "area": "refactor",
+      "title": "R2: 收敛 LLM 客户端加载，filter 复用 runner.create_*",
+      "user_visible_behavior": "filter 侧改为自读 yaml 后调 runner.create_content_client/create_llm_client，删除 filter/base.py 的手工字段映射，仅保留 strong/simple 角色到配置段的映射。",
+      "status": "passing",
+      "verification": [
+        "filter/base.py 不再手工构造 ContentClient/StructureClient，改走 runner.create_*。[已验证]",
+        "默认 max_tokens（answer 512 / judge 4096 / enable_thinking=False）迁移后保持一致。[已验证]",
+        "跑一个小数据集 run_filter.py（max_samples 调小），pass@k / answerability / repair 均能正常调用模型。[待测：缺 train_datasets/ 输入数据 + 真实 api_key]"
+      ],
+      "evidence": [
+        "filter/base.py 改为 import src.runner.create_content_client/create_llm_client，删除手工 ContentClient/StructureClient 构造。",
+        "导入 smoke test 通过：from filter.base import load_answer_models, load_judge_client。",
+        "构造对象逐项核对：load_answer_models→ContentClient、load_judge_client→StructureClient；config 显式值(temp 0.6/mw 2/mt 8192)优先，未给字段回退 filter 旧默认(temp 0.3/mw 8/answer 512·judge 4096)，enable_thinking 恒 False。",
+        "端到端 run_filter.py 实跑通过（smoke ToMBench，FILTER_CONFIG=scripts/smoke/filter.smoke.yaml）：[passk] qwen3-8b(simple 角色) / [answerability] deepseek(strong 角色) / [repair] deepseek 均正常调用模型，iter1+iter2 两轮全跑完，finalize 产出 3 行。证明 runner.create_* 收敛后各角色 client 真实可用。"
+      ],
+      "notes": "backlog R2（P1，风险中）。代码改动(行为等价)已验证；端到端 run_filter.py 已随 test-smoke-001 实跑通过（2026-07-02，tokenkey qwen3-8b+deepseek-v4-flash）。重点：_FILTER_DEFAULTS 用 setdefault 注入，config 显式字段优先。"
+    },
+    {
+      "id": "refactor-R3",
+      "priority": 6,
+      "area": "refactor",
+      "title": "R3: parquet 写入统一走 filter.utils.write_parquet",
+      "user_visible_behavior": "filter/pipeline.py 内所有 df.to_parquet 改走 filter.utils.write_parquet（统一日志），并评估 feedback stage4 save_as_parquet 的「剔除 _ 前缀字段」语义能否作为可选参数合并。",
+      "status": "passing",
+      "verification": [
+        "filter/pipeline.py 不再直接 df.to_parquet，全部经 write_parquet。[已验证：grep 无残留裸 to_parquet]",
+        "filter 端到端跑一遍，中间 parquet 正常生成。[待测：缺 train_datasets/ 输入数据 + 真实 api_key，与 R2 同]"
+      ],
+      "evidence": [
+        "端到端 run_filter.py 实跑通过（smoke ToMBench）：所有中间 parquet 均以 write_parquet 统一日志格式 'wrote N rows → ...' 落盘（passk/answerability/shortcut/labels/repaired/finalize），iter1+iter2 全程正常。"
+      ],
+      "notes": "backlog R3（P2，风险低）。读侧 filter 用 pandas、feedback 用 pyarrow 可暂不统一。"
+    },
+    {
+      "id": "refactor-R4",
+      "priority": 7,
+      "area": "refactor",
+      "title": "R4: 抽 build_summary_grid，消除两个 summary 生成器归并循环重复",
+      "user_visible_behavior": "report/utils/summary_tables.py 新增 build_summary_grid(tables_dir) -> (datasets, models, judges, grouped)，generate_summary.py 与 generate_summary_html.py 都调它，各自只保留渲染。",
+      "status": "cancelled",
+      "verification": [
+        "两个生成器的归并循环统一到 build_summary_grid。",
+        "generate_summary.py 与 generate_summary_html.py 输出的 SUMMARY.md/html 与重构前一致。"
+      ],
+      "evidence": [],
+      "notes": "backlog R4（P2，风险低）。"
+    },
+    {
+      "id": "refactor-R5",
+      "priority": 8,
+      "area": "refactor",
+      "title": "R5: 统一 Markdown 表格解析，generate_html_report 复用 report.utils",
+      "user_visible_behavior": "generate_html_report.py 的孤立 parse_md_table 改用 report.utils.markdown_tables，必要时给 utils 版加「带 section_title」的返回变体。",
+      "status": "cancelled",
+      "verification": [
+        "generate_html_report.py 不再自带 parse_md_table，统一到 report.utils.markdown_tables。",
+        "python report/generate_html_report.py，人工核对 html 表格与热力图渲染正常。"
+      ],
+      "evidence": [],
+      "notes": "backlog R5（P2，风险中）。两者返回结构不同（tuple vs dict），需小心适配 html 渲染。"
+    },
+    {
+      "id": "refactor-R6",
+      "priority": 9,
+      "area": "refactor",
+      "title": "R6: 统一 exp 目录解析 / 指标格式化函数",
+      "user_visible_behavior": "generate_dataset_tables 的 resolve_exp_dir/format_value 统一到 utils.results.find_experiment_dir 与 utils.common.format_metric_value，调用方按需处理 None/异常。",
+      "status": "passing",
+      "verification": [
+        "generate_dataset_tables 不再自带 resolve_exp_dir/format_value，复用 utils 版。[已验证：hasattr 检查两函数已删、find_experiment_dir/format_metric_value 已导入]",
+        "python report/generate_dataset_tables.py 输出与重构前一致。[等价性验证替代：happy-path 逐项一致；缺 results/ 数据无法跑完整 CLI]"
+      ],
+      "evidence": [
+        "report/utils/common.py::format_metric_value 增补 dict→json.dumps 分支（该函数此前无其它代码调用方，改动安全）。",
+        "report/generate_dataset_tables.py 删除本地 resolve_exp_dir/format_value；import find_experiment_dir、format_metric_value；3 处 exp 解析改走 find_experiment_dir，4 处 format 改走 format_metric_value。",
+        "py_compile 通过；导入 smoke test 通过（resolve_exp_dir/format_value 已移除，两 utils 函数已就位）。",
+        "等价性测试：format 对 float/dict/int/str/bool/None/list 9 类输入与旧 format_value 逐项一致；exp 解析对『无 suffix→最新 / 显式存在 suffix / 无 exp_*→None』三种 happy-path 与旧 resolve_exp_dir 一致。"
+      ],
+      "notes": "backlog R6（P2，风险低）。format_value 的 dict→json 分支已合并进 format_metric_value。行为变化：显式指定但不存在的 exp_suffix，旧实现抛 FileNotFoundError(列出可用实验)，新实现返回 None→调用点 if exp_dir is None: continue 静默跳过（符合 backlog『调用方按需处理 None/异常』）。"
+    },
+    {
+      "id": "refactor-cleanup",
+      "priority": 10,
+      "area": "refactor",
+      "title": "核查并清理一次性文件 / 历史快照 / 误入版本控制的缓存",
+      "user_visible_behavior": "确认无引用后删除一次性运维脚本、历史快照/汇报文档、由 .md 生成的 OVERVIEW.html，并核查 .DS_Store/__pycache__/.pytest_cache 是否误入版本控制。",
+      "status": "passing",
+      "verification": [
+        "逐项确认无代码引用后再删除（restore_chinese_data.py、v4p2_* 脚本、report/v4p2_review_filter/、report/更新汇总_*.md、OVERVIEW.html）。[已验证]",
+        "核查 .gitignore 是否覆盖 .DS_Store/__pycache__/.pytest_cache，误入版本控制的从索引移除。[已验证：git ls-files 无一被追踪，.gitignore 第 1/29/68/88/91 行已覆盖]",
+        "删除后 smoke test 与至少一个数据集端到端不受影响。[已验证：import src.evaluation, filter.pipeline, feedback.stage1_load_predictions, report.generate_dataset_tables 通过]"
+      ],
+      "evidence": [
+        "restore_chinese_data.py / v4p2_apply_review_flags.py / v4p2_review_filter_compare.py：本轮核查已不在磁盘（此前已删），无需处理。",
+        "feedback/OVERVIEW.html、filter/OVERVIEW.html：已入库静态导览 HTML，grep 全库无代码引用、无生成脚本；git rm 删除，保留 .md 源（可由历史恢复）。",
+        "report/更新汇总_0604-0611.md、report/更新汇总_0611.md：已入库历史汇报文档，无代码引用；git rm 删除（可由历史恢复）。",
+        "report/v4p2_review_filter/（V4p2 review 2 份 md + summary.json）：未入库且 .gitignore:91 已忽略的历史快照，无代码引用；经用户确认后 rm -rf 删除（不可恢复）。",
+        ".DS_Store/__pycache__/.pytest_cache：git ls-files 核查无一被追踪，.gitignore 已覆盖，无误入版本控制。",
+        "删除后模块导入 smoke test 通过。",
+        "docs/refactor_backlog.md「一次性/待确认删除文件」段各项已勾选并记录处理方式。"
+      ],
+      "notes": "backlog「一次性/待确认删除文件」段。每个文件删除前均已 grep 确认无引用。tracked 文件走 git rm（可恢复），唯一 untracked 快照 report/v4p2_review_filter/ 经用户显式确认后删除。"
+    },
+    {
+      "id": "test-smoke-001",
+      "priority": 11,
+      "area": "test",
+      "title": "ToMBench 端到端 smoke 测试流程（eval → feedback → filter）",
+      "user_visible_behavior": "scripts/run_smoke_pipeline.py 用一份隔离配置串起 eval/feedback/filter 三段，被测模型 qwen3-8b、teacher 强模型 deepseek-v4-flash 均走 tokenkey.dev，API key 从 .env 注入。当前只测 ToMBench 小样本（eval 20 条），后续可通过改三份 smoke 配置 + 脚本 DATASETS 常量扩展到其它数据集。",
+      "status": "passing",
+      "verification": [
+        "scripts/smoke/{experiment_config,feedback,filter}.smoke.yaml 三份隔离配置存在，${VAR} 占位符由 .env 注入。",
+        "filter/base.py 支持 FILTER_CONFIG 环境变量覆盖 _CONFIG_PATH（默认 filter/config.yaml，向后兼容）；run_filter.py datasets 读取复用同一路径。",
+        "编排脚本逻辑已验证：py_compile 通过 / 占位符正确拦截 / ${VAR} 展开与 .resolved 清理正常 / 三份配置均被下游加载器正确解析。",
+        "端到端真实跑通（tokenkey.dev 真实 API）：eval 20 条→results/ToMBench/qwen3-8b/exp_20260701_234653/prediction.jsonl；feedback 20 bad_case→2 报告→合成 10 条→去重 10 条→feedback_output/datasets/ToMBench.parquet；搬运→train_datasets/ToMBench/synthetic.parquet；filter iters_run=2 total_keep=3→filter_output_smoke/datasets/ToMBench_filtered.parquet(3 行，可读)。"
+      ],
+      "evidence": [
+        "scripts/smoke/experiment_config.smoke.yaml、feedback.smoke.yaml、filter.smoke.yaml",
+        "scripts/run_smoke_pipeline.py",
+        ".env（占位符模板，已被 .gitignore 忽略）",
+        "filter/base.py（FILTER_CONFIG 支持）、run_filter.py",
+        "端到端产物：results/ToMBench/qwen3-8b/exp_20260701_234653/、feedback_output/datasets/ToMBench.parquet、filter_output_smoke/datasets/ToMBench_filtered.parquet"
+      ],
+      "notes": "测试流程任务，已端到端真实跑通。关键点：(1) tokenkey 正确 base_url 是 https://api.tokenkey.dev/v1（带 /v1）；(2) qwen3-8b 非流式要求 enable_thinking=false，smoke eval 用 direct 协议满足；(3) feedback 的 models.name 必须与 eval 的 llm.model_name(qwen3-8b) 一致才能读到预测；(4) filter 输出隔离到 filter_output_smoke/ 不覆盖生产。本次真实跑通同时补齐了 R2（runner.create_* 收敛后 passk/answerability/repair 各角色 client 均正常调用模型）与 R3（parquet 全部经 write_parquet，日志均为『wrote N rows →』）的端到端证据。scripts/ 已在 .gitignore 加例外纳入版本控制（.env/.resolved 仍忽略）。"
     }
   ]
 }

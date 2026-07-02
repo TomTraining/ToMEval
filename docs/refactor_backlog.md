@@ -85,14 +85,14 @@
 
 ---
 
-## 一次性 / 待确认删除文件
+## 一次性 / 待确认删除文件（refactor-cleanup 已执行，2026-07-02）
 
 执行清理任务时核查以下文件是否仍需保留（确认无引用后删除）：
 
-- `scripts/restore_chinese_data.py`、`scripts/v4p2_apply_review_flags.py`、`scripts/v4p2_review_filter_compare.py` —— 一次性运维脚本，非转换样板。
-- `report/v4p2_review_filter/`、`report/更新汇总_*.md` —— 历史快照/汇报文档，确认是否归档。
-- `feedback/OVERVIEW.html`、`filter/OVERVIEW.html` —— 若由 `.md` 生成，可只留 `.md`。
-- 根目录 `.DS_Store`、各级 `__pycache__/`、`.pytest_cache/` —— 应在 `.gitignore` 中，核查是否误入版本控制。
+- [x] `scripts/restore_chinese_data.py`、`scripts/v4p2_apply_review_flags.py`、`scripts/v4p2_review_filter_compare.py` —— 本轮核查时已不在磁盘（此前已删），无需处理。
+- [x] `report/v4p2_review_filter/` —— 未入库且 gitignore 的历史快照（3 文件，无引用），经用户确认后 `rm -rf` 删除。`report/更新汇总_0604-0611.md`、`report/更新汇总_0611.md` —— 已入库历史汇报文档，无代码引用，`git rm`（可由历史恢复）。
+- [x] `feedback/OVERVIEW.html`、`filter/OVERVIEW.html` —— 已入库静态导览 HTML，无代码引用，无生成脚本；`git rm` 删除，保留 `.md` 源。
+- [x] 根目录 `.DS_Store`、各级 `__pycache__/`、`.pytest_cache/` —— 核查 `git ls-files` 无一被追踪，`.gitignore` 已覆盖（第 1/29/68/88/91 行），无误入版本控制。
 
 ---
 
@@ -100,10 +100,11 @@
 
 | 项 | 状态 | 完成日期 | 验证证据 |
 |---|---|---|---|
-| R1 | 未开始 | | |
-| R2 | 未开始 | | |
-| R3 | 未开始 | | |
-| R4 | 未开始 | | |
-| R5 | 未开始 | | |
-| R6 | 未开始 | | |
+| R1 | 已取消 | | 用户决定后续整体清除,不再执行 |
+| R2 | 已完成 | 2026-07-02 | filter/base.py 复用 runner.create_*;端到端 run_filter.py(smoke)passk/answerability/repair 各角色 client 正常调用 |
+| R3 | 已完成 | 2026-07-02 | filter/pipeline.py 全部经 write_parquet;端到端中间 parquet 日志均为 'wrote N rows →' |
+| R4 | 已取消 | | 用户决定后续整体清除,不再执行 |
+| R5 | 已取消 | | 用户决定后续整体清除,不再执行 |
+| R6 | 已完成 | 2026-07-01 | generate_dataset_tables 复用 find_experiment_dir/format_metric_value;等价性逐项验证 |
+| cleanup | 已完成 | 2026-07-02 | 删 feedback/filter OVERVIEW.html(留 .md)、report/更新汇总_*.md(2 份,均 git rm 可从历史恢复)、report/v4p2_review_filter/(未入库快照,用户确认后删);restore_chinese_data.py/v4p2_*.py 早已不在磁盘;.DS_Store/__pycache__/.pytest_cache 均未入库且 .gitignore 已覆盖;删后 import smoke 通过 |
 | R7~R11 | 暂缓/保留 | | |
