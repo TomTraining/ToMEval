@@ -179,7 +179,7 @@ def save_summary_report(output_root: str, datasets: List[str], output_path: str)
 if __name__ == "__main__":
     import yaml
 
-    cfg = yaml.safe_load(Path("filter/config.yaml").read_text(encoding="utf-8"))
+    cfg = yaml.safe_load(Path("src/filter/config.yaml").read_text(encoding="utf-8"))
     datasets = cfg.get("datasets", [])
     output_root = cfg["paths"]["output_root"]
 

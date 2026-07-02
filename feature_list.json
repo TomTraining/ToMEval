@@ -209,6 +209,47 @@
         "端到端产物：results/ToMBench/qwen3-8b/exp_20260701_234653/、feedback_output/datasets/ToMBench.parquet、filter_output_smoke/datasets/ToMBench_filtered.parquet"
       ],
       "notes": "测试流程任务，已端到端真实跑通。关键点：(1) tokenkey 正确 base_url 是 https://api.tokenkey.dev/v1（带 /v1）；(2) qwen3-8b 非流式要求 enable_thinking=false，smoke eval 用 direct 协议满足；(3) feedback 的 models.name 必须与 eval 的 llm.model_name(qwen3-8b) 一致才能读到预测；(4) filter 输出隔离到 filter_output_smoke/ 不覆盖生产。本次真实跑通同时补齐了 R2（runner.create_* 收敛后 passk/answerability/repair 各角色 client 均正常调用模型）与 R3（parquet 全部经 write_parquet，日志均为『wrote N rows →』）的端到端证据。scripts/ 已在 .gitignore 加例外纳入版本控制（.env/.resolved 仍忽略）。"
+    },
+    {
+      "id": "migrate-modules-to-src",
+      "priority": 12,
+      "area": "refactor",
+      "title": "把 filter / feedback / report 三个顶层模块迁入 src/",
+      "user_visible_behavior": "filter/、feedback/、report/ 从仓库根移动到 src/filter、src/feedback、src/report，成为 src 包的子模块;所有 import(src.filter.* / src.feedback.* / src.report.*)、入口脚本 run_filter.py/run_feedback.py、配置文件路径、sys.path 注入、smoke 配置(FILTER_CONFIG 等)全部同步更新;对外行为与 CLI 用法保持不变。",
+      "status": "passing",
+      "verification": [
+        "src/filter、src/feedback、src/report 目录就位;根目录不再有 filter/、feedback/、report/。[已验证:git mv 保留历史,ls 根目录三目录已不存在]",
+        "全仓 grep 无残留的 `from filter`/`from feedback`/`from report`/`import filter|feedback|report` 旧路径(排除注释与文档)。[已验证:grep 无残留]",
+        "导入 smoke test 通过:python -c 'import src.filter.pipeline, src.feedback.stage1_load_predictions, src.report.report_client'(按迁移后实际路径)。[已验证:10 模块 import smoke 全通过 + py_compile 全量通过 + init.sh 通过]",
+        "端到端 smoke 通过:scripts/run_smoke_pipeline.py(ToMBench 小样本 eval→feedback→filter)仍跑通,产物可读。[已验证:eval/feedback/transfer/filter 四段全 PASS,全流程通过 ✅]",
+        "配置引用(filter/config.yaml、feedback/config.yaml、report/*.yaml、scripts/smoke/*.yaml)与 _CONFIG_PATH/FILTER_CONFIG 逻辑指向迁移后路径。[已验证:base._CONFIG_PATH 用 __file__.parent 自动指向 src/filter/config.yaml;两处硬编码路径改前缀;smoke FILTER_CONFIG 传绝对路径不受影响]"
+      ],
+      "evidence": [
+        "git mv filter/feedback/report → src/filter、src/feedback、src/report(git status 显示 R/rename,历史保留);新建 src/report/__init__.py(原 report/ 无 __init__)。",
+        "import 重写 29 处:入口 run_filter.py(3)/run_feedback.py(5+1 config default)、filter 内部 pipeline/eval×3/repair×2(共 15)、filter→feedback 跨模块 repair_prompts(1)、report 内部×4。均逐处校验命中 1 次。",
+        "sys.path 修正:report/*.py×3 parents[1]→parents[2](迁移后深一层);feedback stage2/stage3 parent.parent→parent.parent.parent(原=根,迁移后需再上一层才到根,供 `from src import runner`)。run_feedback.py:28 保持根不变(经核实迁移后仍需根在 path)。",
+        "硬编码路径:src/filter/report_summary.py `Path(\"filter/config.yaml\")`→`src/filter/config.yaml`;run_feedback.py `--config` 默认 `feedback/config.yaml`→`src/feedback/config.yaml`;入口/注释路径同步更新。init.sh 帮助文字改为 src/ 前缀。",
+        "端到端真实跑通(tokenkey qwen3-8b+deepseek-v4-flash,2026-07-02 exp_20260702_103449):eval 20 条→prediction.jsonl(20 行);feedback→ToMBench.parquet(10 行);transfer→train_datasets/;filter iter1 全跑完→filter_output_smoke/datasets/ToMBench_filtered.parquet(4 行,pandas 可读)。全程零 ModuleNotFound/ImportError。",
+        "运行期发现的 provider 侧变化(与迁移无关):qwen3-8b max_tokens 上限收紧到 8192、deepseek response_format(json_schema)下线;后者被 StructureClient 自动回退 create 模式吸收,不影响最终 PASS。"
+      ],
+      "notes": "跨模块迁移,已完成并端到端验证通过(2026-07-02)。三模块单向依赖 src、彼此仅 filter→feedback 一处耦合。关键点:(1)report/ 原无 __init__.py 需补;(2)report 脚本 sys.path 深度 +1(parents[1]→[2]);(3)feedback stage2/3 的 parent.parent 需 +1 层到根;(4)base._CONFIG_PATH 基于 __file__ 自动跟随,FILTER_CONFIG 传绝对路径不受影响。"
+    },
+    {
+      "id": "dataset-schema-analyzer",
+      "priority": 13,
+      "area": "feature",
+      "title": "新建数据集 schema 解析模块(HF 数据集字段类型/定义/值域自动分析)",
+      "user_visible_behavior": "给定一个 HuggingFace 数据集(名称或本地路径),模块采样若干行,借助 LLM 与统计手段分析每个字段的:类型(string/int/float/list/dict/label 等)、语义定义(该字段代表什么)、值域(枚举值/数值区间/长度分布/样例),产出一份结构化 schema 模版(JSON),供后续自动化数据合成/评测流程复用。",
+      "status": "not_started",
+      "verification": [
+        "新模块目录就位(建议 src/schema/ 或迁移后同层),含 __init__.py 与 CLI 入口。",
+        "给定至少一个真实 HF 数据集(如已有的 ToMBench 或一个公开小数据集),能产出包含 字段名/类型/定义/值域 四要素的 schema JSON。",
+        "类型推断对 string/数值/list/dict/label 至少各有一例正确识别;值域对枚举字段列出取值、对数值字段给区间、对文本字段给长度分布或样例。",
+        "LLM 调用复用 src.runner.create_*(不新造 client 加载逻辑),key 从 .env/config 注入,占位符不入库。",
+        "产出 schema 可被 json.load 解析且结构自洽;有一份最小运行证据(命令 + 产物路径 + 抽查字段)记录在进度日志。"
+      ],
+      "evidence": [],
+      "notes": "全新模块。设计要点:(1)采样而非全量读,控制 token;(2)类型先用 pandas/统计定死,定义与语义值域交给 LLM,减少幻觉;(3)schema 模版格式需与后续合成/filter 流程约定字段;(4)复用 R2 收敛后的 runner.create_* 客户端。依赖 migrate-modules-to-src 完成后按新路径落位(或先独立成 src/schema,迁移任务一并纳管)。"
     }
   ]
 }

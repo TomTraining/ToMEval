@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from tqdm import tqdm
 
 # 添加父目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src import runner
 from .prompts import (

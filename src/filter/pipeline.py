@@ -38,12 +38,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import yaml
 
-from filter.base import (
+from src.filter.base import (
     _CONFIG_PATH,
     load_answer_models,
     load_judge_client,
 )
-from filter.eval import (
+from src.filter.eval import (
     _BUCKET_ALL_FAILED,
     _BUCKET_ALL_PASSED,
     _BUCKET_PARTIAL,
@@ -54,11 +54,11 @@ from filter.eval import (
     write_passk_parquet,
     write_shortcut_parquet,
 )
-from filter.repair import (
+from src.filter.repair import (
     repair_samples,
     write_repaired_parquet,
 )
-from filter.utils import write_parquet
+from src.filter.utils import write_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ _KEEP_LABELS = {_LABEL_HARD, _LABEL_MEDIUM}
 
 
 def load_filter_config() -> Dict[str, Any]:
-    """读 filter/config.yaml，提取 paths、sampling 和 max_iter 配置。"""
+    """读 src/filter/config.yaml，提取 paths、sampling 和 max_iter 配置。"""
     cfg = yaml.safe_load(_CONFIG_PATH.read_text(encoding="utf-8"))
 
     paths = cfg.get("paths")

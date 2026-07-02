@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from feedback.prompts import DATASET_SKILL_REGISTRY
+from src.feedback.prompts import DATASET_SKILL_REGISTRY
 
 
 _SHARED_OUTPUT_SCHEMA = """\

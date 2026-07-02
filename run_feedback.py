@@ -10,7 +10,7 @@
 
 用法：
   python run_feedback.py                              # 使用默认配置
-  python run_feedback.py --config feedback/config.yaml  # 指定配置文件
+  python run_feedback.py --config src/feedback/config.yaml  # 指定配置文件
 
 配置说明：
   - 只跑部分数据集：在 config.yaml 的 synthesis_datasets 列表里注释掉不需要的
@@ -85,7 +85,7 @@ def run_pipeline(config_path: str):
         logger.info(f"\n{'='*70}")
         logger.info("📥 Stage 1: 加载模型答错的题目")
         logger.info(f"{'='*70}")
-        from feedback.stage1_load_predictions import load_bad_cases_from_predictions
+        from src.feedback.stage1_load_predictions import load_bad_cases_from_predictions
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -116,7 +116,7 @@ def run_pipeline(config_path: str):
         logger.info(f"\n{'='*70}")
         logger.info("🔍 Stage 2: 分析错误模式（按能力维度诊断）")
         logger.info(f"{'='*70}")
-        from feedback.stage2_diagnosis import run_stage2_dimension_diagnosis
+        from src.feedback.stage2_diagnosis import run_stage2_dimension_diagnosis
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -158,7 +158,7 @@ def run_pipeline(config_path: str):
         logger.info(f"\n{'='*70}")
         logger.info("🎨 Stage 3: 根据诊断报告生成新训练数据")
         logger.info(f"{'='*70}")
-        from feedback.stage3_synthesis import run_stage3_synthesis
+        from src.feedback.stage3_synthesis import run_stage3_synthesis
 
         for ds_info in synthesis_datasets:
             ds = ds_info["name"]
@@ -218,14 +218,14 @@ def run_pipeline(config_path: str):
         logger.info(f"\n{'='*70}")
         logger.info("🛡️  Stage 4: 去重过滤（测试集去重 + 内部去重）")
         logger.info(f"{'='*70}")
-        from feedback.stage4_lsh_filter import run_stage4_lsh_filter
+        from src.feedback.stage4_lsh_filter import run_stage4_lsh_filter
 
         lsh_stats = run_stage4_lsh_filter(config, synthesis_datasets, output_path)
         for ds, st in lsh_stats.items():
             all_stats.setdefault(ds, {}).update(st)
 
     # ── 生成汇总报告 ──────────────────────────────────────────────────────────
-    from feedback.report_summary import save_summary_report
+    from src.feedback.report_summary import save_summary_report
     try:
         save_summary_report(
             stats=all_stats,
@@ -250,7 +250,7 @@ def run_pipeline(config_path: str):
 
 def main():
     parser = argparse.ArgumentParser(description="ToMEval 数据合成流水线")
-    parser.add_argument("--config", default="feedback/config.yaml", help="配置文件路径")
+    parser.add_argument("--config", default="src/feedback/config.yaml", help="配置文件路径")
     args = parser.parse_args()
     run_pipeline(args.config)
 

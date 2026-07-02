@@ -2,7 +2,7 @@
 
 复用 src.runner.create_content_client / create_llm_client 构造客户端，
 不再手工 new ContentClient/StructureClient；本模块只负责：
-  1. 读取 filter/config.yaml 的 models.<role> 段；
+  1. 读取 src/filter/config.yaml 的 models.<role> 段；
   2. 注入 filter 侧默认值（temperature 0.3 / max_workers 8 / enable_thinking False /
      answer max_tokens 512、judge max_tokens 4096），config 显式给出的值优先；
   3. strong/simple 角色 → 配置段的映射。
@@ -16,7 +16,7 @@ import yaml
 
 from src.runner import create_content_client, create_llm_client
 
-# 默认读 filter/config.yaml；可用环境变量 FILTER_CONFIG 覆盖为其它配置路径，
+# 默认读 src/filter/config.yaml；可用环境变量 FILTER_CONFIG 覆盖为其它配置路径，
 # 便于跑隔离的 smoke/回归配置（如 scripts/smoke/filter.smoke.yaml）而不改动生产配置。
 # pipeline.py 从本模块 import _CONFIG_PATH 复用同一路径，故只需在此处集中处理。
 _CONFIG_PATH = Path(os.environ.get("FILTER_CONFIG") or Path(__file__).parent / "config.yaml")

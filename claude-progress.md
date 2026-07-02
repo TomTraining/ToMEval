@@ -4,7 +4,7 @@
 
 - 仓库根目录：`/Users/yangmeili/Downloads/Code/BenchEval`
 - 标准启动路径：`source /Users/yangmeili/Downloads/Code/.venv/bin/activate`（Python 解释器：`/Users/yangmeili/Downloads/Code/.venv/bin/python`）
-- 标准验证路径：单数据集 `python tasks/<DS>/run.py`；模块导入 smoke test `python -c "import src.evaluation, filter.pipeline, feedback.stage1_load_predictions"`；端到端 smoke（eval+feedback+filter，ToMBench 小样本）`python scripts/run_smoke_pipeline.py`（需先在 .env 填 tokenkey 真实 key）
+- 标准验证路径：单数据集 `python tasks/<DS>/run.py`；模块导入 smoke test `python -c "import src.evaluation, src.filter.pipeline, src.feedback.stage1_load_predictions, src.report.report_client"`；端到端 smoke（eval+feedback+filter，ToMBench 小样本）`python scripts/run_smoke_pipeline.py`（需先在 .env 填 tokenkey 真实 key）
 - 当前最高优先级未完成功能：把框架从 ToM 专用扩展到任意测试集的全自动迭代式数据合成（见 `docs/vision.md`）
 - 当前 blocker：无
 - smoke 测试流程：`python scripts/run_smoke_pipeline.py`（ToMBench 端到端 eval→feedback→filter，需先在 `.env` 填真实 key）
@@ -96,3 +96,21 @@ BenchEval = 给定任意测试集 + 训练 model + 强 teacher model API，自�
   - 删除后模块 import smoke test 通过：`import src.evaluation, filter.pipeline, feedback.stage1_load_predictions, report.generate_dataset_tables`
 - 已知风险或未解决问题：无。tracked 文件均可从 git 历史恢复；untracked 快照经用户确认后删除
 - 下一步最佳动作：提交本轮 refactor-cleanup 改动；后续可从 vision.md 拆解「任意数据集泛化」的第一个可验证里程碑
+
+### Session 005
+
+- 日期：2026-07-02
+- 本轮目标：执行 migrate-modules-to-src —— 把根目录三个顶层包 filter/、feedback/、report/ 迁入 src/，同步全部 import / sys.path / 配置路径，并双验证（import smoke + 端到端 smoke）
+- 已完成（migrate-modules-to-src，状态 passing —— 端到端已用真实 key 跑通）：
+  - **git mv 三目录进 src/**：filter→src/filter、feedback→src/feedback、report→src/report（git 识别为 rename，历史保留）；report/ 原无 `__init__.py`，新建 `src/report/__init__.py`
+  - **重写 29 处 import**：入口 run_filter.py(3)/run_feedback.py(5)、filter 内部 pipeline+eval×3+repair×2(15)、filter→feedback 跨模块 repair_prompts(1)、report 内部×4；每处均校验命中恰好 1 次
+  - **修正 sys.path 深度**：report/*.py×3 `parents[1]`→`parents[2]`（迁移后目录深一层）；feedback stage2/stage3 `parent.parent`→`parent.parent.parent`（原=根，迁移后需再上一层到根才能 `from src import runner`）。**关键认知修正**：run_feedback.py:28 保持注入根不变——迁移后 `from src.feedback` 仍要根在 path，不需改（子代理初判要改，实测错误）
+  - **硬编码/注释路径**：src/filter/report_summary.py `Path("filter/config.yaml")`→`src/filter/config.yaml`；run_feedback.py `--config` 默认值改前缀；入口 docstring/base.py/pipeline.py/utils.py 注释路径、init.sh 帮助文字同步改 src/ 前缀。base._CONFIG_PATH 基于 `__file__.parent` 自动跟随，FILTER_CONFIG 传绝对路径不受影响
+- 运行过的验证：
+  - grep 全仓无残留旧 import（`from/import filter|feedback|report`）、无残留硬编码 config 路径
+  - import smoke：10 个迁移模块 `import src.filter.pipeline, src.feedback.stage*, src.report.*` 全通过；py_compile 全量（src/filter+feedback+report+入口脚本）通过；init.sh 核心 smoke 通过
+  - **端到端 smoke 真实跑通**（tokenkey qwen3-8b+deepseek-v4-flash，exp_20260702_103449）：eval/feedback/transfer/filter **四段全 PASS，全流程通过 ✅**。产物：prediction.jsonl(20 行)、feedback_output/datasets/ToMBench.parquet(10 行)、filter_output_smoke/datasets/ToMBench_filtered.parquet(4 行) 均 pandas 可读。全程零 ModuleNotFound/ImportError —— 迁移模块 eval→stage1→stage2→stage3→stage4→filter 逐段在运行时真实执行
+- 本轮踩坑与发现：
+  - **provider 侧变化（与迁移无关）**：qwen3-8b 的 max_tokens 上限被上游收紧到 8192（eval 阶段出现 100 次 400，但仍产出 metrics）；deepseek 的 response_format(json_schema) 结构化输出被下线（feedback stage3 / filter answerability 各 1 次 400）→ StructureClient 自动回退 create 模式吸收，不影响最终 PASS。这两点是环境变化，非本次重构引入；若要根治需另立任务（可能调低 eval max_tokens 到 8192 / 评估结构化输出降级策略）
+- 已知风险或未解决问题：迁移本身无残留问题。遗留观察项：上游 API 的 max_tokens 8192 上限与 response_format 下线，建议后续单独跟进（不阻塞迁移）
+- 下一步最佳动作：提交本轮迁移改动；随后可开始 dataset-schema-analyzer（priority 13，依赖已就位，按 src/schema 落位）

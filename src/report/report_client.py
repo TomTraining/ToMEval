@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from report.utils import find_experiment_dir, load_bad_cases, load_metrics_payload, load_yaml, parse_model_entry
+from src.report.utils import find_experiment_dir, load_bad_cases, load_metrics_payload, load_yaml, parse_model_entry
 from src.llm.content_client import ContentClient
 
 

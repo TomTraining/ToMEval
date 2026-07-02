@@ -45,7 +45,7 @@ cat <<'EOF'
 
 ==> 三条流水线入口（按需运行）
     评测:     python run_eval.py            (配置 experiment_config.yaml)
-    数据质量: python run_filter.py          (配置 filter/config.yaml)
-    数据合成: python run_feedback.py        (配置 feedback/config.yaml)
-    报告:     python report/generate_dataset_tables.py && python report/generate_summary.py
+    数据质量: python run_filter.py          (配置 src/filter/config.yaml)
+    数据合成: python run_feedback.py        (配置 src/feedback/config.yaml)
+    报告:     python src/report/generate_dataset_tables.py && python src/report/generate_summary.py
 EOF

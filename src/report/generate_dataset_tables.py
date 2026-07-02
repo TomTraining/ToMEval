@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from report.utils import (
+from src.report.utils import (
     find_experiment_dir,
     format_metric_value,
     parse_markdown_sections,

@@ -12,9 +12,9 @@ from html import escape
 from pathlib import Path
 from typing import Dict
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from report.utils import (
+from src.report.utils import (
     collect_metrics_from_tables,
     format_accuracy,
     split_model_judge,

@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from filter.base import load_answer_models
-from filter.utils import (
+from src.filter.base import load_answer_models
+from src.filter.utils import (
     DEFAULT_OPEN_F1_THRESHOLD,
     is_correct_mcq,
     is_correct_open,

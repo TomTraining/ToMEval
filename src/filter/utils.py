@@ -54,7 +54,7 @@ def row_to_sample(row: Any) -> Dict[str, Any]:
 
 
 # open 题 F1 判分的默认阈值（与 src/evaluation/open_judge 的 f1 模式同量纲）。
-# 可由 filter/config.yaml 的 open_f1_threshold 覆盖，经各 eval 阶段透传。
+# 可由 src/filter/config.yaml 的 open_f1_threshold 覆盖，经各 eval 阶段透传。
 DEFAULT_OPEN_F1_THRESHOLD = 0.5
 
 
