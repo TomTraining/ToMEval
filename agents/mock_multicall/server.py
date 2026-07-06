@@ -1,10 +1,11 @@
 """
-多轮参考 agent —— 验证模型代理的 model_calls 累加(每样本调 2 次模型)。
+多轮参考 agent —— 每样本调 2 次模型(模拟"先分析、再定答案"的两步智能体)。
 
-与 agents/mock 的唯一区别:predict() 内部调 2 次模型,模拟"先分析、再定答案"的
-两步智能体。用来确认代理记到的 model_calls = 样本数 × 2(而非样本数)。
+与 agents/mock 的唯一区别:predict() 内部调 2 次模型。契约与 agents/mock 完全一致
+(POST /predict),参赛方可任意语言重写。
 
-契约与 agents/mock 完全一致(GET /health、POST /predict),参赛方可任意语言重写。
+模型访问:调 model 的连接信息(api_url/api_key/model_name,我们部署的统一后端)由框架随
+每条 /predict 请求体的 `model` 字段下发;本服务只需监听 PORT。
 """
 
 from __future__ import annotations
@@ -13,16 +14,17 @@ import json
 import os
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, Dict, Optional
 
 from openai import OpenAI
 
-# 占位符由评测框架替换成代理的连接信息(LLM_API_URL 指向代理,不是真实后端)。
-API_URL = os.environ.get("LLM_API_URL", "")
-API_KEY = os.environ.get("LLM_API_KEY", "")
-MODEL = os.environ.get("LLM_MODEL", "")
 PORT = int(os.environ.get("PORT", "8100"))
 
-_client = OpenAI(api_key=API_KEY, base_url=API_URL, timeout=600.0)
+
+def _model_client(model: Optional[Dict[str, Any]]) -> "OpenAI":
+    """按请求体 `model` 字段构造 OpenAI 客户端(api_url/api_key 我们部署的统一后端)。"""
+    model = model or {}
+    return OpenAI(api_key=model.get("api_key", ""), base_url=model.get("api_url", ""), timeout=600.0)
 
 
 def _render(sample: dict) -> str:
@@ -62,10 +64,13 @@ def predict(sample: dict) -> str:
     """
     body = _render(sample)
     ptype = sample.get("prompt_type", "open")
+    model = sample.get("model") or {}
+    client = _model_client(model)
+    model_name = model.get("model_name", "")
 
     # 第 1 次:让模型先分析角色心理状态(不下结论)。
-    analysis = _client.chat.completions.create(
-        model=MODEL,
+    analysis = client.chat.completions.create(
+        model=model_name,
         messages=[
             {"role": "user", "content": f"{body}\n\nBriefly analyze the characters' mental states. Do NOT give the final answer yet."},
         ],
@@ -83,8 +88,8 @@ def predict(sample: dict) -> str:
     else:
         directive = "Now answer the question directly."
 
-    final = _client.chat.completions.create(
-        model=MODEL,
+    final = client.chat.completions.create(
+        model=model_name,
         messages=[
             {"role": "user", "content": body},
             {"role": "assistant", "content": analysis},
@@ -135,6 +140,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"[mock-multicall-agent] listening on 127.0.0.1:{PORT}, model={MODEL}, api_url={API_URL}")
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"[mock-multicall-agent] listening on 0.0.0.0:{PORT} (model 凭证随每条请求下发)")
     server.serve_forever()

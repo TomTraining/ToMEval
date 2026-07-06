@@ -31,8 +31,9 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
     repeats = config.get("repeats", 1)
     protocol = config.get("protocol")
 
-    # agent(智能体评测)模式:predictor: agent 时走黑盒 HTTP 后端,不使用采样协议 protocol。
-    # agent 内部代码自写、协议不限、可多轮/多次调 model;我们统一提供本地 vLLM 作为唯一 model。
+    # agent(智能体评测)模式:predictor: agent 时走远程黑盒 HTTP 端点,不使用采样协议 protocol。
+    # agent 内部代码自写、协议不限、可多轮/多次调 model;调 model 用的凭证(我们部署的统一后端)
+    # 随每条请求体的 model 字段下发给 agent。
     predictor = config.get("predictor")
     agent_mode = predictor == "agent"
     agent_config = dict(config.get("agent", {}))
@@ -70,7 +71,7 @@ def load_experiment_config(config_path: str) -> Dict[str, Any]:
         # stage 与 datasets 由配置驱动:stage 控制 predict/metric/all,datasets 供 run_eval 批量评测。
         "stage": config.get("stage", "all"),
         "datasets": list(config.get("datasets") or []),
-        # agent(智能体)评测:agent_mode 标识走黑盒 HTTP 后端;agent_config 为 agent 段(启停/端口/超时/metrics_url)。
+        # agent(智能体)评测:agent_mode 标识走远程黑盒 HTTP 端点;agent_config 为 agent 段(api_url/api_key/超时/并发)。
         "agent_mode": agent_mode,
         "agent_config": agent_config,
     }

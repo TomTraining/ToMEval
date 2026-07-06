@@ -12,42 +12,68 @@
 
 ## 1. 概述
 
-Agent 是一个黑盒 HTTP 服务,实现 `GET /health` 与 `POST /predict` 两个端点。框架逐条下发结构化题目,Agent 返回答案,该答案直接作为预测进入判分。Agent 内部如何构造 prompt、调用哪个模型、单轮还是多轮、是否使用工具,均不受约束。
+参赛方交付一个**代码仓库**,根目录含 `solution.py`,其中实现 `predict(sample, model)`。评测时,框架把该仓库拉到 `agents/` 下,在本地起统一运行时 `agents/server.py` 动态加载其 `solution.py`,再逐条下发结构化题目、收回答案进入判分。`predict` 内部如何构造 prompt、单轮还是多轮、是否使用工具,均不受约束;调用模型用的连接信息由框架随每条请求下发(见 §4)。
+
+参赛方**只写 `predict` 一个函数**,不接触 HTTP、并发、错误处理——那些都在框架自带的 `agents/server.py` 里(参赛方看不到也不需要它)。
 
 ### 职责划分
 
 | 职责 | 承担方 |
 |---|---|
 | 数据集准备、抽样、生成并打乱选项 | 框架 |
-| 逐条下发结构化题目 | 框架 |
-| prompt 构造、模型选择、单/多轮、工具使用 | Agent |
-| 从模型输出中提取最终答案 | Agent |
-| 判分、准确率、效率统计 | 框架 |
+| 起 `agents/server.py`、拆分请求体、逐条下发题目、并发、错误兜底 | 框架(`server.py`) |
+| `predict`:构造 prompt、调模型、单/多轮、工具使用、提取最终答案 | 参赛方(`solution.py`) |
+| 判分、准确率、墙钟/调用数记录 | 框架 |
 
-核心原则:框架仅下发结构化输入(§5)并规定每种题型的输出格式(§6);Agent 返回的 `prediction` 字段**原样进入判分,框架不做任何二次提取或改写**。因此「从模型自由文本中提取出符合格式的答案」由 Agent 负责。
+核心原则:框架仅下发结构化输入(§5)并规定每种题型的输出格式(§6);`predict` 返回的 `prediction` **原样进入判分,框架不做任何二次提取或改写**。因此「从模型自由文本中提取出符合格式的答案」由参赛方在 `predict` 里负责。
 
 ---
 
-## 2. 参考实现
+## 2. 组成与参考实现
 
-仓库提供两个可直接运行的参考 Agent(Python 标准库 `http.server`),可作为脚手架:
+### 框架侧(我方,参赛方不可见)
 
-| 路径 | 策略 |
+| 路径 | 作用 |
 |---|---|
-| `agents/mock/server.py` | 单轮:每题调用一次模型 |
-| `agents/mock_multicall/server.py` | 多轮:每题调用两次模型(先分析、再定答案) |
+| `agents/server.py` | 统一运行时:实现 `POST /predict`、`GET /health`,拆分请求体(`model` 与题目字段)、并发、异常→错误信封;从 `SOLUTION_DIR` 动态加载参赛方 `solution.py` 的 `predict` |
+| `agents/mock/server.py` | 回归/示例:单轮 agent(单文件自实现整个 HTTP 服务) |
+| `agents/mock_multicall/server.py` | 回归/示例:多轮 agent(每题调两次模型) |
 
-本地手动试跑一个 Agent(正式评测时由框架自动启动,见 §4):
+### 参赛方交付物
+
+参赛方拿到的是 `agents/template/`(一个**去框架化**的脚手架,不含 `server.py`、不暴露任何评测内部信息)。他们只需:
+
+```python
+# solution.py
+def predict(sample: dict, model: dict) -> str | list:
+    ...
+```
+
+`solution.py` 自带开箱即用的**单轮 baseline**,并附 `selftest.py` + 模拟模型供本地自测。参赛方交付整个仓库(根目录含 `solution.py`)。详见 `agents/template/README.md`(那份文档面向参赛方,不含 ToMEval 字样)。
+
+#### 环境声明(可选:交 Dockerfile / requirements.txt)
+
+为免「我本地能跑、评测机跑不起来」,参赛方可随仓库声明运行环境,框架用 Docker 起隔离容器评测(见 §4「运行时」):
+
+- **只有 pip 依赖**:交一个 `requirements.txt` 即可,框架用默认基础镜像(`python:3.11-slim`)兜底安装。
+- **需要系统包/特殊环境**:交一个 `Dockerfile`,自己把环境装好,把仓库拷进 `/agent`。
+
+无论哪种,参赛方**都不要写 `ENTRYPOINT`/`CMD`、也不要在镜像里起任何 server**:HTTP 入口(`server.py`)由框架在构建时叠加进镜像并接管。参赛方职责始终只是 `solution.py` 里的 `predict`。模板自带一份可直接用的 `Dockerfile` + `requirements.txt`。
+
+### 本地试跑(我方)
+
+把参赛方仓库(或 `agents/template/` 本身)当作 `SOLUTION_DIR`,起统一运行时:
 
 ```bash
-LLM_API_URL=<模型地址> LLM_API_KEY=<key> LLM_MODEL=<模型名> PORT=8100 \
-  python agents/mock/server.py
+SOLUTION_DIR=agents/template PORT=8100 python agents/server.py
 
-# 另开一个终端验证:
-curl -s localhost:8100/health
+# 另开一个终端验证(model 凭证随请求下发):
 curl -s localhost:8100/predict -d '{"sample_id":"t1","prompt_type":"mcq_single",
-  "lang":"en","story":"...","question":"...","options":{"A":"foo","B":"bar"}}'
+  "lang":"en","story":"...","question":"...","options":{"A":"foo","B":"bar"},
+  "model":{"api_url":"https://.../v1","api_key":"sk-...","model_name":"qwen3-8b"}}'
 ```
+
+实际评测中,上述 `SOLUTION_DIR` 与端口由 `experiment_config_agent.yaml` 的 `agent.solution_dir` / `agent.api_url` 指定,框架自动拉起、探活、评完关闭(见 §4)。
 
 ---
 
@@ -59,12 +85,13 @@ curl -s localhost:8100/predict -d '{"sample_id":"t1","prompt_type":"mcq_single",
    标准答案(A)不下发。
         │
         ▼
-② 框架 POST 一条结构化题目至 Agent 的 /predict(不含答案):
+② 框架 POST 一条结构化题目至 Agent 的 /predict(不含答案,带 model 凭证):
    {sample_id, prompt_type:"mcq_single", lang, story, question,
-    options:{A:"treasure_chest", B:"crate"}}
+    options:{A:"treasure_chest", B:"crate"},
+    model:{api_url, api_key, model_name}}
         │
         ▼
-③ Agent 内部自行处理(构造 prompt / 单轮或多轮 / 调用模型 / 使用工具),
+③ Agent 内部自行处理(构造 prompt / 单轮或多轮 / 用 model 凭证调模型 / 使用工具),
    并自行从模型输出中提取最终答案。
         │
         ▼
@@ -74,7 +101,7 @@ curl -s localhost:8100/predict -d '{"sample_id":"t1","prompt_type":"mcq_single",
 ⑤ 框架判分:prediction "A" 与标准答案 "A" 比对 → 正确
         │
         ▼
-⑥ 全部样本判完 → 计算准确率,统计 token 消耗与模型调用次数
+⑥ 全部样本判完 → 计算准确率,记录墙钟与调用次数
 ```
 
 要点:
@@ -85,63 +112,60 @@ curl -s localhost:8100/predict -d '{"sample_id":"t1","prompt_type":"mcq_single",
 
 ---
 
-## 4. 模型访问与启动
+## 4. 模型访问与端点
 
-### 启动方式
+### 启动与端点
 
-参赛方交付的 Agent 目录中**必须包含一个名为 `server.py` 的启动入口**。框架在 Agent 目录下以固定命令启动服务:
+框架用统一运行时 `agents/server.py` 加载参赛方 `solution.py`,在本地起 HTTP 服务(`POST /predict`、`GET /health`),评完关掉。**参赛方无论选哪种运行时,交付物与契约都一样**(只写 `predict`);区别仅在框架怎么把 `server.py` 跑起来,由 `experiment_config_agent.yaml` 的 `agent.runtime` 选择:
 
-```
-python server.py
-```
+- `runtime: local`(默认):框架 subprocess 直接起 `python agents/server.py`,`solution.py` 的依赖跑在评测机本机环境。轻量,适合我方本地试跑。
+- `runtime: docker`:框架把参赛方仓库连同环境构建成镜像,再叠加 `server.py` 当 ENTRYPOINT 跑容器。环境彻底由参赛方决定(交 `Dockerfile` 或 `requirements.txt`),契约/并发/错误兜底仍是框架的 `server.py`。详见 §2「可选:交 Dockerfile 声明环境」。
 
-`server.py` 须从环境变量读取连接信息与端口,并在该端口启动 HTTP 服务:
+两种运行时共用的配置项:
 
-| 环境变量 | 含义 |
-|---|---|
-| `PORT` | HTTP 服务须监听的端口 |
-| `LLM_API_URL` | 模型的 OpenAI 兼容地址 |
-| `LLM_API_KEY` | 调用模型使用的 key |
-| `LLM_MODEL` | 统一模型名(所有参赛方相同) |
+- `agent.solution_dir`:参赛方仓库根目录(含 `solution.py`)。local 模式注入为 `SOLUTION_DIR`;docker 模式作为镜像构建上下文(其 `Dockerfile`/`requirements.txt` 决定环境)。
+- `agent.api_url`:本地服务监听地址,端口从中解析出来(local 注入为 `PORT`;docker 映射到容器的 8100)。
+- `agent.health_timeout`:等 `/health` 就绪的最长秒数。
 
-以上均不得写死,须从环境变量读取。
+仅 `runtime: docker` 生效的配置项:`build_timeout`(单次 build 超时)、`docker_memory` / `docker_cpus` / `docker_pids_limit`(容器资源/进程数上限,防单个镜像拖垮评测机)、`docker_run_as_root`(默认非 root)。
+
+框架 POST 到 `api_url` + `predict_path`(默认 `/predict`),等 `/health` 返回 200 后才发题。
+
+> 防滥用说明:model 凭证直连我方后端、框架不中转,因此**框架侧看不到 agent 调了几次 model**,不做按调用数/token 的硬配额。防滥用靠单样本 `predict_timeout` + docker 模式的容器资源上限;真要限调用数须在 model 后端侧限流。
+>
+> 数据隔离说明:model 部署在评测机内网,评测服务器整体禁止访问外网。题目由框架主动 POST 进容器(入站),容器唯一的出站目标就是内网 model —— 参赛方代码即便想把题目外传到公网也无路由可走,隐藏测试集**天然不会外泄**,无需在 docker 层另配出口白名单。
 
 ### 模型调用
 
-`LLM_API_URL` 指向框架的一层代理,而非模型本体;使用标准 OpenAI 客户端照常调用即可,后端形态(本地推理或外部 API)对 Agent 透明。代理会统计 token 消耗与模型调用次数用于效率记录(响应中的 `usage` 字段不回传)。效率数据仅作记录、不计入排名,请合理使用模型。
+调用模型的连接信息**随每条 `/predict` 请求体的 `model` 字段下发**(不再走环境变量,也没有代理):
+
+```json
+"model": {"api_url": "https://.../v1", "api_key": "sk-...", "model_name": "qwen3-8b"}
+```
+
+该后端是我们部署的**统一 model**(所有参赛方相同),用标准 OpenAI 客户端照常调用即可。效率仅作记录、不计入排名,请合理使用模型。
 
 调用示例(Python):
 
 ```python
-import os
 from openai import OpenAI
 
-client = OpenAI(
-    api_key=os.environ["LLM_API_KEY"],
-    base_url=os.environ["LLM_API_URL"],
-)
-
-resp = client.chat.completions.create(
-    model=os.environ["LLM_MODEL"],
-    messages=[{"role": "user", "content": "..."}],
-    temperature=0.0,
-)
-answer = resp.choices[0].message.content
+def call_model(sample):
+    m = sample["model"]
+    client = OpenAI(api_key=m["api_key"], base_url=m["api_url"])
+    resp = client.chat.completions.create(
+        model=m["model_name"],
+        messages=[{"role": "user", "content": "..."}],
+        temperature=0.0,
+    )
+    return resp.choices[0].message.content
 ```
 
-### HTTP 端点
+### `POST /predict`
 
-#### `GET /health`
+接收一条样本(§5),返回一条预测(§6)。框架会并发调用该端点,因此其处理须**可并发、无状态**——样本之间不得共享可变状态。单条样本(含重试)默认总超时 300 秒。
 
-服务就绪后返回 HTTP 200。框架在下发题目前轮询该端点,直到返回 200 才开始评测(默认最长等待 120 秒)。启动耗时(加载模型、建索引等)期间应保持非 200,以避免过早收到请求。
-
-```
-GET /health   →   200   {"status": "ok"}
-```
-
-#### `POST /predict`
-
-接收一条样本(§5),返回一条预测(§6)。框架会并发调用该端点,因此其处理须**可并发、无状态**——样本之间不得共享可变状态。单条请求默认超时 300 秒。
+> 上述 HTTP 端点、请求体拆分(把 `model` 与题目字段分开)、并发、异常兜底与错误信封均由框架侧的 `agents/server.py` 处理好,参赛方只需在 `solution.py` 里实现 `predict(sample, model)`,`sample` 为题目字段、`model` 为 `{api_url, api_key, model_name}`。
 
 ---
 
@@ -156,7 +180,8 @@ GET /health   →   200   {"status": "ok"}
   "lang": "en",
   "story": "James entered the attic. Ava ...",
   "question": "Where does James think that Ava searches for the pants?",
-  "options": {"A": "treasure_chest", "B": "crate"}
+  "options": {"A": "treasure_chest", "B": "crate"},
+  "model": {"api_url": "https://.../v1", "api_key": "sk-...", "model_name": "qwen3-8b"}
 }
 ```
 
@@ -167,6 +192,7 @@ GET /health   →   200   {"status": "ok"}
 | `lang` | ✓ | `en` 或 `zh` |
 | `story` | ✓ | 故事/背景正文(少数题型可能为空串) |
 | `question` | ✓ | 问题 |
+| `model` | ✓ | 调用模型的连接信息 `{api_url, api_key, model_name}`,我们部署的统一后端(见 §4) |
 | `options` | 视题型 | 选项字母→文本映射。`mcq_single` / `mcq_multi` 必有;`open` 无此字段;`mcq_grouped` 见 `sub_questions` |
 | `sub_questions` | 仅 grouped | `mcq_grouped` 专用:同一故事下的多道子问,每项含自身的 `question` 与 `options`,按顺序作答 |
 
@@ -245,11 +271,15 @@ Agent 返回的任何失败都不会中断评测:框架将该样本记为答错(
 
 ## 8. 提交前自检清单
 
-- [ ] Agent 目录包含 `server.py` 启动入口,`python server.py` 可启动服务。
-- [ ] 服务监听 `PORT` 指定的端口(不写死)。
-- [ ] 从 `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` 读取模型连接信息(不写死)。
-- [ ] `GET /health` 就绪后返回 200,未就绪时返回非 200。
-- [ ] `POST /predict` 可并发、样本间无状态。
+参赛方交付物是一个仓库,根目录含 `solution.py`(定义 `predict`)。以 `agents/template/` 为起点时:
+
+- [ ] 在 `solution.py` 实现 `predict(sample, model)`,返回值严格符合 §6 的题型格式。
+- [ ] 用传入的 `model`(`api_url` / `api_key` / `model_name`)调模型,不写死。
+- [ ] `python selftest.py` 四种题型全 PASS(格式合规、链路通)。
+- [ ] 依赖已写进仓库(如 `requirements.txt`)。
 - [ ] 输出符合 §6:MCQ 使用给定字母;`mcq_multi` / `mcq_grouped` 返回字母数组而非字符串;`open` 返回非空文本。
-- [ ] 响应中 `sample_id` 原样回填。
-- [ ] 内部异常有兜底,返回 error 对象或 `prediction: null`,服务不崩溃、不挂起。
+
+评测侧(我方)自检:
+
+- [ ] 参赛方仓库已拉到 `agents/<仓库名>/`,`agent.solution_dir` 指向它。
+- [ ] `agent.api_url` 端口未被占用;`agents/server.py` 能加载到 `solution.py` 的 `predict`。

@@ -88,17 +88,28 @@ def _predict_via_agent(
     experiment_config: Dict[str, Any],
     output_dir: Path,
 ) -> List[Dict[str, Any]]:
-    """agent 模式预测:起代理+agent → 发题 → 从代理读累计 → 写 efficiency.json。
+    """agent 模式预测:本地拉起统一运行时(agents/server.py)加载参赛方 solution.py → 发题 → 写 efficiency.json。
 
-    效率主口径是模型代理的累计计数:agent 只能经代理访问模型,token/调用数由代理从后端
-    响应的 usage 累加,agent 伪造不了(它连 usage 都看不到)。效率只记录、不进排名。
+    提交逻辑:参赛方仓库被拉到 agents/ 下(含 solution.py),agent.solution_dir 指向它。框架在评测前
+    起 agents/server.py(注入 SOLUTION_DIR + 从 api_url 解析的 PORT)、等 /health 就绪、评完关掉。
+
+    model 凭证(我们部署的统一后端)随每条请求体的 `model` 字段下发给 agent;框架不中转模型请求,
+    token 口径回归我们部署的后端侧。这里 efficiency.json 只记框架能直接看到的墙钟与
+    agent 端点调用数/违约数。效率只记录、不进排名。
     """
-    from .agent_launcher import launch_agent
+    from src.llm import AgentClient
+
+    from .agent_launcher import launch_local_agent
 
     agent_config = experiment_config.get("agent_config") or {}
     llm_config = experiment_config["llm_config"]
+    if not agent_config.get("solution_dir"):
+        raise ValueError("agent 配置缺少 solution_dir(参赛方仓库根目录,含 solution.py)。")
 
-    with launch_agent(agent_config, llm_config) as (client, proxy):
+    client = AgentClient.from_config(agent_config, llm_config)
+
+    # 本地拉起统一运行时:起 agents/server.py、等就绪、评完关掉。
+    with launch_local_agent(agent_config, client):
         wall_start = time.time()
         records = predict_records(
             samples,
@@ -109,29 +120,19 @@ def _predict_via_agent(
             agent_mode=True,
         )
         wall_clock = time.time() - wall_start
-        proxy_usage = proxy.snapshot()
 
     total = len(samples) or 1
-    total_tokens = proxy_usage.get("total_tokens", 0)
-    model_calls = proxy_usage.get("model_calls", 0)
+    predict_calls = client.get_usage().total_calls
     efficiency: Dict[str, Any] = {
         "dataset": task_config["dataset"],
         "num_samples": len(samples),
         "wall_clock_seconds": round(wall_clock, 3),
-        # 代理侧权威口径(agent 经代理访问模型的真实消耗)。
-        "total_tokens": total_tokens,
-        "prompt_tokens": proxy_usage.get("prompt_tokens", 0),
-        "completion_tokens": proxy_usage.get("completion_tokens", 0),
-        "model_calls": model_calls,
-        "tokens_per_sample": round(total_tokens / total, 2),
-        "calls_per_sample": round(model_calls / total, 3),
-        # 诊断:代理挡下的请求(流式)、agent 试图偷换 model 的次数、转发失败数。
-        "rejected_calls": proxy_usage.get("rejected_calls", 0),
-        "swapped_model_attempts": proxy_usage.get("swapped_model_attempts", 0),
-        "backend_failed_calls": proxy_usage.get("failed_calls", 0),
-        # agent /predict 侧的调用数(与 model_calls 不同:一条样本 agent 可能多次调模型)。
-        "agent_predict_calls": client.get_usage().total_calls,
+        "seconds_per_sample": round(wall_clock / total, 3),
+        # agent /predict 侧的调用数(一条样本一次;失败=重试耗尽/不可重试)。
+        "agent_predict_calls": predict_calls,
         "agent_predict_failed": client.get_usage().failed_calls,
+        # prediction 违反严格格式(mcq_single 单字符 / mcq_multi 字母数组等)的样本数。
+        "format_violations": client.format_violations,
     }
 
     efficiency_path = output_dir / "efficiency.json"

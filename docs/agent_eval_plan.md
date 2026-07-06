@@ -1,5 +1,17 @@
 # 智能体(Agent)评测接入方案
 
+> **架构已简化(现状,以此为准)**:参赛方交付一个**仓库**(根目录含 `solution.py`,定义
+> `predict(sample, model)`)。评测时框架把仓库拉到 `agents/<仓库名>/`,用统一运行时
+> `agents/server.py` 加载其 `solution.py`,在本地起 HTTP 服务(`POST /predict` + `GET /health`)、
+> 评完关闭。**不再**有 `ModelProxy` 代理、不再靠环境变量占位符注入 model 连接信息。调 model 的
+> 连接信息(我们部署的统一后端 `{api_url, api_key, model_name}`)随每条 `/predict` 请求体的
+> `model` 字段下发;token 口径回归我们部署的后端侧,`efficiency.json` 只记墙钟 + agent 端点
+> 调用数/违约数。框架侧配置见 `experiment_config_agent.yaml` 的 `agent.solution_dir` /
+> `agent.api_url`;参赛方脚手架 `agents/template/`(去框架化,不含 `server.py`,只写 `solution.py`,
+> 自带单轮 baseline + `selftest.py` 本地自测)。
+> 权威对接契约见 [agent_eval.md](agent_eval.md);下文为初版设计记录,部分细节(启动契约、
+> 代理、vLLM /metrics 差值)已被上述简化取代。
+
 ## 目标
 在现有 ToMEval 框架里新增一条「智能体评测」路径:参赛方提交一个 HTTP 服务(内部代码自写、协议不限、可多轮/多次调模型),
 我们统一提供本地 vLLM(OpenAI 兼容)作为唯一 model,用**现有 19 个数据集**评测其准确率,并**记录效率指标(不进排名)**。
@@ -101,3 +113,57 @@ HTTP 端点(agent 必须实现):
   在 `ToMi` 上跑 `stage=all`,确认:prediction.jsonl 有 agent 预测、metrics.json 正常、efficiency.json 有非零 token。
 - 再验证一个「多次调模型 / 多轮」的 mock,确认 `/metrics` 差值随之上升。
 - 失败注入:让 mock 对某些样本超时/返回非法,确认落进 `content_none` 判错、不 crash。
+
+---
+
+## 附:Docker 运行时(后加,现状实现)
+
+在上述「local 模式(subprocess 起 `server.py`)」之外新增一条 **docker 运行时**,让参赛方把环境
+连同仓库一起交付,框架在隔离容器里评测。由 `experiment_config_agent.yaml` 的 `agent.runtime`
+选择(缺省 `local`,向后兼容);两种运行时**契约完全一致**,只是「怎么把 `server.py` 跑起来」不同。
+
+### 设计要点
+- **框架控制入口**:参赛方的 `Dockerfile` 只装环境、把仓库拷到 `/agent`,**不写 ENTRYPOINT/CMD**。
+  框架在构建时叠加自己的 `agents/server.py` 当 ENTRYPOINT,因此 HTTP 契约、并发、错误兜底、
+  prediction 格式校验仍由我方 `server.py` 负责——「只写 `predict` 一个函数」的简洁性一分不失。
+- **凭证仍随请求体下发**:与 local 模式一致,model 凭证不进容器环境变量,泄露面更小。
+
+### 两层构建(`src/evaluation/agent_launcher.py`)
+1. **参赛方环境镜像**:以 `solution_dir` 为构建上下文。有 `Dockerfile` 用之;否则要求有
+   `requirements.txt`,用兜底 Dockerfile(`python:3.11-slim` + 装依赖 + 拷仓库到 `/agent`,
+   临时写进上下文、构建完即删)。
+2. **运行时镜像**:以第一层为 `BASE_IMAGE`,套 `agents/Dockerfile.runtime`
+   (`COPY server.py` + `ENV SOLUTION_DIR=/agent PORT=8100` + `ENTRYPOINT python server.py`)。
+
+随后 `docker run -d`,宿主端口(从 `api_url` 解析)映射到容器 8100,复用 `client.wait_healthy`
+探活;评完 `docker stop && docker rm`,**只删容器、留镜像**(下次构建走缓存更快)。
+
+### 防滥用(容器层)
+- 资源/进程数上限:`--memory` / `--cpus` / `--pids-limit`(配置项 `docker_memory` /
+  `docker_cpus` / `docker_pids_limit`),防单个镜像拖垮评测机。
+- 默认非 root 运行(`--user 65534:65534`;个别镜像必须 root 时置 `docker_run_as_root: true`)。
+- **调用数/token 无框架侧硬配额**:凭证直连我方后端、框架不中转,看不到 agent 调了几次 model。
+  防滥用靠单样本 `predict_timeout` + 上述容器资源上限;真要限调用数须在 model 后端侧限流。
+
+### 网络与数据外传
+- **靠评测机整体禁外网兜底**:正式评测在**禁止访问外网**的评测机上跑,model 部署在**内网**。
+  容器走默认桥接网络即可通到内网 model;而参赛方代码想把题目回传到自己的外部服务器
+  (`requests.post("外网地址", json=sample)`)会因评测机整体禁外网而失败。因此**数据外传天然被堵死**,
+  无需在 docker 层再单独配出口白名单代理。
+- **进容器方向不受影响**:题目由框架主动 POST 进容器(host→容器,走端口映射),是被动收题,
+  容器无需主动外联取数据。
+- 部署前置检查:确认容器能通到内网 model 地址(把 `agent.api_url` 对应的 model 凭证 `api_url`
+  指向内网地址即可;桥接网络对内网互访通常可达,验证一次即可)。若 model 改到外网部署,则需在
+  评测机防火墙**单独放行 model 那一个地址**,其余仍禁——此时安全边界落在服务器防火墙层,不在本仓库。
+
+### 相关文件
+- `src/evaluation/agent_launcher.py`:`launch_local_agent` 按 `runtime` 分流;
+  `launch_docker_agent`(两层构建 + run + 探活 + teardown)、`_launch_subprocess_agent`(原 local)。
+- `agents/Dockerfile.runtime`:框架侧包裹层(参赛方不可见)。
+- `agents/template/Dockerfile` + `agents/template/requirements.txt`:给参赛方的默认环境声明。
+
+### 验证记录
+- 模板镜像两层构建通过;容器起后 `/health` 200;四种题型 `/predict` 格式全部合规。
+- 经 `run_eval.py` 走真实 launcher docker 路径端到端跑 ToMi:样本全部成功、0 失败、0 格式违约,
+  `efficiency.json` / `metrics.json` / `prediction.jsonl` 正常落盘;评完容器销毁、镜像保留。
+- local 模式回归通过(dispatch 改动未破坏原路径)。

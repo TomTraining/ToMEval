@@ -1,14 +1,16 @@
 """
 Agent Client - 黑盒智能体评测后端
 
-参赛方提交一个 HTTP 服务(内部代码自写、可多轮/多次调 model),我们逐条把结构化样本
-POST 到其 /predict,收回一条预测。模型访问经我们的代理(见 model_proxy.py),agent 拿到
-的 LLM_API_URL 指向代理而非真实后端。
+参赛方托管一个远程 HTTP 服务(内部代码自写、可多轮/多次调 model),我们逐条把结构化样本
+POST 到其 /predict,收回一条预测。调用 model 用的凭证(api_url/api_key/model_name,均为我们
+部署的统一后端)随每条请求体的 `model` 字段下发,agent 直接拿去调模型 —— 不再有本地代理中转。
 
 契约(权威定义在 src/evaluation/agent_contract.py + docs/agent_schema/*.json,说明见
 docs/agent_eval.md):
-- 请求:{sample_id, prompt_type, lang, story, question, options?/sub_questions?}
+- 请求:{sample_id, prompt_type, lang, story, question, options?/sub_questions?, model}
   · options 由 build_option_bundle 生成(带 shuffle);correct_letters 绝不下发。
+  · model:{api_url, api_key, model_name},我们部署的统一后端,供 agent 调模型。
+  · 调用 agent 端点本身用 Authorization: Bearer <agent.api_key>(配了才带)。
 - 响应:{sample_id, prediction} 或 {sample_id, error}
   · prediction 严格单一格式:mcq_single→"A";mcq_multi→["A","C"](升序去重);
     mcq_grouped→["A","B"];open→非空字符串。违约按答错处理并计入 format_violation。
@@ -44,21 +46,27 @@ class AgentClient:
         self,
         base_url: str,
         predict_path: str = "/predict",
+        api_key: str = "",
+        model_credentials: Optional[Dict[str, Any]] = None,
         timeout: float = 60.0,
         max_workers: int = 16,
         max_retries: int = contract.MAX_RETRIES,
         per_sample_timeout: float = contract.PER_SAMPLE_TIMEOUT_SECONDS,
     ):
-        # base_url 形如 http://127.0.0.1:8100;predict_path 拼在其后。
+        # base_url 形如 https://参赛方端点;predict_path 拼在其后。
         self.base_url = base_url.rstrip("/")
         self.predict_path = predict_path if predict_path.startswith("/") else f"/{predict_path}"
         self.predict_url = f"{self.base_url}{self.predict_path}"
+        # api_key:调 agent 端点的鉴权(空则不带 Authorization 头)。
+        self.api_key = api_key or ""
+        # model_credentials:我们部署的统一后端 {api_url, api_key, model_name},随每条请求下发。
+        self.model_credentials = model_credentials or {}
         # timeout:单次 HTTP 请求超时;per_sample_timeout:含所有重试的单样本总超时。
         self.timeout = timeout
         self.per_sample_timeout = per_sample_timeout
         self.max_retries = max_retries
         self.max_workers = max_workers
-        # 与 LLMClient 接口对齐:效率主口径走代理记账,这里只记调用成功/失败/违约计数。
+        # 与 LLMClient 接口对齐:这里只记调用成功/失败/违约计数(token 口径回归我们部署的后端)。
         self.usage: LLMUsage = LLMUsage()
         self.format_violations: int = 0   # prediction 违反严格格式的样本数
         self._lock = threading.Lock()
@@ -75,10 +83,13 @@ class AgentClient:
         parsed_body:解析后的 JSON(dict)或 None(解析失败/网络失败)。
         """
         data = json.dumps(request_body, ensure_ascii=False).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         req = urllib.request.Request(
             self.predict_url,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         try:
@@ -107,6 +118,9 @@ class AgentClient:
         prompt_type = payload.get("prompt_type", "open")
         sample_id = payload.get("sample_id")
         request_body = dict(payload)
+        # 随请求下发我们部署的统一 model 凭证,供 agent 调模型。
+        if self.model_credentials:
+            request_body["model"] = self.model_credentials
 
         deadline = time.time() + self.per_sample_timeout
         attempt = 0
@@ -227,8 +241,40 @@ class AgentClient:
                 results.append(future.result())
             return results
 
+    @classmethod
+    def from_config(
+        cls,
+        agent_config: Dict[str, Any],
+        llm_config: Optional[Dict[str, Any]] = None,
+    ) -> "AgentClient":
+        """从 agent 段(本地 server 地址)+ llm 段(我们部署的统一 model)组装客户端。
+
+        agent_config:api_url(本地 server 监听地址,端口据此解析)、predict_path、
+                     request_timeout/predict_timeout/max_retry/max_workers。
+        llm_config  :api_url/api_key/model_name,作为 model 凭证随请求体下发给 agent。
+        """
+        llm_config = llm_config or {}
+        base_url = agent_config.get("api_url") or agent_config.get("base_url") or ""
+        if not base_url:
+            raise ValueError("agent 配置缺少 api_url(本地 server 监听地址,如 http://127.0.0.1:8100)。")
+        model_credentials = {
+            "api_url": llm_config.get("api_url", ""),
+            "api_key": llm_config.get("api_key", ""),
+            "model_name": llm_config.get("model_name", ""),
+        }
+        return cls(
+            base_url=base_url,
+            predict_path=agent_config.get("predict_path", "/predict"),
+            api_key=agent_config.get("api_key", ""),
+            model_credentials=model_credentials,
+            timeout=agent_config.get("request_timeout", 60.0),
+            max_workers=agent_config.get("max_workers", 16),
+            max_retries=agent_config.get("max_retry", contract.MAX_RETRIES),
+            per_sample_timeout=agent_config.get("predict_timeout", contract.PER_SAMPLE_TIMEOUT_SECONDS),
+        )
+
     # -----------------------------------------------------------------------
-    # 健康探活 —— 由 launcher 在发题前轮询
+    # 健康探活 —— 仅本地自测(solution_dir 模式)拉起 server 后等就绪时用。
     # -----------------------------------------------------------------------
 
     def health_ok(self, health_path: str = "/health") -> bool:
@@ -239,7 +285,7 @@ class AgentClient:
         except Exception:  # noqa: BLE001
             return False
 
-    def wait_healthy(self, timeout: float = 120.0, interval: float = 2.0, health_path: str = "/health") -> bool:
+    def wait_healthy(self, timeout: float = 120.0, interval: float = 1.0, health_path: str = "/health") -> bool:
         """轮询 /health 直到就绪或超时。"""
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -247,20 +293,6 @@ class AgentClient:
                 return True
             time.sleep(interval)
         return False
-
-    @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "AgentClient":
-        host = config.get("host", "127.0.0.1")
-        port = config.get("port", 8100)
-        base_url = config.get("base_url") or f"http://{host}:{port}"
-        return cls(
-            base_url=base_url,
-            predict_path=config.get("predict_path", "/predict"),
-            timeout=config.get("request_timeout", 60.0),
-            max_workers=config.get("max_workers", 16),
-            max_retries=config.get("max_retries", contract.MAX_RETRIES),
-            per_sample_timeout=config.get("predict_timeout", contract.PER_SAMPLE_TIMEOUT_SECONDS),
-        )
 
     def get_usage(self) -> LLMUsage:
         return self.usage
