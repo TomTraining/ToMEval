@@ -4,7 +4,7 @@
   "title": "ToMEval Agent Predict Request",
   "description": "评测框架 POST 给参赛 agent /predict 的单条样本。绝不包含正确答案。",
   "type": "object",
-  "required": ["sample_id", "prompt_type", "lang", "story", "question"],
+  "required": ["sample_id", "prompt_type", "lang", "story", "question", "model"],
   "additionalProperties": false,
   "properties": {
     "sample_id": {
@@ -57,6 +57,17 @@
             "additionalProperties": false
           }
         }
+      }
+    },
+    "model": {
+      "type": "object",
+      "description": "调用模型的连接信息(我们部署的统一后端),随每条请求下发。agent 用它构造 OpenAI 兼容客户端调模型。",
+      "required": ["api_url", "api_key", "model_name"],
+      "additionalProperties": false,
+      "properties": {
+        "api_url": { "type": "string", "description": "OpenAI 兼容 base_url,如 https://.../v1" },
+        "api_key": { "type": "string", "description": "调模型的 api key" },
+        "model_name": { "type": "string", "description": "统一模型名(所有参赛 agent 相同)" }
       }
     }
   },
