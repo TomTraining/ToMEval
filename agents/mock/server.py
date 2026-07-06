@@ -5,8 +5,9 @@
 把模型自由文本收敛成契约要求的 prediction、拼响应信封),核心策略只有"调一次模型"。
 参赛方可用任意语言/框架重写,只要满足契约(见 docs/agent_eval.md)。
 
-模型访问:从环境变量读连接信息(占位符由评测框架替换成【代理】地址,不是真实后端):
-  LLM_API_URL / LLM_API_KEY / LLM_MODEL,并监听 PORT。
+模型访问:调 model 的连接信息(api_url/api_key/model_name,我们部署的统一后端)由框架随
+每条 /predict 请求体的 `model` 字段下发;本服务只需监听 PORT(参赛方自行启动、把 URL 交给
+框架)。
 """
 
 from __future__ import annotations
@@ -19,12 +20,18 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
-API_URL = os.environ.get("LLM_API_URL", "")
-API_KEY = os.environ.get("LLM_API_KEY", "")
-MODEL = os.environ.get("LLM_MODEL", "")
 PORT = int(os.environ.get("PORT", "8100"))
 
-_client = OpenAI(api_key=API_KEY, base_url=API_URL, timeout=600.0)
+
+def _model_client(model: Optional[Dict[str, Any]]) -> "OpenAI":
+    """按请求体 `model` 字段构造 OpenAI 客户端(api_url/api_key 我们部署的统一后端)。"""
+    model = model or {}
+    return OpenAI(
+        api_key=model.get("api_key", ""),
+        base_url=model.get("api_url", ""),
+        timeout=600.0,
+    )
+
 
 # --- 契约辅助:渲染样本 / 收敛 prediction / 拼响应信封 --------------------------
 
@@ -116,9 +123,11 @@ def error_response(sample_id: Any, code: str, retryable: bool, message: str = ""
 def predict(sample: dict):
     """单轮:渲染样本 + 答题指令 → 调一次模型 → 收敛成严格 prediction。"""
     ptype = sample.get("prompt_type", "open")
+    model = sample.get("model") or {}
+    client = _model_client(model)
     prompt = render(sample) + answer_directive(ptype)
-    completion = _client.chat.completions.create(
-        model=MODEL,
+    completion = client.chat.completions.create(
+        model=model.get("model_name", ""),
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
         max_tokens=2048,
@@ -168,6 +177,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"[mock] listening on 127.0.0.1:{PORT}, model={MODEL}, api_url={API_URL}")
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"[mock] listening on 0.0.0.0:{PORT} (model 凭证随每条请求下发)")
     server.serve_forever()

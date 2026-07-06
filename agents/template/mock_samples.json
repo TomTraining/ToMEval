@@ -1,0 +1,49 @@
+[
+  {
+    "sample_id": "demo_mcq_single",
+    "prompt_type": "mcq_single",
+    "lang": "en",
+    "story": "James put his pants in the crate. He then left the room. While he was away, Ava moved the pants from the crate to the treasure chest.",
+    "question": "When James comes back, where will he look for his pants?",
+    "options": {
+      "A": "crate",
+      "B": "treasure chest"
+    }
+  },
+  {
+    "sample_id": "demo_mcq_multi",
+    "prompt_type": "mcq_multi",
+    "lang": "en",
+    "story": "At the party, Mia saw Leo secretly hide the gift under the table. Noah walked in afterwards and did not see where the gift was placed.",
+    "question": "Which of the following people know where the gift is hidden? (select all that apply)",
+    "options": {
+      "A": "Leo",
+      "B": "Mia",
+      "C": "Noah"
+    }
+  },
+  {
+    "sample_id": "demo_mcq_grouped",
+    "prompt_type": "mcq_grouped",
+    "lang": "en",
+    "story": "Sara baked cookies and put them in the blue jar, then went upstairs. Her brother Tom moved the cookies to the red jar while she was gone. Tom did not tell Sara.",
+    "question": "Answer the following sub-questions about the story.",
+    "sub_questions": [
+      {
+        "question": "Where does Sara think the cookies are?",
+        "options": {"A": "blue jar", "B": "red jar"}
+      },
+      {
+        "question": "Where are the cookies actually?",
+        "options": {"A": "blue jar", "B": "red jar"}
+      }
+    ]
+  },
+  {
+    "sample_id": "demo_open",
+    "prompt_type": "open",
+    "lang": "en",
+    "story": "Emma promised to keep her friend's secret, but she accidentally mentioned it to someone else at lunch. She immediately regretted it.",
+    "question": "How is Emma likely feeling right now, and why?"
+  }
+]

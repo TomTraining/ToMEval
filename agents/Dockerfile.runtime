@@ -1,0 +1,32 @@
+# ============================================================================
+# 统一 Agent 运行时包裹层(评测方所有,参赛方看不到也不需要知道)。
+#
+# 作用:以参赛方镜像(BASE_IMAGE,只装了环境 + 拷入了 solution.py)为底,
+# 叠加我方的 agents/server.py 并设为 ENTRYPOINT。这样:
+#   · HTTP 契约(POST /predict、GET /health)、并发、错误兜底 —— 仍由我方 server.py 负责;
+#   · 环境(依赖/系统包) —— 由参赛方镜像决定。
+#
+# 参赛方的 Dockerfile 因此完全不需要知道 server.py 的存在,只管把环境装好、
+# 把仓库(含 solution.py)拷进 /agent。
+#
+# 构建(框架自动执行,见 src/evaluation/agent_launcher.py):
+#   1) docker build -t <base>  <solution_dir>              # 参赛方镜像
+#   2) docker build -t <runtime> --build-arg BASE_IMAGE=<base> \
+#        -f agents/Dockerfile.runtime  agents/             # 叠加 server.py
+# ============================================================================
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# 把统一运行时放到一个与 /agent 隔离的目录,避免和参赛方文件冲突。
+COPY server.py /opt/agent_runtime/server.py
+
+# server.py 从 SOLUTION_DIR 加载 solution.py;参赛方镜像约定把仓库拷到 /agent。
+ENV SOLUTION_DIR=/agent \
+    PORT=8100 \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8100
+
+# HTTP 入口由框架接管:参赛方 Dockerfile 不应写 ENTRYPOINT/CMD,写了也被此处覆盖。
+ENTRYPOINT ["python", "/opt/agent_runtime/server.py"]
