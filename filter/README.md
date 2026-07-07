@@ -54,7 +54,7 @@ shortcut_k: 3        # shortcut 三维探测每维的 trial 次数
 
 # 修复开关与迭代次数
 repair_enabled: true # false=只跑单轮评估打标，不修复/不迭代/不标 unfixable
-max_iter: 3
+max_iter: 2          # 修复迭代上限（含第一轮）
 ```
 
 ### 3. 运行评估
@@ -215,7 +215,6 @@ A: 查看 `logs/filter_{timestamp}.log` 文件。
 ## 设计文档
 
 完整设计见：
-- [V3 数据飞轮设计](../docs/data_flywheel_v3.md)
-- [评估流程可视化](./docs/OVERVIEW.md)
+- [评估流程可视化](./OVERVIEW.md)
 - [评估模块说明](./eval/README.md)
 - [修复模块说明](./repair/README.md)

@@ -84,7 +84,7 @@
 ## 使用示例
 
 ```python
-from filter.eval import evaluate_passk, evaluate_answerability, evaluate_shortcut
+from filter.eval import run_passk_on_df, run_answerability_on_df, run_shortcut_on_df
 from filter.base import load_answer_models, load_judge_client
 import pandas as pd
 
@@ -98,17 +98,17 @@ strong_client = clients["strong"]
 judge_client = load_judge_client("strong")
 
 # Phase B: pass@k
-passk_df = evaluate_passk(df, dataset="MyDataset", k=3, simple_client=simple_client)
+passk_df = run_passk_on_df(df, dataset="MyDataset", k=3, simple_client=simple_client)
 
 # Phase C: answerability（仅 partial + all_failed）
 ans_target = df[passk_df["bucket"].isin(["partial", "all_failed"])]
-ans_df = evaluate_answerability(ans_target, dataset="MyDataset", strong_client=strong_client)
+ans_df = run_answerability_on_df(ans_target, dataset="MyDataset", strong_client=strong_client)
 
 # Phase D: shortcut（仅 partial + answerable）
 partial_ids = set(passk_df[passk_df["bucket"] == "partial"]["sample_id"])
 answerable_ids = set(ans_df[ans_df["answerable"] == True]["sample_id"])
 sc_target = df[df["meta"].apply(lambda m: m.get("id") in (partial_ids & answerable_ids))]
-shortcut_df = evaluate_shortcut(
+shortcut_df = run_shortcut_on_df(
     sc_target,
     dataset="MyDataset",
     k=3,
@@ -139,6 +139,6 @@ shortcut_df = evaluate_shortcut(
 
 ## 相关文档
 
-- 完整流程：`../docs/data_flywheel_v3.md`
+- 评估流程可视化：`../OVERVIEW.md`
 - 决策树编排：`../run_filter.py`
 - 修复模块：`../repair/README.md`

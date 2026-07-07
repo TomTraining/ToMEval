@@ -24,5 +24,6 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         [
             ("task", lambda record: [_task_name(record)]),
             ("ability", by_meta("ability")),
+            ("lang", by_meta("lang")),
         ],
     )

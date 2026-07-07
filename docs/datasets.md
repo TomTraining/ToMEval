@@ -160,9 +160,9 @@
 
 #### PUB — 语用理解
 - **来源**：cfilt/PUB，《PUB: Pragmatics Understanding Benchmark》(ACL 2024 Findings)，14 个语用子任务合并。
-- **能力**：反讽检测、言外之意（implicature）等语用能力（`meta.task_type` 标 14 类）。
+- **能力**：反讽检测、言外之意（implicature）等语用能力（原始含 14 个语用子任务）。
 - **题型**：`mcq_single`。
-- **改造**（`convert_pub.py`）：`pretext → story`，`options` 作候选；归一化文本后把 correct 映射回原始选项；过滤无 options 或 correct 不在 options 中的样本。
+- **改造**（`convert_pub.py`）：`pretext → story`，`options` 作候选；归一化文本后把 correct 映射回原始选项；过滤无 options 或 correct 不在 options 中的样本。⚠️ 转换后 `meta` 未保留子任务标签（`task_type` / `dataset_source` / `difficulty` 等），故指标侧只剩 `option_count`（候选个数），详见 [tasks/PUB_table.md](tasks/PUB_table.md)。
 - **判分**：规则。
 
 #### SocialBench — 角色扮演社交（双语）
@@ -257,7 +257,7 @@
 | 协议 | temperature | enable_thinking | n_samples | system prompt | 答案抽取 |
 |------|:-----------:|:---------------:|:---------:|---------------|----------|
 | `direct` | 0.0 | False | 1 | 裸答（直接给 `\boxed{}`） | 第一个 `\boxed{}` |
-| `direct_think` | 0.6 | True | 1 | 裸答 | 第一个 `\boxed{}` |
+| `direct_think` | 0.6 | True | 1 | 裸答 | 最后一个 `\boxed{}` |
 | `cot` | 0.6 | True | 1 | 逐步推理，末行 `\boxed{}` | 最后一个 `\boxed{}` |
 | `del_tom` | 0.6 | True | 8 | 逐步推理 | 最后一个 `\boxed{}` + 多数投票 |
 
@@ -266,7 +266,7 @@
 ### 5.2 Prompt 构造
 
 - **默认**：框架按 `协议风格 × 语言 × 题型` 生成统一的 system prompt + 题面。
-- **复刻原论文**（可选）：`tasks/<DS>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子即可忠实还原原论文排版（约定式加载，缺省回退通用实现）。目前除 SocialMind 外的 18 个数据集都接入了 `prompt.py`。
+- **复刻原论文**（可选）：`tasks/<DS>/prompt.py` 提供 `build_prompt` / `build_system_prompt` / `prepare_samples` 钩子即可忠实还原原论文排版（约定式加载，缺省回退通用实现）。目前 19 个数据集都接入了 `prompt.py`（SocialMind 的 `prompt.py` 仅为 Q4 开放题定制，MCQ 仍回退通用实现）。
 
 ### 5.3 判分
 

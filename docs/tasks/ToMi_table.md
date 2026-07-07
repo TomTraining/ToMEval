@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [ToMi_table_zh.md](ToMi_table_zh.md)。
 
 ## 一级指标
 
@@ -22,9 +23,41 @@
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
 | `accuracy` | `type` | — | — |
+|  | `story_type` | — | — |
+|  | `question_type` | — | — |
 
 ## 各维度定义
 
 ### 二级指标 · `type`（切分型，单位 ACC）
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
+
+### 二级指标 · `story_type`（切分型，单位 ACC）
+
+按故事类型切分（meta.story_type）。
+
+- `true_belief`：真信念故事
+- `false_belief`：一阶错误信念故事
+- `second_order_false_belief`：二阶错误信念故事
+- `unknown`：meta.story_type 为空的样本
+
+### 二级指标 · `question_type`（切分型，单位 ACC）
+
+按题型切分（meta.question_type）。
+
+- `first_order_0_tom`：一阶、需要 ToM（变体 0）
+- `first_order_1_tom`：一阶、需要 ToM（变体 1）
+- `first_order_0_no_tom`：一阶、无需 ToM（变体 0）
+- `first_order_1_no_tom`：一阶、无需 ToM（变体 1）
+- `second_order_0_tom`：二阶、需要 ToM（变体 0）
+- `second_order_1_tom`：二阶、需要 ToM（变体 1）
+- `second_order_0_no_tom`：二阶、无需 ToM（变体 0）
+- `second_order_1_no_tom`：二阶、无需 ToM（变体 1）
+- `memory`：记忆核对题
+- `reality`：现实核对题
+- `unknown`：meta.question_type 为空的样本

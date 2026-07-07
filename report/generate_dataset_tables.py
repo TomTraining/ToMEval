@@ -21,6 +21,38 @@ from report.utils import parse_markdown_sections, parse_markdown_table
 ModelRun = Dict[str, Optional[str]]
 
 
+def flatten_payload_dimensions(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """把 avg_metrics 里嵌套的 dimensions 树展开成扁平的 dict 型 section。
+
+    指标规整化后，avg_metrics["dimensions"] 是 {维度名: {split: {acc, n, [dimensions]}}}
+    的多级树，直接当 dict 指标渲染会变成一坨 JSON。这里把每个维度（含三级嵌套）摊成
+    `维度:<路径>` → {split: acc} 的 dict section，删掉原始 dimensions 键，下游表格逻辑不变。
+    三级维度路径形如 `维度:dim1/夫妻/dim2`（带父 split 前缀）。
+    """
+    avg = payload.get("avg_metrics")
+    if not isinstance(avg, dict) or not isinstance(avg.get("dimensions"), dict):
+        return payload
+
+    def walk(dimensions: Dict[str, Any], prefix: str) -> None:
+        for dim_name, splits in dimensions.items():
+            if not isinstance(splits, dict) or not splits:
+                continue
+            path = f"{prefix}{dim_name}"
+            avg[f"维度:{path}"] = {
+                split_key: split.get("acc")
+                for split_key, split in splits.items()
+                if isinstance(split, dict) and isinstance(split.get("acc"), (int, float))
+            }
+            for split_key, split in splits.items():
+                child = split.get("dimensions") if isinstance(split, dict) else None
+                if isinstance(child, dict) and child:
+                    walk(child, f"{path}/{split_key}/")
+
+    walk(avg["dimensions"], "")
+    avg.pop("dimensions", None)
+    return payload
+
+
 def resolve_exp_dir(model_dir: Path, exp_suffix: Optional[str], dataset_name: str, model_name: str) -> Optional[Path]:
     """Resolve the experiment directory for one dataset/model pair."""
     if exp_suffix:
@@ -96,7 +128,7 @@ def collect_metrics(
                             "同一个生成模型绑定多个 exp_suffix 时，请为每个条目设置不同 display。"
                         )
                     with open(metrics_file, 'r', encoding='utf-8') as f:
-                        metrics_data[dataset_name][display_name] = json.load(f)
+                        metrics_data[dataset_name][display_name] = flatten_payload_dimensions(json.load(f))
             continue
 
         for model_dir in dataset_dir.iterdir():
@@ -117,7 +149,7 @@ def collect_metrics(
 
             if metrics_file.exists():
                 with open(metrics_file, 'r', encoding='utf-8') as f:
-                    metrics_data[dataset_name][model_name] = json.load(f)
+                    metrics_data[dataset_name][model_name] = flatten_payload_dimensions(json.load(f))
 
     return metrics_data
 

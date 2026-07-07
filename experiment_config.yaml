@@ -1,7 +1,7 @@
 llm:
-  model_name: Qwen3-8B
-  api_key: not-needed
-  api_url: http://0.0.0.0:8000/v1
+  model_name: <your-model-name>        
+  api_key: <your-api-key>              
+  api_url: <your-api-base-url>   
   max_workers: 16  # 降低并发，避免服务器过载
 
 # 评测协议:采样参数(temperature/max_tokens/enable_thinking/top_p)、system prompt、extractor、
@@ -16,24 +16,28 @@ protocol: cot
 #   all       预测 + 判分 + 出图(端到端)
 stage: all
 
-# run_eval.py 批量评测的数据集列表(单跑 tasks/<DS>/run.py 时忽略此项)
-# 现已全部就绪、可直接启用的数据集(datasets/ 下均有 parquet + tasks/<DS>/prompt.py):
-#   ToM/社会认知 : BigToM EmoBench FanToM HiToM SocialIQA ToMBench TactfulToM
-#                  SimpleToM Belief_R ExploreToM ToMato ToMQA ToMi ToMChallenges
-#   语用/社交     : PUB SocialBench
-#   常识对照(非ToM): HellaSwag FictionalQA
-#   SocialMind     : socmind v5.3,Q1-Q4 混合题型,Q4 走 open_judge: rubric(LLM judge)
-#   (ExploreToM/FictionalQA/SocialBench/ToMChallenges 含开放题,已在各自 config.yaml 配 open_judge: f1)
-#   完整说明见 docs/datasets.md
 datasets:
+  - Belief_R
+  - BigToM
   - EmoBench
+  - ExploreToM
   - FanToM
+  - FictionalQA
+  - HellaSwag
   - HiToM
-  - ToMBench
-  - TactfulToM
+  - PUB
+  - SimpleToM
+  - SocialBench
+  - SocialIQA
   - SocialMind
+  - TactfulToM
+  - ToMBench
+  - ToMChallenges
+  - ToMQA
+  - ToMato
+  - ToMi
 
-max_samples: 0
+max_samples: 40
 normalized_datasets_path: datasets
 results_path: results          # 预测/判分结果根目录:results/<数据集>/<模型>/exp_<时间戳>/
 figures_path: figures          # visualize 阶段出图根目录:figures/<数据集>/<模型>/

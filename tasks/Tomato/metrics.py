@@ -1,23 +1,15 @@
-"""ToMato 分组指标：meta.dimension 是有序的三槽维度列表（slot1/slot2/slot3），
-按 slot1 → slot2 → slot3 天然嵌套为二→三→四级维度。缺失槽位用占位符标记。
+"""ToMato 分组指标。
+
+标准化数据里 meta.dimension 实为单槽（仅心智状态一项，如 ['emotion']），此前按
+slot1→slot2→slot3 嵌套出的三/四级维度全是占位空桶，纯属误导，已删除。改用真实字段：
+mental_state（心智状态大类）/ order（推理阶数）/ false_belief（是否错误信念）。
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from src.evaluation.task_metrics import hierarchical_metrics, meta, value_list
-
-
-def _slot(index: int):
-    """取 meta.dimension 第 index 个槽位的分组键；缺失用占位符。"""
-    placeholder = "__none__" if index == 2 else "__missing__"
-
-    def key_fn(record: Dict[str, Any]) -> List[str]:
-        dims = value_list(meta(record).get("dimension"))
-        return [dims[index] if len(dims) > index else placeholder]
-
-    return key_fn
+from src.evaluation.task_metrics import by_meta, hierarchical_metrics
 
 
 def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -25,11 +17,8 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         records,
         per_sample_results,
         [
-            # slot1 → slot2 → slot3 天然嵌套。
-            ("dimension_1", _slot(0), [
-                ("dimension_2", _slot(1), [
-                    ("dimension_3", _slot(2)),
-                ]),
-            ]),
+            ("mental_state", by_meta("mental_state")),
+            ("order", by_meta("order")),
+            ("false_belief", by_meta("false_belief")),
         ],
     )

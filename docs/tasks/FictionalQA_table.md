@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [FictionalQA_table_zh.md](FictionalQA_table_zh.md)。
 
 ## 一级指标
 
@@ -21,25 +22,47 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `grading` | — | — |
-|  | `macro_split_acc` | — | — |
+| `accuracy` | `type` | — | — |
 |  | `style` | — | — |
-|  | `type` | — | — |
+|  | `grading` | — | — |
+|  | `macro_split_acc` | — | — |
 
 ## 各维度定义
 
-### 二级指标 · `grading`（汇总型，单位 ACC）
+### 二级指标 · `type`（切分型，单位 ACC）
 
-informed-vs-blind 对照（汇总型）。informed=模型在给定上下文下的准确率；blind=无上下文盲评均分；两者之差即官方关注的 gap。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
 
-### 二级指标 · `macro_split_acc`（汇总型，单位 ACC）
-
-宏平均准确率（汇总型）。按 event / document / style 三种口径先组内算准确率再跨组平均（n=组数），消除大组主导。
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
 
 ### 二级指标 · `style`（切分型，单位 ACC）
 
-按虚构文体切分（meta.fiction_type）：news / corporate / encyclopedia / blog / social。
+按虚构文体切分（meta.style）。
 
-### 二级指标 · `type`（切分型，单位 ACC）
+- `news`：新闻稿体
+- `corporate`：企业/公文体
+- `encyclopedia`：百科词条体
+- `blog`：博客文体
+- `social`：社交媒体文体
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+### 二级指标 · `grading`（汇总型，单位 ACC）
+
+informed-vs-blind 对照，衡量「给了虚构上下文」相对「盲评」的增益。
+
+**计算方式**：informed = 全样本 ACC；blind = 对每题的 meta.blind_grade_avg 求平均（无上下文盲评均分）；两者之差即官方关注的 gap。
+
+- `informed`：模型在给定虚构上下文下的准确率
+- `blind`：无上下文时的盲评均分
+
+### 二级指标 · `macro_split_acc`（汇总型，单位 ACC）
+
+三种分组口径下的宏平均，消除大组主导。
+
+**计算方式**：每种口径先按组算组内 ACC，再对各组**等权平均**（n=组数），而非全样本 ACC。
+
+- `event`：先按 event 分组算 ACC 再跨组平均
+- `document`：先按 document 分组算 ACC 再跨组平均
+- `style`：先按 style 分组算 ACC 再跨组平均

@@ -43,7 +43,7 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 协议把答题格式指令从 user prompt **移到了 system prompt**，按「风格 × 题型 × 语言」生成：
 
 - 风格只有两类：
-  - **裸答**（`direct` / `direct_think`）：直接给最终答案，不要任何解释/推理。
+  - **裸答**（`direct` / `direct_think`）：直接给出最终答案（不硬性禁止解释/推理，因为 `direct_think` 开了 thinking，禁推理会与之冲突）。
   - **推理**（`cot` / `del_tom`）：一步步推理角色心理状态，最终答案放最后一行。
 - 题型三类：`mcq_single`（单选）/ `mcq_multi`（多选）/ `open`（开放）。
 - 语言两套：英文 `en` / 中文 `zh`（跟随样本 `meta.lang` / `meta.language`）。
@@ -52,9 +52,9 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 
 | 风格 | 题型 | system prompt |
 |---|---|---|
-| 裸答 | mcq_single | You are a careful reader answering a multiple-choice theory-of-mind question. Read the story and the question carefully, then output ONLY your final answer in the format `\boxed{X}` where X is the letter of the single best option. Do not include any explanation, reasoning, or extra text. |
-| 裸答 | mcq_multi | You are a careful reader answering a multiple-choice theory-of-mind question. Read the story and the question carefully, then output ONLY your final answer as one `\boxed{}` containing every correct option letter, comma-separated, e.g. `\boxed{A,C}`. Do not include any explanation, reasoning, or extra text. |
-| 裸答 | open | You are a careful reader answering a question about a story. Read the story and the question carefully, then output ONLY the final answer text. Do not include any explanation, reasoning, or extra text. |
+| 裸答 | mcq_single | You are a careful reader answering a multiple-choice theory-of-mind question. Read the story and the question carefully, then give your final answer in the format `\boxed{X}` where X is the letter of the single best option. |
+| 裸答 | mcq_multi | You are a careful reader answering a multiple-choice theory-of-mind question. Read the story and the question carefully, then give your final answer as one `\boxed{}` containing every correct option letter, comma-separated, e.g. `\boxed{A,C}`. |
+| 裸答 | open | You are a careful reader answering a question about a story. Read the story and the question carefully, then give your final answer text. |
 | 推理 | mcq_single | You are a careful reader answering a multiple-choice theory-of-mind question. Think step by step about the mental states of the characters, then output your final answer in the format `\boxed{X}` where X is the letter of the single best option. Put your final `\boxed{X}` on the last line. |
 | 推理 | mcq_multi | You are a careful reader answering a multiple-choice theory-of-mind question. Think step by step about the mental states of the characters, then output your final answer as one `\boxed{}` containing every correct option letter, comma-separated, e.g. `\boxed{A,C}`. Put your final `\boxed{}` on the last line. |
 | 推理 | open | You are a careful reader answering a question about a story. Think step by step about the mental states of the characters, then give your final answer. Put your final answer on the last line. |
@@ -63,9 +63,9 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 
 | 风格 | 题型 | system prompt |
 |---|---|---|
-| 裸答 | mcq_single | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的单选题。请仔细阅读故事和问题,只输出最终答案,格式为 `\boxed{X}`,其中 X 是唯一最合适选项的字母。不要包含任何解释、推理或多余文字。 |
-| 裸答 | mcq_multi | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的多选题。请仔细阅读故事和问题,只输出最终答案:把所有正确选项的字母放进同一个 `\boxed{}` 中,用英文逗号分隔,例如 `\boxed{A,C}`。不要包含任何解释、推理或多余文字。 |
-| 裸答 | open | 你是一个认真阅读的人,正在回答一道关于故事的问题。请仔细阅读故事和问题,只输出最终的答案文本。不要包含任何解释、推理或多余文字。 |
+| 裸答 | mcq_single | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的单选题。请仔细阅读故事和问题,然后给出最终答案,格式为 `\boxed{X}`,其中 X 是唯一最合适选项的字母。 |
+| 裸答 | mcq_multi | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的多选题。请仔细阅读故事和问题,然后给出最终答案:把所有正确选项的字母放进同一个 `\boxed{}` 中,用英文逗号分隔,例如 `\boxed{A,C}`。 |
+| 裸答 | open | 你是一个认真阅读的人,正在回答一道关于故事的问题。请仔细阅读故事和问题,然后给出最终的答案文本。 |
 | 推理 | mcq_single | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的单选题。请一步步推理角色的心理状态,然后输出最终答案,格式为 `\boxed{X}`,其中 X 是唯一最合适选项的字母。把最终的 `\boxed{X}` 放在最后一行。 |
 | 推理 | mcq_multi | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的多选题。请一步步推理角色的心理状态,然后输出最终答案:把所有正确选项的字母放进同一个 `\boxed{}` 中,用英文逗号分隔,例如 `\boxed{A,C}`。把最终的 `\boxed{}` 放在最后一行。 |
 | 推理 | open | 你是一个认真阅读的人,正在回答一道关于故事的问题。请一步步推理角色的心理状态,然后给出最终答案。把最终答案放在最后一行。 |

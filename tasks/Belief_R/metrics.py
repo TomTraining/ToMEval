@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from src.evaluation.task_metrics import add_dimension, first_value, hierarchical_metrics, make_split, meta, safe_div
+from src.evaluation.task_metrics import (
+    add_dimension,
+    by_meta,
+    first_value,
+    hierarchical_metrics,
+    make_split,
+    meta,
+    safe_div,
+)
 
 
 def _step_kind(record: Dict[str, Any]) -> str:
@@ -16,7 +24,13 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
     metrics = hierarchical_metrics(
         records,
         per_sample_results,
-        [("step", lambda r: [_step_kind(r)])],
+        [
+            ("step", lambda r: [_step_kind(r)]),
+            # modus：推理式（ponens 肯定前件 / tollens 否定后件）；
+            # types_of_relation：条件规则的关系类型（事件→事件 / 事件→心理状态）。
+            ("modus", by_meta("modus")),
+            ("types_of_relation", by_meta("types_of_relation")),
+        ],
     )
 
     bu_correct = bu_total = bm_correct = bm_total = 0

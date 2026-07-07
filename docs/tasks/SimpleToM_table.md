@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [SimpleToM_table_zh.md](SimpleToM_table_zh.md)。
 
 ## 一级指标
 
@@ -21,25 +22,49 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `difficulty` | — | — |
+| `accuracy` | `type` | — | — |
 |  | `dimension` | — | — |
-|  | `source` | — | — |
-|  | `type` | — | — |
+|  | `qa_type` | — | — |
+|  | `scenario_name` | — | — |
 
 ## 各维度定义
 
-### 二级指标 · `difficulty`（切分型，单位 ACC）
+### 二级指标 · `type`（切分型，单位 ACC）
 
-按难度切分（meta.difficulty）。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
 
 ### 二级指标 · `dimension`（切分型，单位 ACC）
 
-按考察维度切分（meta.dimension）：information_access（信息可达）/ behavior_prediction（行为预测）/ social_judgment（社会判断）。
+按考察维度切分（meta.dimension）。
 
-### 二级指标 · `source`（切分型，单位 ACC）
+- `information_access`：角色能否获知关键信息
+- `behavior_prediction`：预测角色在（可能错误的）信念下的行为
+- `social_judgment`：对角色行为的社会评价
 
-按原始来源切分（meta.dataset_source）。
+### 二级指标 · `qa_type`（切分型，单位 ACC）
 
-### 二级指标 · `type`（切分型，单位 ACC）
+按问答类型切分（meta.qa_type）。
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+- `mental_state`：关于角色心理状态的题
+- `behavior`：关于角色行为的题
+- `judgment`：社会判断题
+
+### 二级指标 · `scenario_name`（切分型，单位 ACC）
+
+按日常情景切分（meta.scenario_name），共 10 种。
+
+- `behind_the_scene_service_industry`：服务行业不为顾客所见的幕后环节
+- `food_item_in_grocery_store`：超市货架上的食品状况
+- `hidden_body_part_feature`：被遮挡而不可见的身体特征
+- `inside_containers_for_personal_belongings`：私人物品容器内部的东西
+- `inside_reuse_labeled_containers`：重复使用、标签与内容物不符的容器
+- `locked_devices_accounts`：上锁的设备或账户内部
+- `provider_info_healthcare`：医疗服务提供方的隐含信息
+- `seller_info_in_second_hand_market`：二手市场卖家的隐含信息
+- `true_property_pretentious_labels`：标签夸大时的真实属性
+- `unobserved_unethical_actions`：无人目击时的不当行为

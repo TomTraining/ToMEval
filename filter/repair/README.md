@@ -145,7 +145,7 @@ repair_client = load_judge_client("strong")
 
 # 执行修复
 repaired_df = repair_samples(
-    input_df=input_df,
+    df=input_df,
     labels_df=labels_df,
     dataset="MyDataset",
     iter_n=1,
@@ -175,7 +175,7 @@ repaired_df.to_parquet("eval_iter1/repaired.parquet", index=False)
 - 最后一轮仍失败的样本标记为 `unfixable`
 
 ### 4. 迭代上限
-- 默认最多 3 轮修复（可配置 `max_iter`）
+- 默认最多 2 轮修复（含第一轮，可配置 `max_iter`）
 - 避免无限循环修复
 
 ---
@@ -203,6 +203,6 @@ repaired_df.to_parquet("eval_iter1/repaired.parquet", index=False)
 
 ## 相关文档
 
-- 完整流程：`../docs/data_flywheel_v3.md`
+- 评估流程可视化：`../OVERVIEW.md`
 - 评估模块：`../eval/README.md`
 - 决策树编排：`../run_filter.py`

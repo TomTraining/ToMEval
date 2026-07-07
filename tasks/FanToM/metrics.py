@@ -15,6 +15,7 @@ from typing import Any, Dict, List
 
 from src.evaluation.task_metrics import (
     add_dimension,
+    by_meta,
     group_all_correct,
     hierarchical_metrics,
     make_split,
@@ -57,7 +58,11 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
     metrics = hierarchical_metrics(
         records,
         per_sample_results,
-        [("question_type", lambda r: [_question_type(r)])],
+        [
+            ("question_type", lambda r: [_question_type(r)]),
+            # order：ToM 阶数（0=事实/一阶前置，1=一阶信念，2=二阶信念）。
+            ("order", by_meta("order")),
+        ],
     )
 
     def all_split(required: List[str]):

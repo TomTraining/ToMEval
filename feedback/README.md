@@ -21,24 +21,27 @@ run_feedback.py          # 入口脚本（项目根目录）
 > **训练集口径**：进入训练集的样本必须满足 LSH 守门员通过（无测试集泄漏）。`synth_clean/` 下的 parquet 是最终可用数据，`synth_raw/` 是中间产物。难度过滤由 `filter/` 统一处理。
 
 ```
-data_output/
-├── bad_cases/            # Stage 1 加载的 bad case（按维度分层抽样）
-├── diagnosis_reports/    # Stage 2 诊断报告 + dimension_coverage.json
-├── synth_raw/            # Stage 3 原始合成候选（未过 LSH）
-└── synth_clean/          # Stage 4 过 LSH 守门员后的最终训练数据
+feedback_output/                   # config.yaml 的 output_path（默认 feedback_output）
+└── _intermediate/
+    ├── bad_cases/            # Stage 1 加载的 bad case（按维度分层抽样）
+    ├── diagnosis_reports/    # Stage 2 诊断报告 + dimension_coverage.json
+    ├── synth_raw/            # Stage 3 原始合成候选（未过 LSH）
+    └── synth_clean/          # Stage 4 过 LSH 守门员后的最终训练数据
 ```
 
 ---
 
 ## 流水线阶段
 
-| Stage | 入口参数 | 说明 |
+阶段由 `config.yaml` 的 `stage` 字段控制（不是 CLI 参数）：
+
+| Stage | `stage` 取值 | 说明 |
 |---|---|---|
-| 1 | `--stage load` | 从 `tomeval_predictions_latest_full` 加载三模型并集 bad case，按维度分层 |
-| 2 | `--stage diagnose` | 按能力维度对 bad case 分组，合成模型逐批生成 `DimensionDiagnosisReport` |
-| 3 | `--stage synth` | 读诊断报告生成新样本（含 LSH 去泄） |
-| 4 | `--stage dedupe` | LSH 守门员过滤测试集泄漏（`synth` 已包含此步） |
-| 全流程 | `--stage all` | 上述顺序执行 |
+| 1 | `load` | 从 `predictions_root`（默认 `results`）加载各模型并集 bad case，按维度分层 |
+| 2 | `diagnose` | 按能力维度对 bad case 分组，合成模型逐批生成 `DimensionDiagnosisReport` |
+| 3 | `synth` | 读诊断报告生成新样本（含 LSH 去泄） |
+| 4 | `dedupe` | LSH 守门员过滤测试集泄漏（`synth` 已包含此步） |
+| 全流程 | `all` | 上述顺序执行 |
 
 ---
 
@@ -57,9 +60,9 @@ config.yaml 中的运行控制字段：
 | 字段 | 默认值 | 说明 |
 |---|---|---|
 | `stage` | `all` | `all` / `load` / `diagnose` / `synth` / `dedupe` |
-| `dataset` | `""`（全部） | 只运行单个数据集，如 `ToMBench` |
 | `max_bad_cases` | `0`（不限） | 每数据集最多 bad case 数 |
-| `iteration` | `1` | 迭代轮次，影响输出文件命名 |
+
+（数据集通过 `synthesis_datasets` 列表逐项指定，见下方配置说明。）
 
 ---
 
@@ -71,20 +74,35 @@ synthesis_model:
   api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
   api_key: <DashScope API key>
   model_name: deepseek-v4-flash
-  temperature: 0.8
+  temperature: 0.6
   max_workers: 16
+
+# 评估结果根目录（Stage 1 从这里读预测）
+predictions_root: results
 
 # 守门员（LSH）
 leakage_guard:
-  test_root: ./dataset
-  threshold: 0.6
+  test_root: ./datasets           # 相对于 ToMEval/ 目录
+  threshold: 0.6                  # 与测试集的 Jaccard 相似度阈值
+  internal_threshold: 0.85        # 合成样本之间的内部去重阈值
   num_perm: 128
   ngram: 4
 
 # 合成参数
 synthesis:
-  samples_per_report: 3           # 每份维度报告生成的新样本数
-  max_retries_per_diagnosis: 3
+  max_retries_per_diagnosis: 3    # 生成失败时最多重试次数
+  bad_cases_per_report: 1         # 每个诊断报告输入几条 bad case
+  diagnosis_batch_size: 10        # stage2 每批诊断报告数
+  synthesis_batch_size: 20        # stage3 每批合成数据数
+
+# 数据集列表（每数据集级指定 target_samples / samples_per_report / models）
+synthesis_datasets:
+  - name: ToMBench
+    target_samples: 50
+    samples_per_report: 5
+    models:
+      - name: <model_name>
+        exp: ~                    # ~ 表示自动取最新 exp_*
 ```
 
 ---

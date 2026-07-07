@@ -120,13 +120,13 @@ python tasks/ToMBench/run.py
 
 ```
 已加载 1012 条样本，数据集: ToMBench/test
-开始推理，共 3036 个请求（1012 样本 × 3 轮）...
+开始推理，共 1012 个请求（1012 样本 × 1 轮）...
 第 1 轮: accuracy=0.7321  (741/1012)
-第 2 轮: accuracy=0.7343  (743/1012)
-第 3 轮: accuracy=0.7356  (744/1012)
-平均 accuracy: 0.7340 ± 0.0018
+平均 accuracy: 0.7321
 结果已保存到: results/ToMBench/MyNewModel/exp_20260422_143022/
 ```
+
+> 上面对应 `protocol: cot`（1 轮）。轮数由协议决定：`direct` / `direct_think` / `cot` 各 1 轮，`del_tom` 8 轮并按字母多数投票，此时会打印多轮 accuracy 与 `平均 accuracy ± 标准差`。
 
 ---
 
