@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [HellaSwag_table_zh.md](HellaSwag_table_zh.md)。
 
 ## 一级指标
 
@@ -21,15 +22,23 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `split_type` | — | — |
-|  | `type` | — | — |
+| `accuracy` | `type` | — | — |
+|  | `split_type` | — | — |
 
 ## 各维度定义
 
-### 二级指标 · `split_type`（切分型，单位 ACC）
-
-按划分切分（meta.split_type）：indomain（域内）/ zeroshot（零样本）。
-
 ### 二级指标 · `type`（切分型，单位 ACC）
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
+
+### 二级指标 · `split_type`（切分型，单位 ACC）
+
+按官方划分切分（meta.split_type）。
+
+- `indomain`：in-domain 划分
+- `zeroshot`：zero-shot 划分（活动类别未在训练出现）

@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [TactfulToM_table_zh.md](TactfulToM_table_zh.md)。
 
 ## 一级指标
 
@@ -21,35 +22,60 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `category` | — | — |
-|  | `joint_comp_just` | — | — |
-|  | `lie_type` | — | — |
+| `accuracy` | `type` | — | — |
+|  | `category` | — | — |
 |  | `question_type` | — | — |
+|  | `lie_type` | — | — |
 |  | `tom_type` | — | — |
-|  | `type` | — | — |
+|  | `joint_comp_just` | — | — |
 
 ## 各维度定义
 
+### 二级指标 · `type`（切分型，单位 ACC）
+
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
+
 ### 二级指标 · `category`（切分型，单位 ACC）
 
-按问题大类切分（meta.category）：belief / answerability / info_accessibility / lieability / liedetectability / justification。
+按问题大类切分（meta.category）。
 
-### 二级指标 · `joint_comp_just`（汇总型，单位 ACC）
-
-Comp∧Just 联合指标（汇总型，单 overall split）。同一对话的 Comprehension 与 Justification 都答对才算真正理解了善意谎言（Happé 双题判定）。
-
-### 二级指标 · `lie_type`（切分型，单位 ACC）
-
-按白谎类型切分（meta.lie_type）：altruistic_white_lies / pareto_white_lies。
+- `belief`：对角色信念的判断
+- `answerability`：问题在给定信息下是否可答
+- `info_accessibility`：角色是否能获知某信息
+- `lieability`：识别谁会/该说善意谎言
+- `liedetectability`：谎言是否可被识破
+- `justification`：对善意谎言动机的解释判断（与 comprehension 配对做联合）
+- `comprehension`：对话事实理解题（与 justification 配对）
+- `fact`：事实核对控制项
 
 ### 二级指标 · `question_type`（切分型，单位 ACC）
 
-按细粒度题型切分（meta.question_type），如 tom:belief:accessible:truth 等完整路径。
+按细粒度题型完整路径切分（meta.question_type）。
+
+路径格式 <层级>:<能力>:<形式/可达性>:<truth 真话 / real_reason 真因 / reason 理由>，如 tom:belief:accessible:truth。共 23 种。
+
+### 二级指标 · `lie_type`（切分型，单位 ACC）
+
+按白谎类型切分（meta.lie_type）。
+
+- `altruistic_white_lies`：纯为他人利益的善意谎言
+- `pareto_white_lies`：利他且不损己的双赢善意谎言
 
 ### 二级指标 · `tom_type`（切分型，单位 ACC）
 
-按 ToM 阶数与角色组合切分（meta.tom_type）：first-order / second-order 各角色对。
+按 ToM 阶数与角色组合切分（meta.tom_type）。
 
-### 二级指标 · `type`（切分型，单位 ACC）
+形如 first-order:A / second-order:AB，字母为角色代号；空值为非 ToM 题。共 13 种。
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+### 二级指标 · `joint_comp_just`（汇总型，单位 ACC）
+
+Comp∧Just 联合指标：同一对话的对话理解与辩护两题都答对，才算真正理解了善意谎言（Happé 双题判定）。
+
+**计算方式**：按 set_id 用 group_all_correct 分组，要求同时含 comprehension、justification；两者皆对的对话数 / 总对话数。无法由两个边际 ACC 反推。
+
+- `overall`：全部对话上的联合通过率

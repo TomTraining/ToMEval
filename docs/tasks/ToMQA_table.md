@@ -3,7 +3,10 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [ToMQA_table_zh.md](ToMQA_table_zh.md)。
+
+> 说明：旧版声明的 `difficulty` / `task_type` / `order` 在标准化 meta 中并不存在（恒为 unknown），已替换为真实字段 `task`。
 
 ## 一级指标
 
@@ -21,30 +24,34 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `difficulty` | — | — |
+| `accuracy` | `type` | — | — |
 |  | `dimension` | — | — |
-|  | `order` | — | — |
-|  | `task_type` | — | — |
-|  | `type` | — | — |
+|  | `task` | — | — |
 
 ## 各维度定义
 
-### 二级指标 · `difficulty`（切分型，单位 ACC）
+### 二级指标 · `type`（切分型，单位 ACC）
 
-按难度切分（meta.difficulty）。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
 
 ### 二级指标 · `dimension`（切分型，单位 ACC）
 
-按考察维度切分（meta.dimension）：belief / memory / reality / search。
+按考察维度切分（meta.dimension）。
 
-### 二级指标 · `order`（切分型，单位 ACC）
+- `belief`：信念推理题
+- `memory`：记忆核对题
+- `reality`：现实核对题
+- `search`：搜索/位置题
 
-按信念阶数切分（meta.order）。
+### 二级指标 · `task`（切分型，单位 ACC）
 
-### 二级指标 · `task_type`（切分型，单位 ACC）
+按 bAbI 风格任务型切分（meta.task）。
 
-按任务类型切分（meta.task_type）。
-
-### 二级指标 · `type`（切分型，单位 ACC）
-
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+- `fb`：first-order false belief
+- `tb`：true belief
+- `sofb`：second-order false belief

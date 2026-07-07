@@ -23,6 +23,18 @@ def load_metrics_payload(exp_dir: Path) -> Dict[str, Any]:
     return json.loads(metrics_path.read_text(encoding="utf-8"))
 
 
+def load_detailed_metrics(exp_dir: Path) -> List[Dict[str, Any]]:
+    """读取逐样本明细 detailed_metrics.jsonl（每行一条 per_sample 结果，自带 sample_id/repeat）。
+
+    明细已从 metrics.json 拆出，旧目录可能没有该文件，缺失时返回空列表。
+    """
+    detailed_path = exp_dir / "detailed_metrics.jsonl"
+    if not detailed_path.exists():
+        return []
+    with detailed_path.open(encoding="utf-8") as file:
+        return [json.loads(line) for line in file if line.strip()]
+
+
 def load_prediction_records(exp_dir: Path) -> List[Dict[str, Any]]:
     prediction_path = exp_dir / "prediction.jsonl"
     if not prediction_path.exists():

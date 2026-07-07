@@ -9,5 +9,10 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
     return hierarchical_metrics(
         records,
         per_sample_results,
-        [("order", by_meta("order"))],
+        [
+            # order 在标准化数据的 meta 里并不存在（恒为 unknown），改用真实字段。
+            ("question_type", by_meta("question_type")),
+            ("task_format", by_meta("task_format")),
+            ("test_type", by_meta("test_type")),
+        ],
     )

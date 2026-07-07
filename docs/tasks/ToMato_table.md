@@ -3,7 +3,10 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [ToMato_table_zh.md](ToMato_table_zh.md)。
+
+> 说明：标准化数据里 `meta.dimension` 实为单槽（仅心智状态一项），旧版按 slot1→slot2→slot3 展开的三/四级维度全是占位空桶，已删除，改用 `mental_state` / `order` / `false_belief` 真实字段。
 
 ## 一级指标
 
@@ -21,23 +24,42 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `dimension_1` | `dimension_2` | `dimension_3` |
-|  | `type` | — | — |
+| `accuracy` | `type` | — | — |
+|  | `mental_state` | — | — |
+|  | `order` | — | — |
+|  | `false_belief` | — | — |
 
 ## 各维度定义
 
-### 二级指标 · `dimension_1`（切分型，单位 ACC）
-
-三槽心智维度的第 1 槽（slot1，二级），其下嵌套 dimension_2（三级）→ dimension_3（四级）。slot1 为 belief / desire / emotion / intention / knowledge。
-
-### 三级指标 · `dimension_1 → dimension_2`（切分型，单位 ACC）
-
-三槽维度第 2 槽（slot2，三级，挂在 dimension_1 各 split 下）；缺槽用 __missing__ 占位。
-
-### 四级指标 · `dimension_1 → dimension_2 → dimension_3`（切分型，单位 ACC）
-
-三槽维度第 3 槽（slot3，四级，挂在 dimension_2 各 split 下）；缺槽用 __none__ 占位。
-
 ### 二级指标 · `type`（切分型，单位 ACC）
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
+
+### 二级指标 · `mental_state`（切分型，单位 ACC）
+
+按心智状态大类切分（meta.mental_state）。
+
+- `belief`：关于信念的推理
+- `desire`：关于欲望的推理
+- `emotion`：关于情绪的推理
+- `intention`：关于意图的推理
+- `knowledge`：关于知识的推理
+
+### 二级指标 · `order`（切分型，单位 ACC）
+
+按心智推理阶数切分（meta.order）。
+
+- `1`：对他人心智状态的推理
+- `2`：对「他人关于他人心智状态」的推理
+
+### 二级指标 · `false_belief`（切分型，单位 ACC）
+
+按是否涉及错误信念切分（meta.false_belief）。
+
+- `True`：涉及错误信念
+- `False`：不涉及错误信念

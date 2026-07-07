@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [SocialIQA_table_zh.md](SocialIQA_table_zh.md)。
 
 ## 一级指标
 
@@ -21,15 +22,30 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `dimension` | — | — |
-|  | `type` | — | — |
+| `accuracy` | `type` | — | — |
+|  | `dimension` | — | — |
 
 ## 各维度定义
 
-### 二级指标 · `dimension`（切分型，单位 ACC）
-
-按 ATOMIC 推理维度切分（meta.dimension）：xIntent / xNeed / xAttr / xEffect / xReact / xWant / oEffect / oReact / oWant。
-
 ### 二级指标 · `type`（切分型，单位 ACC）
 
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
+
+### 二级指标 · `dimension`（切分型，单位 ACC）
+
+按 ATOMIC 推理维度切分（meta.dimension）。x* 关于事件主角 PersonX，o* 关于其他人。
+
+- `xIntent`：事件前 X 做该行为的意图/动机
+- `xNeed`：事件前 X 需要满足的前置条件
+- `xAttr`：事件反映出的 X 的性格/属性
+- `xEffect`：事件后发生在 X 身上的影响
+- `xReact`：事件后 X 的情绪反应
+- `xWant`：事件后 X 想做的事
+- `oEffect`：事件后其他人受到的影响
+- `oReact`：事件后其他人的情绪反应
+- `oWant`：事件后其他人想做的事

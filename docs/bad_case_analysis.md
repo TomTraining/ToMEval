@@ -4,10 +4,11 @@
 
 ## What It Reads
 
-- `results/.../metrics.json`
+- `results/.../detailed_metrics.jsonl` — per-sample judge results
+- `results/.../metrics.json` — overall `avg_metrics` only
 - `results/.../prediction.jsonl`
 
-Correctness comes from `metrics.json` judge results.
+Correctness (`is_correct`) comes from `detailed_metrics.jsonl`; `metrics.json` only provides `avg_metrics` (no per-sample verdicts).
 `prediction.jsonl` is only used for prompt/prediction/reasoning display.
 
 ## Usage

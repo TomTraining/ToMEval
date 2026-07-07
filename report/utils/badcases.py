@@ -5,7 +5,7 @@ import random
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
-from .results import load_metrics_payload, load_prediction_records
+from .results import load_detailed_metrics, load_prediction_records
 
 _ID_FIELDS = {"id", "Index", "filename", "file", "sample_id", "question_id"}
 
@@ -42,14 +42,14 @@ def _gold_answer(record: Dict[str, Any]) -> str:
 
 
 def load_bad_cases(exp_dir, limit: int, seed: int = 42) -> List[Dict[str, Any]]:
-    metrics_payload = load_metrics_payload(exp_dir)
+    detailed_results = load_detailed_metrics(exp_dir)
     prediction_records = load_prediction_records(exp_dir)
 
-    per_sample_by_repeat: Dict[int, Dict[str, Dict[str, Any]]] = {}
-    for repeat_index, repeat_metrics in enumerate(metrics_payload.get("all_metrics", [])):
-        per_sample_by_repeat[repeat_index] = {
-            str(item["sample_id"]): item for item in repeat_metrics.get("per_sample_results", [])
-        }
+    # detailed_metrics.jsonl 每行自带 repeat / sample_id，按 repeat 分组重建索引。
+    per_sample_by_repeat: Dict[int, Dict[str, Dict[str, Any]]] = defaultdict(dict)
+    for item in detailed_results:
+        repeat_index = int(item.get("repeat", 0))
+        per_sample_by_repeat[repeat_index][str(item["sample_id"])] = item
 
     by_sample_id: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     display_record: Dict[str, Dict[str, Any]] = {}

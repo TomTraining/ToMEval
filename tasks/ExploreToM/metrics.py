@@ -10,9 +10,11 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         records,
         per_sample_results,
         [
+            # difficulty/task_type/order 在标准化数据的 meta 里并不存在（恒为 unknown），
+            # 改用真实字段：dimension / answer_type / nth_order / story_type。
             ("dimension", by_meta("dimension")),
-            ("difficulty", by_meta("difficulty")),
-            ("task_type", by_meta("task_type")),
-            ("order", by_meta("order")),
+            ("answer_type", by_meta("answer_type")),
+            ("nth_order", by_meta("nth_order")),
+            ("story_type", by_meta("story_type")),
         ],
     )

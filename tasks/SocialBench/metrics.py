@@ -10,11 +10,11 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         records,
         per_sample_results,
         [
-            ("task_type", by_meta("task_type")),
-            ("source_split", by_meta("source_split")),
-            ("lang", by_meta("lang")),
-            ("original_category", by_meta("original_category")),
+            # task_type/source_split/original_category 在标准化数据的 meta 里并不存在
+            # （恒为 unknown），改用真实字段 category（官方 <层级>-<能力>-<子任务> 类别码）。
+            ("category", by_meta("category")),
             ("dimension", lambda record: value_list(meta(record).get("dimension"))),
+            ("lang", by_meta("lang")),
             ("num_choices", lambda record: [str(len(record.get("options") or {}))]),
         ],
     )

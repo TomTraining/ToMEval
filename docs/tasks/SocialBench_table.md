@@ -3,7 +3,8 @@
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
-- 本页只列指标定义，不含具体数值。
+- 本页只列指标定义与逐值释义，不含具体数值。
+- 全中文版见 [SocialBench_table_zh.md](SocialBench_table_zh.md)。
 
 ## 一级指标
 
@@ -21,40 +22,56 @@
 
 | 一级指标 | 二级指标 | 三级指标 | 四级指标 |
 |---|---|---|---|
-| `accuracy` | `dimension` | — | — |
+| `accuracy` | `type` | — | — |
+|  | `category` | — | — |
+|  | `dimension` | — | — |
 |  | `lang` | — | — |
 |  | `num_choices` | — | — |
-|  | `original_category` | — | — |
-|  | `source_split` | — | — |
-|  | `task_type` | — | — |
-|  | `type` | — | — |
 
 ## 各维度定义
 
+### 二级指标 · `type`（切分型，单位 ACC）
+
+题型维度（所有数据集固定带）。按 prompt_type 切分，每个 split 是该题型的准确率。
+
+- `mcq_single`：仅一个正确项 + 干扰项的选择题
+- `mcq_multi`：有 ≥2 个正确项的选择题
+- `mcq_grouped`：一条 prompt 内含多个子问题，全部答对才计为对（如 EmoBench EU 的情绪+原因）
+- `open`：无干扰项、自由作答，按 f1 / rubric 判分后二值化
+
+### 二级指标 · `category`（切分型，单位 ACC）
+
+按官方类别码切分（meta.category），格式 <层级>-<能力>-<子任务>。
+
+- `Individual-SA-RoleKnowledge`：角色应知的背景知识
+- `Individual-SA-RoleStyle`：角色说话风格一致性
+- `Individual-EP-DialogueEmotionDetect`：识别对话中的情绪
+- `Individual-EP-HumorSarcasmDetect`：识别幽默/讽刺
+- `Individual-EP-SituationUnderstanding`：理解情境含义
+- `Individual-MEM-Long`：长程对话记忆
+- `Individual-MEM-Short`：短程对话记忆
+- `Group-SAP-Positive`：群体互动中的正向社会偏好
+- `Group-SAP-Neutral`：中性社会偏好
+- `Group-SAP-Negative`：负向社会偏好
+
 ### 二级指标 · `dimension`（切分型，单位 ACC）
 
-按能力维度切分（meta.dimension，可多值）：conversation_memory / self_awareness / social_preference / emotional_perception。
+按能力维度切分（meta.dimension，可多值）。
+
+- `conversation_memory`：记住并利用对话历史
+- `self_awareness`：对自身角色设定的认知
+- `social_preference`：群体互动中的社会偏好
+- `emotional_perception`：感知与识别情绪
 
 ### 二级指标 · `lang`（切分型，单位 ACC）
 
-按语种切分：en / zh。
+按语种切分（meta.lang）。
+
+- `en`：英文题
+- `zh`：中文题
 
 ### 二级指标 · `num_choices`（切分型，单位 ACC）
 
-按候选数切分（len(options)）；0 表示开放题（走 f1 判分）。
+按候选个数切分（len(options)）。
 
-### 二级指标 · `original_category`（切分型，单位 ACC）
-
-按原始类别切分（meta.original_category）。
-
-### 二级指标 · `source_split`（切分型，单位 ACC）
-
-按原始划分切分（meta.source_split）。
-
-### 二级指标 · `task_type`（切分型，单位 ACC）
-
-按任务类型切分（meta.task_type）。
-
-### 二级指标 · `type`（切分型，单位 ACC）
-
-题型维度（所有数据集固定带）。按 prompt_type 切分：mcq_single（单选）/ mcq_multi（多选）/ mcq_grouped（捆绑判分）/ open（开放题）。每个 split 是该题型的准确率。
+0 表示开放题（走 f1 判分），其余为该题选项个数。

@@ -91,8 +91,9 @@ avg_metrics
 任意 split 内部还能再切，子维度挂在该 split 的 `dimensions` 下，**层数不限**。目前最深到四级：
 
 - **SocialMind**（四级）：`dim1`（能力大类）→ `dim2`（二级标签如 1.1）→ `dim3`（三级标签如 1.1.2）
-- **ToMato**（四级）：`dimension_1`（slot1）→ `dimension_2`（slot2）→ `dimension_3`（slot3）
 - **EmoBench**（三级）：`coarse_category`（情绪粗类）→ `finegrained_category`（情绪细类）
+
+> 注：ToMato 旧版曾按 `dimension_1→dimension_2→dimension_3` 展开四级，但标准化数据的 `meta.dimension` 实为单槽（仅心智状态一项），后两级恒为占位空桶，已删除，改用 `mental_state` / `order` / `false_belief`。
 
 读 / 写都靠同一套递归（`build_dimension` 生成、`iter_dimension_nodes` 消费），所以「到三级就截断」的情况不存在。**一个二级维度也可以同时挂多个不同的三级维度**（多个 `sub_specs`），它们都是该二级的并列子维度。
 
@@ -145,27 +146,27 @@ SocialMind 在常规指标之外，额外产出一份 **`qualified` 镜像**：�
 
 | 数据集 | 维度（切分依据） |
 |--------|------------------|
-| **Belief_R** | `belief_reasoning` *(汇总：BREU=BU/BM 均值，BU-Acc=信念修正，BM-Acc=信念匹配)*；`step`（belief_update / belief_matching） |
+| **Belief_R** | `step`（belief_update / belief_matching）；`modus`（ponens / tollens）；`types_of_relation`（事件→事件 / 事件→心理状态）；`belief_reasoning` *(汇总：BREU=BU/BM 均值，BU-Acc=信念修正，BM-Acc=信念匹配)* |
 | **BigToM** | `condition`（forward/backward belief 等因果模板条件）；`belief_type`（true/false belief·control）；`tb_and_fb` *(汇总：同一故事 TB∧FB 两问全对)* |
-| **EmoBench** | `coarse_category` → `finegrained_category`（情绪粗类→细类）；`subset`（EU/EA）；`language`（en/zh）；`question_subtype`；`dimension`（细粒度能力，可多值）；`eu_subquestion` *(汇总：EU 子问题 emotion/cause 各自准确率)* |
-| **ExploreToM** | `dimension`（belief / false_belief）；`difficulty`；`task_type`；`order` |
-| **FanToM** | `question_type`（belief/answerability/infoaccess 各题型）；`set_all` *(汇总：同一 info-set 内 ToM 题型全对，含 overall/answerability/infoaccess)* |
+| **EmoBench** | `subset`（EU/EA）；`language`（en/zh）；`question_subtype`；`coarse_category` → `finegrained_category`（情绪粗类→细类）；`dimension`（细粒度能力，可多值）；`eu_subquestion` *(汇总：EU 子问题 emotion/cause 各自准确率)* |
+| **ExploreToM** | `dimension`（belief / false_belief）；`answer_type`（binary_knows / binary_yesno / location）；`nth_order`（-1 / 1 / 2）；`story_type`（tomi/fantom 模板 18 种） |
+| **FanToM** | `question_type`（belief/answerability/infoaccess 各题型）；`order`（0/1/2 ToM 阶数）；`set_all` *(汇总：同一 info-set 内 ToM 题型全对，含 overall/answerability/infoaccess)* |
 | **FictionalQA** | `style`（虚构文体）；`grading` *(汇总：informed vs blind 盲评，差值即 gap)*；`macro_split_acc` *(汇总：event/document/style 三种口径的宏平均)* |
 | **HellaSwag** | `split_type`（indomain / zeroshot） |
 | **HiToM** | `order`（心智推理阶数 0–4，核心难度轴） |
-| **PUB** | `source`；`dimension`（pragmatics）；`difficulty`；`ethics_category`；`task_type`；`option_count`（选项个数） |
-| **SimpleToM** | `source`；`dimension`（information_access / behavior_prediction / social_judgment）；`difficulty` |
-| **SocialBench** | `task_type`；`source_split`；`lang`（en/zh）；`original_category`；`dimension`（conversation_memory / self_awareness / …，可多值）；`num_choices`（0=开放题） |
+| **PUB** | `option_count`（选项个数 2–5）。⚠️ 转换后 meta 稀薄，原 source/difficulty/ethics_category/task_type/14 子任务信息已丢失 |
+| **SimpleToM** | `dimension`（information_access / behavior_prediction / social_judgment）；`qa_type`（mental_state / behavior / judgment）；`scenario_name`（10 类日常情景） |
+| **SocialBench** | `category`（官方 <层级>-<能力>-<子任务> 类别码）；`dimension`（conversation_memory / self_awareness / …，可多值）；`lang`（en/zh）；`num_choices`（0=开放题） |
 | **SocialIQA** | `dimension`（ATOMIC 九维：xIntent/xNeed/xAttr/…/oWant） |
 | **TactfulToM** | `category`（belief/answerability/…）；`question_type`（完整路径如 tom:belief:accessible:truth）；`lie_type`（altruistic / pareto 白谎）；`tom_type`（一阶/二阶各角色对）；`joint_comp_just` *(汇总：同一对话 Comp∧Just 都对，Happé 双题判定)* |
-| **ToMBench** | `task`（对应官方 Task-oriented：False-Belief-Task 等）；`ability`（Belief/Desire/Emotion/Intention/Knowledge/Non-Literal Communication） |
-| **ToMChallenges** | `order`（信念阶数） |
-| **ToMQA** | `dimension`（belief / memory / reality / search）；`difficulty`；`task_type`；`order` |
-| **ToMato** | `dimension_1` → `dimension_2` → `dimension_3`（三槽心智维度 slot1→2→3，缺槽用 `__missing__` / `__none__` 占位） |
-| **ToMi** | 无额外维度，仅固定 `type` |
+| **ToMBench** | `task`（对应官方 Task-oriented：False-Belief-Task 等）；`ability`（Belief/Desire/Emotion/Intention/Knowledge/Non-Literal Communication）；`lang`（en/zh） |
+| **ToMChallenges** | `question_type`（1stA/1stB/2ndA/2ndB/assumption/memory/reality）；`task_format`（mc / qa）；`test_type`（sally-anne / smarties） |
+| **ToMQA** | `dimension`（belief / memory / reality / search）；`task`（fb / tb / sofb） |
+| **ToMato** | `mental_state`（belief/desire/emotion/intention/knowledge）；`order`（1 / 2）；`false_belief`（True / False） |
+| **ToMi** | `story_type`（true/false/second_order false belief）；`question_type`（一/二阶 × 是否需 ToM、memory、reality） |
 | **SocialMind** | `dim1` → `dim2` → `dim3`（能力维度三级体系）；`qtype`（Q1–Q4）；`perspective`（first/third person）；`variant`（base/hardest/varA/varB）；`length`（long/short）；`q4_score` *(汇总：Q4 rubric 0–10 均分)*；另含 `qualified` 镜像（见 §5） |
 
-> 上表的「维度名」即 `metrics.json` 里 `dimensions` 的键。各 split 的具体取值随实验而变，不在本文件固化；要看某次实验的实际数字，直接读对应的 `metrics.json`，或用可视化（[visualization.md](visualization.md)）出图。
+> 上表的「维度名」即 `metrics.json` 里 `dimensions` 的键，与各 `tasks/<DS>/metrics.py` 声明一致。每个数据集的完整逐值释义（含中文副本）见 [tasks/](tasks/README.md) 下的 `<DS>_table.md` / `<DS>_table_zh.md`。各 split 的具体取值随实验而变，不在本文件固化；要看某次实验的实际数字，直接读对应的 `metrics.json`，或用可视化（[visualization.md](visualization.md)）出图。
 
 ---
 

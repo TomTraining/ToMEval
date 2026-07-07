@@ -10,8 +10,10 @@ def compute_metrics(records: List[Dict[str, Any]], per_sample_results: List[Dict
         records,
         per_sample_results,
         [
-            ("source", by_meta("dataset_source")),
+            # source(dataset_source)/difficulty 在标准化数据的 meta 里并不存在（恒为 unknown），
+            # 改用真实字段：dimension / qa_type / scenario_name。
             ("dimension", by_meta("dimension")),
-            ("difficulty", by_meta("difficulty")),
+            ("qa_type", by_meta("qa_type")),
+            ("scenario_name", by_meta("scenario_name")),
         ],
     )
