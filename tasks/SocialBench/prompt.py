@@ -2,7 +2,7 @@
 
 角色扮演社交评测：给角色档案 + 多轮对话（已合入 story），按 instruction 作答。
 含选择题（情感感知/自我认知/社交偏好）与开放记忆题（conversation memory）两类，中英双语。
-答案格式用本框架 \\boxed{}（开放题直接给答案文本）。
+答案格式统一用本框架 \\boxed{}（开放题也把最终答案放进 \\boxed{}，f1 判分抽取）。
 """
 
 from __future__ import annotations

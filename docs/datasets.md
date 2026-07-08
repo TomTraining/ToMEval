@@ -275,9 +275,9 @@
 
 | `open_judge` | 机制 | 是否需 judge 模型 | 用在 |
 |--------------|------|:---:|------|
-| `f1` | 预测与参考的 token/char 级 F1，按 `f1_threshold`(默认 0.5) 二值化 | 否 | ExploreToM·FictionalQA·SocialBench·ToMChallenges 的开放子集 |
-| `llm_simple` | 二元 LLM judge（"答案对不对"） | 是（`judge1`） | 默认开放题模式 |
-| `rubric` | 按维度专属 rubric 给 0–max_score 总分，均分 ≥ `open_threshold` 算对 | 是（`judge1`，可选 `judge2` 取平均） | SocialMind Q4 |
+| `f1` | 先抽取输出里最后一个 `\boxed{}` 内的最终答案（抽不到则回退全文），再与参考算 token/char 级 F1，按 `f1_threshold`(默认 0.5) 二值化 | 否 | ExploreToM·FictionalQA·SocialBench·ToMChallenges 的开放子集 |
+| `llm_simple` | 二元 LLM judge（"答案对不对"）。同 `f1`，**只把 `\boxed{}` 内的最终答案喂给 judge**（抽不到回退全文），推理协议下不让整段推理干扰判定 | 是（`judge1`） | 默认开放题模式 |
+| `rubric` | 按维度专属 rubric 给 0–max_score 总分，均分 ≥ `open_threshold` 算对。**不抽 `\boxed{}`，喂完整输出**——rubric 评的就是分析/思考过程本身（长答案，非短答） | 是（`judge1`，可选 `judge2` 取平均） | SocialMind Q4 |
 
 judge 模型在数据集自己的 `config.yaml` 里配置（`judge1/judge2`），与 `experiment_config.yaml` 里的被测模型完全解耦。
 

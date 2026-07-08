@@ -127,16 +127,16 @@ _BOXED_DIRECTIVE = {
     ("en", "mcq_multi", True): "Reason step by step, then give your final answer as one \\boxed{} containing every correct option letter, comma-separated, e.g. \\boxed{A,C}.",
     ("en", "mcq_grouped", False): "For each question in order, give its answer as a separate \\boxed{X}, e.g. \\boxed{A} for question 1 then \\boxed{C} for question 2.",
     ("en", "mcq_grouped", True): "Reason step by step, then for each question in order give its answer as a separate \\boxed{X}, e.g. \\boxed{A} for question 1 then \\boxed{C} for question 2.",
-    ("en", "open", False): "Give only your final answer text.",
-    ("en", "open", True): "Reason step by step, then give your final answer text.",
+    ("en", "open", False): "Put your final answer as a short phrase inside \\boxed{}, e.g. \\boxed{Paris}.",
+    ("en", "open", True): "Reason step by step, then put your final answer as a short phrase inside \\boxed{}, e.g. \\boxed{Paris}.",
     ("zh", "mcq_single", False): "请把答案放进 \\boxed{X},其中 X 是唯一最合适选项的字母。",
     ("zh", "mcq_single", True): "请先一步步推理角色的心理状态,然后把最终答案放进 \\boxed{X},其中 X 是唯一最合适选项的字母。",
     ("zh", "mcq_multi", False): "请把所有正确选项的字母放进同一个 \\boxed{} 中,用英文逗号分隔,例如 \\boxed{A,C}。",
     ("zh", "mcq_multi", True): "请先一步步推理,然后把所有正确选项的字母放进同一个 \\boxed{} 中,用英文逗号分隔,例如 \\boxed{A,C}。",
     ("zh", "mcq_grouped", False): "请按顺序对每一道问题各输出一个 \\boxed{X},例如第一问 \\boxed{A}、第二问 \\boxed{C}。",
     ("zh", "mcq_grouped", True): "请先一步步推理,然后按顺序对每一道问题各输出一个 \\boxed{X},例如第一问 \\boxed{A}、第二问 \\boxed{C}。",
-    ("zh", "open", False): "只输出最终答案文本。",
-    ("zh", "open", True): "请先一步步推理,然后给出最终答案文本。",
+    ("zh", "open", False): "请把最终答案以简短短语放进 \\boxed{} 中,例如 \\boxed{巴黎}。",
+    ("zh", "open", True): "请先一步步推理,然后把最终答案以简短短语放进 \\boxed{} 中,例如 \\boxed{巴黎}。",
 }
 
 
@@ -189,6 +189,20 @@ def extract_boxed(text: str) -> Optional[str]:
     if not matches:
         return None
     return matches[-1]
+
+
+def extract_final_answer(content: Optional[str]) -> str:
+    """判分用：取模型的最终答案文本。
+
+    open 题的答题指令要求把最终答案放进 `\\boxed{}`，reasoning 协议（cot 等）下整段推理
+    也在输出里。优先抽最后一个 `\\boxed{}` 拿到干净的最终答案；抽不到再回退全文
+    （direct 直答、或未套 `\\boxed{}` 的输出），保持“提取失败不影响判分”的历史保证。
+    仅供只关心最终答案的判分模式（f1 / llm_simple）使用；rubric 要评估完整思考过程，不走这里。
+    """
+    if not content:
+        return ""
+    boxed = extract_boxed(str(content))
+    return boxed if boxed is not None else str(content)
 
 
 def extract_prediction_value(

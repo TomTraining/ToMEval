@@ -1,7 +1,7 @@
 """FictionalQA prompt(Kirchenbauer et al. 2025, arXiv:2506.05639)。
 
 给一篇虚构文档，问其中的事实细节（开放短答）。FictionalQA 测记忆/知识获取，非 ToM，
-作对照集。开放题：要求直接给出答案文本（走 open_judge: f1 判分）。
+作对照集。开放题：要求把最终答案放进 \\boxed{}（走 open_judge: f1 判分，判分时抽取 \\boxed{} 内的短答案）。
 """
 
 from __future__ import annotations

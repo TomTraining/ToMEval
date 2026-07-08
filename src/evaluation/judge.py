@@ -5,7 +5,7 @@ import re
 from typing import Any, Dict, List
 
 from .lang import get_sample_lang
-from .prompts import extract_prediction_from_text
+from .prompts import extract_final_answer, extract_prediction_from_text
 from .storage import pred_content
 
 _BOXED_RE = r"\\box(?:ed)?\s*\{([^{}]*)\}"
@@ -27,8 +27,9 @@ def judge_prompt(record: Dict[str, Any]) -> str:
     # 只有 open 题走 LLM judge，MCQ 一律走 rule_judge_mcq 规则判分。
     assert record["prompt_type"] == "open", f"judge_prompt only supports open, got {record['prompt_type']}"
 
-    # 始终使用模型的完整原始输出，避免提取失败影响正确率。
-    model_output = pred_content(record) or ""
+    # 只判模型的最终答案：open 指令要求答案放进 \boxed{}，reasoning 协议下整段推理也在输出里，
+    # 让 judge 只看 \boxed{} 内的最终答案（抽不到回退全文，避免提取失败影响正确率）。
+    model_output = extract_final_answer(pred_content(record))
 
     # storyless 版本：不再把 story / question 输入给 judge，
     # 只给 correct / wrong 答案 + 模型预测，要求 judge 做"参照式"对比判定。
