@@ -40,15 +40,65 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 
 ## system prompt
 
-协议把答题格式指令从 user prompt **移到了 system prompt**，按「风格 × 题型 × 语言」生成：
+协议模式下（`experiment_config.yaml` 设了 `protocol`），答题格式指令从 user prompt **移到 system prompt**，
+user prompt 只留故事/问题/选项。system prompt 按「风格 × 题型 × 语言」生成：
 
-- 风格只有两类：
-  - **裸答**（`direct` / `direct_think`）：直接给出最终答案（不硬性禁止解释/推理，因为 `direct_think` 开了 thinking，禁推理会与之冲突）。
-  - **推理**（`cot` / `del_tom`）：一步步推理角色心理状态，最终答案放最后一行。
-- 题型三类：`mcq_single`（单选）/ `mcq_multi`（多选）/ `open`（开放）。
-- 语言两套：英文 `en` / 中文 `zh`（跟随样本 `meta.lang` / `meta.language`）。
+- **风格**两类：
+  - **裸答**（`direct` / `direct_think`，`reasoning=False`）：直接给出最终答案（不硬性禁止解释，`direct_think` 开了 thinking）。
+  - **推理**（`cot` / `del_tom`，`reasoning=True`）：一步步推理角色心理状态，最终答案放最后。
+- **题型**四类：`mcq_single`（单选）/ `mcq_multi`（多选）/ `mcq_grouped`（一个 prompt 多子问，`prepare_samples` 打包）/ `open`（开放）。
+- **语言**两套：英文 `en` / 中文 `zh`（跟随样本 `meta.lang` / `meta.language`）。
 
-### 英文（en）
+### system prompt 有两个来源
+
+一道题实际收到哪套 system prompt，取决于该数据集 `tasks/<DS>/prompt.py` **是否提供 `build_system_prompt`**：
+
+| 来源 | 触发条件 | 用它的数据集 |
+|---|---|---|
+| **A. `boxed_directive`**（`prompts.py`，主路径） | 数据集提供 `build_system_prompt` | **18/19**：Belief_R·BigToM·EmoBench·ExploreToM·FanToM·FictionalQA·HellaSwag·HiToM·PUB·SimpleToM·SocialBench·SocialIQA·TactfulToM·ToMBench·ToMChallenges·ToMQA·ToMato·ToMi |
+| **B. `_SYSTEM_PROMPTS`**（`protocols.py`，协议默认兜底） | 数据集**没有** `build_system_prompt` → 回退 `system_prompt_for()` | **仅 SocialMind** |
+
+> 换言之：**日常几乎所有数据集走的都是来源 A**，来源 B 现在只兜底 SocialMind 一家。两套措辞不同、且在 `open` 上**有意分叉**（见下）。
+
+来源 A 的数据集里，system prompt = **`[可选的官方前言] + boxed_directive(lang, 题型, reasoning)`**：
+- **纯 `boxed_directive`**（14 个）：system prompt 就是下表这一句。
+- **官方前言 + `boxed_directive`**（4 个：BigToM / EmoBench / TactfulToM / ToMBench）：为复刻原论文，前面还有一段官方风格描述，末尾接下表这句。
+
+### 来源 A：`boxed_directive`（题型 × 风格）
+
+**英文（en）**
+
+| 风格 | 题型 | boxed_directive |
+|---|---|---|
+| 裸答 | mcq_single | Give your answer as `\boxed{X}`, where X is the letter of the single best option. |
+| 裸答 | mcq_multi | Give your answer as one `\boxed{}` containing every correct option letter, comma-separated, e.g. `\boxed{A,C}`. |
+| 裸答 | mcq_grouped | For each question in order, give its answer as a separate `\boxed{X}`, e.g. `\boxed{A}` for question 1 then `\boxed{C}` for question 2. |
+| 裸答 | open | Put your final answer as a short phrase inside `\boxed{}`, e.g. `\boxed{Paris}`. |
+| 推理 | mcq_single | Reason step by step about the characters' mental states, then give your final answer as `\boxed{X}`, where X is the letter of the single best option. |
+| 推理 | mcq_multi | Reason step by step, then give your final answer as one `\boxed{}` containing every correct option letter, comma-separated, e.g. `\boxed{A,C}`. |
+| 推理 | mcq_grouped | Reason step by step, then for each question in order give its answer as a separate `\boxed{X}`, e.g. `\boxed{A}` for question 1 then `\boxed{C}` for question 2. |
+| 推理 | open | Reason step by step, then put your final answer as a short phrase inside `\boxed{}`, e.g. `\boxed{Paris}`. |
+
+**中文（zh）**
+
+| 风格 | 题型 | boxed_directive |
+|---|---|---|
+| 裸答 | mcq_single | 请把答案放进 `\boxed{X}`,其中 X 是唯一最合适选项的字母。 |
+| 裸答 | mcq_multi | 请把所有正确选项的字母放进同一个 `\boxed{}` 中,用英文逗号分隔,例如 `\boxed{A,C}`。 |
+| 裸答 | mcq_grouped | 请按顺序对每一道问题各输出一个 `\boxed{X}`,例如第一问 `\boxed{A}`、第二问 `\boxed{C}`。 |
+| 裸答 | open | 请把最终答案以简短短语放进 `\boxed{}` 中,例如 `\boxed{巴黎}`。 |
+| 推理 | mcq_single | 请先一步步推理角色的心理状态,然后把最终答案放进 `\boxed{X}`,其中 X 是唯一最合适选项的字母。 |
+| 推理 | mcq_multi | 请先一步步推理,然后把所有正确选项的字母放进同一个 `\boxed{}` 中,用英文逗号分隔,例如 `\boxed{A,C}`。 |
+| 推理 | mcq_grouped | 请先一步步推理,然后按顺序对每一道问题各输出一个 `\boxed{X}`,例如第一问 `\boxed{A}`、第二问 `\boxed{C}`。 |
+| 推理 | open | 请先一步步推理,然后把最终答案以简短短语放进 `\boxed{}` 中,例如 `\boxed{巴黎}`。 |
+
+> 注意 `open` 在来源 A 是 **`\boxed{}` 短答**：这是为 `open_judge: f1` 的短答集（ExploreToM / FictionalQA / SocialBench / ToMChallenges）设的边界——否则推理协议下整段推理会把短答案的 token-F1 稀释到接近 0（f1 判分会先抽 `\boxed{}` 内容再算分）。**新增 open+f1 数据集务必提供 `build_system_prompt`**，只吃来源 B 会漏掉这个边界。
+
+### 来源 B：`_SYSTEM_PROMPTS`（协议默认，仅 SocialMind 兜底）
+
+自带 `You are a careful reader` 前言；与来源 A 的关键差别是 **`open` 是 free-text（不套 `\boxed{}`）**——因为唯一用它的 SocialMind Q4 走 `rubric` 长答案（≤300 字自由作答，套 `\boxed{}` 反而违背 rubric 约束）。
+
+**英文（en）**
 
 | 风格 | 题型 | system prompt |
 |---|---|---|
@@ -59,7 +109,7 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 | 推理 | mcq_multi | You are a careful reader answering a multiple-choice theory-of-mind question. Think step by step about the mental states of the characters, then output your final answer as one `\boxed{}` containing every correct option letter, comma-separated, e.g. `\boxed{A,C}`. Put your final `\boxed{}` on the last line. |
 | 推理 | open | You are a careful reader answering a question about a story. Think step by step about the mental states of the characters, then give your final answer. Put your final answer on the last line. |
 
-### 中文（zh）
+**中文（zh）**
 
 | 风格 | 题型 | system prompt |
 |---|---|---|
@@ -70,16 +120,12 @@ ToMEval 用「协议」统一控制一次评测**怎么问、怎么采样、怎�
 | 推理 | mcq_multi | 你是一个认真阅读的人,正在回答一道关于心理状态(theory-of-mind)的多选题。请一步步推理角色的心理状态,然后输出最终答案:把所有正确选项的字母放进同一个 `\boxed{}` 中,用英文逗号分隔,例如 `\boxed{A,C}`。把最终的 `\boxed{}` 放在最后一行。 |
 | 推理 | open | 你是一个认真阅读的人,正在回答一道关于故事的问题。请一步步推理角色的心理状态,然后给出最终答案。把最终答案放在最后一行。 |
 
-> 注：`direct` 与 `direct_think` 共用「裸答」prompt，区别只在 `enable_thinking`（前者关、后者开）。
-> `cot` 与 `del_tom` 共用「推理」prompt。
+> `_SYSTEM_PROMPTS` 还含 `mcq_grouped` 两条（en/zh × 裸答/推理），措辞同来源 A 的 grouped，此处从略。
 
-> **题型补充**：除上面三类，还有 `mcq_grouped`——一个 prompt 内含多道子问题（如 EmoBench EU 的情绪+原因），
-> 由数据集的 `prepare_samples` 钩子预先打包，按规则判分（每个子问题各对才算整体对）。
->
-> **数据集级覆盖**：若数据集需忠实复刻原论文的 system prompt（如 ToMBench/EmoBench/FanToM），
-> 可在 `tasks/<数据集>/prompt.py` 提供 `build_system_prompt(sample, protocol, lang, prompt_type)`，
-> 覆盖上表的通用 system prompt（仍把答案格式统一换成 `\boxed{}`）。user prompt 同理可由 `build_prompt` 覆盖。
-> 详见 [add_new_dataset.md](add_new_dataset.md)。无论是否覆盖，分工不变：**system prompt 只放答题风格 + 格式指令，user prompt 放故事/问题/选项内容**。
+### 两点共性
+
+> - `direct` 与 `direct_think` 共用「裸答」措辞，区别只在 `enable_thinking`（前者关、后者开）；`cot` 与 `del_tom` 共用「推理」措辞。
+> - 无论走哪个来源，分工不变：**system prompt 只放答题风格 + 格式指令，user prompt 放故事/问题/选项内容**。不设 `protocol`（`protocol: null`）时 system prompt 为空，答题指令改由 user prompt 承载（`include_instruction=True`）。详见 [add_new_dataset.md](add_new_dataset.md)。
 
 ---
 

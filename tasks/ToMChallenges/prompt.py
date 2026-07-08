@@ -1,8 +1,8 @@
 """ToMChallenges prompt(Ma et al. 2023, CoNLL, arXiv:2305.15068)。
 
 基于 Sally-Anne / Smarties 的多格式 ToM 测试。这里取选择题（mc）与开放问答（qa）两种：
-mc 为单选，qa 为开放短答。保留官方 Context / Question 结构，答案格式用本框架 \\boxed{}
-（开放题直接给答案文本）。
+mc 为单选，qa 为开放短答。保留官方 Context / Question 结构，答案格式统一用本框架 \\boxed{}
+（开放题也把最终答案放进 \\boxed{}，f1 判分抽取）。
 """
 
 from __future__ import annotations

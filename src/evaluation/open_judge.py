@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from .judge_schema import QAJudgeResult
 from .lang import get_sample_lang
+from .prompts import extract_final_answer
 from .storage import pred_content
 
 OPEN_JUDGE_MODES = ("f1", "llm_simple", "rubric")
@@ -211,8 +212,10 @@ def _judge_f1(records: List[Dict[str, Any]], threshold: Optional[float]) -> List
         if content in (None, ""):
             results.append({"is_correct": False, "error_reason": "content_none", "judge_score": 0.0})
             continue
+        # 只用最终答案算 F1:reasoning 协议(cot)下整段推理都在 content 里,直接拿全文比对
+        # 会被推理文字稀释到接近 0。extract_final_answer 优先抽 \boxed{},抽不到回退全文。
         lang = get_sample_lang(record.get("meta"))
-        score = max_f1(str(content), record.get("correct_answers") or [], lang)
+        score = max_f1(extract_final_answer(content), record.get("correct_answers") or [], lang)
         is_correct = score >= thr
         results.append({
             "is_correct": is_correct,

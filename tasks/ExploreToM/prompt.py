@@ -2,7 +2,7 @@
 
 程序生成的对抗式 ToM 故事，问角色对物体位置/知晓状态的（高阶）信念。
 官方为 free-form 评测：二元题（yes/no、knows/不knows）走单选，位置题为开放短答。
-保留 Story / Question 结构，答案格式用本框架 \\boxed{}（开放题则直接给答案文本）。
+保留 Story / Question 结构，答案格式统一用本框架 \\boxed{}（开放题也把最终答案放进 \\boxed{}，f1 判分抽取）。
 """
 
 from __future__ import annotations
