@@ -211,7 +211,7 @@ results/
 ```bash
 python3 scripts/sync_to_tomresults.py \
   --tomresults-dir /Users/weihao/Desktop/ToMResults \
-  --dataset SocialMind \
+  --dataset SoMBench \
   --model qwen3-8b \
   --results-root /Users/weihao/Desktop/ToMEval/results
 ```
@@ -221,7 +221,7 @@ python3 scripts/sync_to_tomresults.py \
 ```bash
 python3 scripts/sync_to_tomresults.py \
   --tomresults-dir /Users/weihao/Desktop/ToMResults \
-  --dataset SocialMind \
+  --dataset SoMBench \
   --model qwen3-8b \
   --results-root /Users/weihao/Desktop/ToMEval/results \
   --force
@@ -232,7 +232,7 @@ python3 scripts/sync_to_tomresults.py \
 ```bash
 python3 scripts/sync_to_tomresults.py \
   --tomresults-dir /Users/weihao/Desktop/ToMResults \
-  --dataset SocialMind \
+  --dataset SoMBench \
   --model qwen3-8b \
   --results-root /Users/weihao/Desktop/ToMEval/results \
   --git-branch \
@@ -247,7 +247,7 @@ python3 scripts/sync_to_tomresults.py \
 ```bash
 python3 scripts/sync_to_tomresults.py \
   --tomresults-dir /Users/weihao/Desktop/ToMResults \
-  --dataset SocialMind \
+  --dataset SoMBench \
   --model qwen3-8b \
   --results-root /Users/weihao/Desktop/ToMEval/results \
   --force \
@@ -261,7 +261,7 @@ python3 scripts/sync_to_tomresults.py \
 ```bash
 GITHUB_TOKEN=<your_token> python3 scripts/sync_to_tomresults.py \
   --tomresults-dir /Users/weihao/Desktop/ToMResults \
-  --dataset SocialMind \
+  --dataset SoMBench \
   --model qwen3-8b \
   --results-root /Users/weihao/Desktop/ToMEval/results \
   --git-branch \
@@ -282,9 +282,9 @@ GITHUB_TOKEN=<your_token> python3 scripts/sync_to_tomresults.py \
 
 ```bash
 # 单模型出图
-python -m src.visualization --results results/SocialMind/Qwen3-8B/exp_xxxx --out figures/SocialMind
+python -m src.visualization --results results/SoMBench/Qwen3-8B/exp_xxxx --out figures/SoMBench
 # 多模型对比（传多个 --results）
-python -m src.visualization --results results/SocialMind/A/exp_xxx results/SocialMind/B/exp_yyy --out figures/SocialMind
+python -m src.visualization --results results/SoMBench/A/exp_xxx results/SoMBench/B/exp_yyy --out figures/SoMBench
 ```
 
 详见 [docs/visualization.md](docs/visualization.md)。

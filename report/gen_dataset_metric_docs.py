@@ -321,7 +321,7 @@ _DIMS: Dict[str, List[dict]] = {
             ("oWant", "他人的意愿", "事件后其他人想做的事"),
         ]),
     ],
-    "SocialMind": [
+    "SoMBench": [
         D("dim1", "能力大类", "split",
           "维度体系顶层能力大类（meta.dim1），其下嵌套 dim2 → dim3。",
           values_note="取值 1 / 2 / 3，为三个顶层能力大类（编号制）。",
@@ -588,13 +588,13 @@ def render_dataset(ds: str, zh: bool) -> str:
     for dim in dims:
         _render_dim(dim, lines, 2, "", zh)
 
-    if ds == "SocialMind":
-        _render_socialmind_extra(lines, zh)
+    if ds == "SoMBench":
+        _render_sombench_extra(lines, zh)
 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_socialmind_extra(lines: List[str], zh: bool) -> None:
+def _render_sombench_extra(lines: List[str], zh: bool) -> None:
     lines.append("## 人工审核与 qualified 镜像")
     lines.append("")
     lines.append("| 指标 | 定义 |")

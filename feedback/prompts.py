@@ -279,7 +279,7 @@ DATASET_SKILL_REGISTRY: Dict[str, str] = {
         "information sharing. Participants join/leave mid-conversation, creating "
         "asymmetric information access."
     ),
-    "SocialMind": (
+    "SoMBench": (
         "中文社会认知推理（三大能力）：①心智化（信念/欲望/意图/情绪/视角/共情）；"
         "②社会互动的策略性（沟通/协商/博弈/合作冲突/信任欺骗/群体动态）；"
         "③社会文化-规范的内化与动态平衡（规范内化/身份角色/权力制度/群体边界）。"
@@ -288,12 +288,12 @@ DATASET_SKILL_REGISTRY: Dict[str, str] = {
 }
 
 
-# ============ SocialMind 按题型的格式表 ============
-# SocialMind 题型异构（Q1 单选 / Q2 多选 / Q3 判断三值 / Q4 开放），无法用单条
+# ============ SoMBench 按题型的格式表 ============
+# SoMBench 题型异构（Q1 单选 / Q2 多选 / Q3 判断三值 / Q4 开放），无法用单条
 # dataset 级 format。按 qtype 路由（qtype 由诊断报告维度键 "dim__qtype__zh" 解析得到）。
 # 仅 description / complexity_hint / json_skeleton / n_correct / n_wrong 会被消费。
 
-SOCIALMIND_FORMAT_BY_QTYPE: Dict[str, Dict[str, Any]] = {
+SOMBENCH_FORMAT_BY_QTYPE: Dict[str, Dict[str, Any]] = {
     "Q1": {
         "n_correct": 1,
         "n_wrong": 3,
@@ -384,7 +384,7 @@ SOCIALMIND_FORMAT_BY_QTYPE: Dict[str, Dict[str, Any]] = {
 }
 
 
-def _socialmind_parse_dim(dimension_str: str) -> tuple:
+def _sombench_parse_dim(dimension_str: str) -> tuple:
     """'1.1.1__Q1__zh' -> ('1.1.1', 'Q1')。先剥尾部 __zh/__en，再 rpartition('__')。
     dim 含点不含下划线，故 rpartition 不会误切。"""
     s = str(dimension_str or "")
@@ -664,14 +664,14 @@ def build_stage2_generation_from_report_prompt(
         previous_question: 上一轮生成但未通过验证的题目（retry feedback）
         lang: 合成内容语言（"en"/"zh"，来自诊断报告 _meta.lang）
     """
-    # SocialMind 按 qtype 路由（qtype 从报告维度键 "dim__qtype__zh" 解析）。
+    # SoMBench 按 qtype 路由（qtype 从报告维度键 "dim__qtype__zh" 解析）。
     # 用 _meta.dimension（stage2 程序化写入、权威）而非顶层 dimension（LLM 回显、可能被改写）。
     sm_qtype = ""
     sm_dim = ""
-    if dataset_name == "SocialMind":
+    if dataset_name == "SoMBench":
         _sm_key = str((report.get("_meta") or {}).get("dimension") or report.get("dimension", ""))
-        sm_dim, sm_qtype = _socialmind_parse_dim(_sm_key)
-        fmt = SOCIALMIND_FORMAT_BY_QTYPE.get(sm_qtype, SOCIALMIND_FORMAT_BY_QTYPE["Q1"])
+        sm_dim, sm_qtype = _sombench_parse_dim(_sm_key)
+        fmt = SOMBENCH_FORMAT_BY_QTYPE.get(sm_qtype, SOMBENCH_FORMAT_BY_QTYPE["Q1"])
     else:
         fmt = SYNTHESIS_FORMAT_REGISTRY.get(dataset_name)
         if fmt is None:
@@ -733,9 +733,9 @@ def build_stage2_generation_from_report_prompt(
             f"(this is the condition type diagnosed from the bad cases)."
         )
 
-    # 对 SocialMind：按 qtype 给精确的字段规则，并强制 meta_dim 等于诊断出的真实 dim
+    # 对 SoMBench：按 qtype 给精确的字段规则，并强制 meta_dim 等于诊断出的真实 dim
     # （Q4 的 rubric 评分按 meta.dim 取，dim 必须命中 q4_judge_prompts.json 的键）。
-    if dataset_name == "SocialMind":
+    if dataset_name == "SoMBench":
         _sm_dim = sm_dim  # 来自上面 _meta.dimension 的权威解析
         _SM_RULES = {
             "Q1": "输出 story/question + correct_answer + wrong_answer_1/2/3（共 4 选项，1 正 3 误）。",

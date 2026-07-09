@@ -1,10 +1,10 @@
-# SocialMind — 指标定义
+# SoMBench — 指标定义
 
 - 指标层级与 `metrics.json` 的 `avg_metrics.dimensions` 树一一对应：
   **一级**=总体 accuracy；**二级**=各维度；**三级 / 四级**=维度内嵌套子维度。
 - `切分型`：把数据集切成多个 split，各 split 一条准确率；`汇总型`：任务特有口径（如配对联合、宏平均、set 级 ALL），单值无法从边际准确率反推。
 - 本页只列指标定义与逐值释义，不含具体数值。
-- 全中文版见 [SocialMind_table_zh.md](SocialMind_table_zh.md)。
+- 全中文版见 [SoMBench_table_zh.md](SoMBench_table_zh.md)。
 
 ## 一级指标
 

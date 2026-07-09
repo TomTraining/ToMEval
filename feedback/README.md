@@ -109,22 +109,22 @@ synthesis_datasets:
 
 ## 支持的数据集
 
-ToMBench / SocialIQA / BigToM / EmoBench / FanToM / HiToM / **SocialMind**。
+ToMBench / SocialIQA / BigToM / EmoBench / FanToM / HiToM / **SoMBench**。
 合成 schema 注册表在 `stage3_synthesis.py`，维度字段映射在 `stage1_load_predictions.py:get_dimension_key`。
 
-### SocialMind（中文，4 题型异构）
+### SoMBench（中文，4 题型异构）
 
-SocialMind 一个样本含 4 种题型:Q1 单选(1 正 3 误)/ Q2 多选(≥2 正)/ Q3 判断(是·否·无法确定)/ Q4 开放(rubric 评分)。
+SoMBench 一个样本含 4 种题型:Q1 单选(1 正 3 误)/ Q2 多选(≥2 正)/ Q3 判断(是·否·无法确定)/ Q4 开放(rubric 评分)。
 单条 dataset 级 format 装不下,所以**按 qtype 路由**:
 
 - 维度键编成 `dim__qtype__zh`(如 `1.1.1__Q1__zh`),每份诊断报告题型同质;
-- `prompts.py:SOCIALMIND_FORMAT_BY_QTYPE` 与 `stage3_synthesis.py:SOCIALMIND_SCHEMA_BY_QTYPE` 各按 qtype 给 4 套 format/schema;
+- `prompts.py:SOMBENCH_FORMAT_BY_QTYPE` 与 `stage3_synthesis.py:SOMBENCH_SCHEMA_BY_QTYPE` 各按 qtype 给 4 套 format/schema;
 - qtype 用 `report["_meta"]["dimension"]`(stage2 程序化写入的权威键)解析,**不读 LLM 回显的顶层 `dimension`**;
-- Q4 强制 `meta_dim` = 诊断维度,以命中 `tasks/SocialMind/q4_judge_prompts.json` 的 rubric 键。
+- Q4 强制 `meta_dim` = 诊断维度,以命中 `tasks/SoMBench/q4_judge_prompts.json` 的 rubric 键。
 
-> ⚠️ **维度×题型桶爆炸(用 SocialMind 必读)**
+> ⚠️ **维度×题型桶爆炸(用 SoMBench 必读)**
 >
-> 合成预算是 `报告数 = target_samples / samples_per_report`,这些报告按"桶"(分组键)分配,**桶里有错题才会被合成**。SocialMind 的桶键是 `dim__qtype__zh`,所以**桶数 = 维度 × 题型**:71 个三级维度 × 4 题型 ≈ **最多 284 个桶**(其它数据集只按维度分组,桶数少一个量级)。
+> 合成预算是 `报告数 = target_samples / samples_per_report`,这些报告按"桶"(分组键)分配,**桶里有错题才会被合成**。SoMBench 的桶键是 `dim__qtype__zh`,所以**桶数 = 维度 × 题型**:71 个三级维度 × 4 题型 ≈ **最多 284 个桶**(其它数据集只按维度分组,桶数少一个量级)。
 >
 > 当 **桶数 > 报告数** 时,`stage2_diagnosis.py:allocate_reports_by_dimension`(L196-201)只给错误率最高的 **top-N 个桶各 1 份**,其余桶 **0 份、一条都合成不出来**。例:`target_samples=200, samples_per_report=5` → 仅 40 份报告 → 覆盖 ≤40 个桶,240+ 个 (维度,题型) 组合全空,Q4(错题本就少)最易被饿死,覆盖严重不均。
 >
@@ -136,7 +136,7 @@ SocialMind 一个样本含 4 种题型:Q1 单选(1 正 3 误)/ Q2 多选(≥2 �
 ## 添加新数据集
 
 1. 在 `config.yaml` 的 `synthesis_datasets` 中添加 `- name: MyDataset`。
-2. 在 `stage3_synthesis.py` 的 `SYNTHESIS_SCHEMA_REGISTRY` 中注册对应 Pydantic schema(题型异构的数据集参考 SocialMind 的 qtype 路由写法)。
+2. 在 `stage3_synthesis.py` 的 `SYNTHESIS_SCHEMA_REGISTRY` 中注册对应 Pydantic schema(题型异构的数据集参考 SoMBench 的 qtype 路由写法)。
 3. 在 `prompts.py` 的 `SYNTHESIS_FORMAT_REGISTRY` + `DATASET_SKILL_REGISTRY` 中补 format/技能说明。
 4. 在 `stage1_load_predictions.py:get_dimension_key()` 中添加维度字段映射。
 5. 在 `stage4_lsh_filter.py:_KNOWN_TASKS` 中加入数据集名(否则其测试集不被索引、防泄漏失效)。

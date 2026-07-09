@@ -1,4 +1,4 @@
-"""SocialMind 分层指标：维度层级 dim1→dim2→dim3 嵌套为三级，题型/视角/难度变体/长短文本
+"""SoMBench 分层指标：维度层级 dim1→dim2→dim3 嵌套为三级，题型/视角/难度变体/长短文本
 作为平铺的二级维度；Q4 rubric 平均分（0-10，非 0-1 准确率）作 q4_score 汇总型维度
 （overall + 按三级维度切 split）。
 

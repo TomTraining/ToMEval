@@ -54,12 +54,12 @@ synthesis_datasets:
       # - name: HardToM_GRPO_synthetic_20260515_hf_3epoch
       #   exp: ~
 
-  # SocialMind:中文 4 题型（Q1 单选 / Q2 多选 / Q3 判断 / Q4 开放），按 qtype 路由合成。
-  # ⚠ 前置:需有 results/SocialMind/<model>/exp_*/{prediction.jsonl,metrics.json}
-  #   （数据集曾名 SocialToM,旧预测在 results/SocialToM/ 下;请用 SocialMind 名重跑
-  #    tasks/SocialMind/run.py 产出,或把旧目录迁到 results/SocialMind/）。
+  # SoMBench:中文 4 题型（Q1 单选 / Q2 多选 / Q3 判断 / Q4 开放），按 qtype 路由合成。
+  # ⚠ 前置:需有 results/SoMBench/<model>/exp_*/{prediction.jsonl,metrics.json}
+  #   （数据集曾名 SocialToM,旧预测在 results/SocialToM/ 下;请用 SoMBench 名重跑
+  #    tasks/SoMBench/run.py 产出,或把旧目录迁到 results/SoMBench/）。
   # 维度×qtype 桶很多(~71×4),target_samples 要够大才能覆盖全题型。
-  # - name: SocialMind
+  # - name: SoMBench
   #   target_samples: 200
   #   samples_per_report: 5
   #   models:

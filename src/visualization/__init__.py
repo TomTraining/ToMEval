@@ -1,7 +1,7 @@
 """通用评测可视化模块。
 
 用法：
-    python -m src.visualization --results results/SocialMind/<model>/<exp> --out figures/SocialMind
+    python -m src.visualization --results results/SoMBench/<model>/<exp> --out figures/SoMBench
     python -m src.visualization --results results/A/... results/B/... --out figures/cmp
 
 只读 metrics.json，数据集无关。详见 plots.py。

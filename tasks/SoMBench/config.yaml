@@ -1,5 +1,5 @@
-dataset: SocialMind
-path: SocialMind/test
+dataset: SoMBench
+path: SoMBench/test
 
 # open 题(Q4)判分模式：rubric —— 数据集自带 rubric prompt + judge model 打总分。
 # 可选 f1 | llm_simple | rubric，详见 src/evaluation/open_judge.py。
@@ -15,7 +15,7 @@ rubric:
   max_score: 10                          # 总分量程(D1-D5 各 0-2)
 
 # ============================================================
-# LLM judge 配置（SocialMind 是目前唯一需要 LLM judge 的数据集）。
+# LLM judge 配置（SoMBench 是目前唯一需要 LLM judge 的数据集）。
 # judge 参数全部在此声明，experiment_config.yaml 不再管理 judge model。
 # 采样参数(temperature/top_p/max_tokens 等)留空则用客户端默认值。
 # ============================================================
