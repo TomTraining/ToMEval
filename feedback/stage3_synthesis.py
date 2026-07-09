@@ -24,7 +24,7 @@ from .prompts import (
     build_stage2_generation_from_report_prompt,
     SYNTHESIS_FORMAT_REGISTRY,
     DATASET_SKILL_REGISTRY,
-    _socialmind_parse_dim,
+    _sombench_parse_dim,
 )
 
 logger = logging.getLogger(__name__)
@@ -363,13 +363,13 @@ class HiToMSynthesisOutput(BaseModel):
     questions: List[HiToMQuestionFlat]
 
 
-# ---- SocialMind（中文，4 题型异构，按 qtype 选 schema）----
+# ---- SoMBench（中文，4 题型异构，按 qtype 选 schema）----
 _SM_VERDICTS = ["是", "否", "无法确定"]
 
 
 def _sm_meta(meta_dim: str, perspective: str, domain: str,
              length_mode: str, qtype: str, q4_reference: Optional[List[str]] = None) -> dict:
-    """构造 SocialMind 合成样本的 meta：dim1/dim2 由 dim 拆出，variant 标 synthetic。
+    """构造 SoMBench 合成样本的 meta：dim1/dim2 由 dim 拆出，variant 标 synthetic。
     与 eval parquet 的 meta 对齐（id/lang/history 由 stage3 后处理写入）。"""
     parts = str(meta_dim).split(".")
     dim1 = parts[0] if parts else ""
@@ -383,7 +383,7 @@ def _sm_meta(meta_dim: str, perspective: str, domain: str,
     }
 
 
-class SocialMindQ1Flat(BaseModel):
+class SoMBenchQ1Flat(BaseModel):
     story: str = Field(description="以①②③编号的完整中文故事")
     question: str = Field(description="中文问题")
     correct_answer: str = Field(description="正确答案中文句")
@@ -408,11 +408,11 @@ class SocialMindQ1Flat(BaseModel):
         }
 
 
-class SocialMindQ1Output(BaseModel):
-    questions: List[SocialMindQ1Flat]
+class SoMBenchQ1Output(BaseModel):
+    questions: List[SoMBenchQ1Flat]
 
 
-class SocialMindQ2Flat(BaseModel):
+class SoMBenchQ2Flat(BaseModel):
     story: str = Field(description="以①②③编号的完整中文故事")
     question: str = Field(description="中文多选问题")
     correct_answers: List[str] = Field(description="正确答案（≥2 个）")
@@ -426,7 +426,7 @@ class SocialMindQ2Flat(BaseModel):
         correct = list(self.correct_answers or [])
         if len(correct) < 2:
             logger.warning(
-                f"SocialMind Q2 正确项 <2（{len(correct)}），会被反推成 mcq_single: dim={self.meta_dim}"
+                f"SoMBench Q2 正确项 <2（{len(correct)}），会被反推成 mcq_single: dim={self.meta_dim}"
             )
         return {
             "story": self.story,
@@ -440,11 +440,11 @@ class SocialMindQ2Flat(BaseModel):
         }
 
 
-class SocialMindQ2Output(BaseModel):
-    questions: List[SocialMindQ2Flat]
+class SoMBenchQ2Output(BaseModel):
+    questions: List[SoMBenchQ2Flat]
 
 
-class SocialMindQ3Flat(BaseModel):
+class SoMBenchQ3Flat(BaseModel):
     story: str = Field(description="以①②③编号的完整中文故事")
     question: str = Field(description="判断题题面（含待判断陈述）")
     correct_verdict: str = Field(description="是 / 否 / 无法确定 之一")
@@ -467,11 +467,11 @@ class SocialMindQ3Flat(BaseModel):
         }
 
 
-class SocialMindQ3Output(BaseModel):
-    questions: List[SocialMindQ3Flat]
+class SoMBenchQ3Output(BaseModel):
+    questions: List[SoMBenchQ3Flat]
 
 
-class SocialMindQ4Flat(BaseModel):
+class SoMBenchQ4Flat(BaseModel):
     story: str = Field(description="以①②③编号的完整中文故事")
     question: str = Field(description="开放分析问题")
     reference_points: List[str] = Field(description="参考答案要点（3-8 条）")
@@ -492,15 +492,15 @@ class SocialMindQ4Flat(BaseModel):
         }
 
 
-class SocialMindQ4Output(BaseModel):
-    questions: List[SocialMindQ4Flat]
+class SoMBenchQ4Output(BaseModel):
+    questions: List[SoMBenchQ4Flat]
 
 
-SOCIALMIND_SCHEMA_BY_QTYPE: Dict[str, Any] = {
-    "Q1": SocialMindQ1Output,
-    "Q2": SocialMindQ2Output,
-    "Q3": SocialMindQ3Output,
-    "Q4": SocialMindQ4Output,
+SOMBENCH_SCHEMA_BY_QTYPE: Dict[str, Any] = {
+    "Q1": SoMBenchQ1Output,
+    "Q2": SoMBenchQ2Output,
+    "Q3": SoMBenchQ3Output,
+    "Q4": SoMBenchQ4Output,
 }
 
 
@@ -553,14 +553,14 @@ def synthesize_from_reports(
     output_schema = SYNTHESIS_SCHEMA_REGISTRY.get(dataset_name, _FallbackSynthesisOutput)
 
     def _schema_for_report(r_idx: int):
-        """SocialMind 按 report 的 qtype 选 schema；其余数据集恒用 output_schema。
+        """SoMBench 按 report 的 qtype 选 schema；其余数据集恒用 output_schema。
         用 _meta.dimension（stage2 程序化写入、权威），避免读 LLM 回显的顶层 dimension。"""
-        if dataset_name != "SocialMind":
+        if dataset_name != "SoMBench":
             return output_schema
         rep = reports[r_idx]
         key = str((rep.get("_meta") or {}).get("dimension") or rep.get("dimension", ""))
-        _dim, qtype = _socialmind_parse_dim(key)
-        return SOCIALMIND_SCHEMA_BY_QTYPE.get(qtype, SocialMindQ1Output)
+        _dim, qtype = _sombench_parse_dim(key)
+        return SOMBENCH_SCHEMA_BY_QTYPE.get(qtype, SoMBenchQ1Output)
 
     total_target = len(reports) * samples_per_report
     logger.info(
@@ -604,9 +604,9 @@ def synthesize_from_reports(
             batch_prompts = gen_prompts[batch_start: batch_start + batch_size]
             batch_pairs = pending_pairs[batch_start: batch_start + batch_size]
 
-            # SocialMind 一个 batch 可能混不同 qtype（schema），按 schema 子分组各调一次，
+            # SoMBench 一个 batch 可能混不同 qtype（schema），按 schema 子分组各调一次，
             # 再按原顺序拼回，保持与 batch_pairs 对齐。其余数据集走单一 schema。
-            if dataset_name == "SocialMind":
+            if dataset_name == "SoMBench":
                 groups: Dict[Any, List[int]] = {}
                 for i, (r_idx, _s) in enumerate(batch_pairs):
                     groups.setdefault(_schema_for_report(r_idx), []).append(i)

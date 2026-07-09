@@ -73,7 +73,7 @@ datasets:
   - SimpleToM
   - SocialBench
   - SocialIQA
-  - SocialMind
+  - SoMBench
   - TactfulToM
   - ToMBench
   - ToMChallenges

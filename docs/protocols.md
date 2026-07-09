@@ -56,9 +56,9 @@ user prompt 只留故事/问题/选项。system prompt 按「风格 × 题型 ×
 | 来源 | 触发条件 | 用它的数据集 |
 |---|---|---|
 | **A. `boxed_directive`**（`prompts.py`，主路径） | 数据集提供 `build_system_prompt` | **18/19**：Belief_R·BigToM·EmoBench·ExploreToM·FanToM·FictionalQA·HellaSwag·HiToM·PUB·SimpleToM·SocialBench·SocialIQA·TactfulToM·ToMBench·ToMChallenges·ToMQA·ToMato·ToMi |
-| **B. `_SYSTEM_PROMPTS`**（`protocols.py`，协议默认兜底） | 数据集**没有** `build_system_prompt` → 回退 `system_prompt_for()` | **仅 SocialMind** |
+| **B. `_SYSTEM_PROMPTS`**（`protocols.py`，协议默认兜底） | 数据集**没有** `build_system_prompt` → 回退 `system_prompt_for()` | **仅 SoMBench** |
 
-> 换言之：**日常几乎所有数据集走的都是来源 A**，来源 B 现在只兜底 SocialMind 一家。两套措辞不同、且在 `open` 上**有意分叉**（见下）。
+> 换言之：**日常几乎所有数据集走的都是来源 A**，来源 B 现在只兜底 SoMBench 一家。两套措辞不同、且在 `open` 上**有意分叉**（见下）。
 
 来源 A 的数据集里，system prompt = **`[可选的官方前言] + boxed_directive(lang, 题型, reasoning)`**：
 - **纯 `boxed_directive`**（14 个）：system prompt 就是下表这一句。
@@ -94,9 +94,9 @@ user prompt 只留故事/问题/选项。system prompt 按「风格 × 题型 ×
 
 > 注意 `open` 在来源 A 是 **`\boxed{}` 短答**：这是为 `open_judge: f1` 的短答集（ExploreToM / FictionalQA / SocialBench / ToMChallenges）设的边界——否则推理协议下整段推理会把短答案的 token-F1 稀释到接近 0（f1 判分会先抽 `\boxed{}` 内容再算分）。**新增 open+f1 数据集务必提供 `build_system_prompt`**，只吃来源 B 会漏掉这个边界。
 
-### 来源 B：`_SYSTEM_PROMPTS`（协议默认，仅 SocialMind 兜底）
+### 来源 B：`_SYSTEM_PROMPTS`（协议默认，仅 SoMBench 兜底）
 
-自带 `You are a careful reader` 前言；与来源 A 的关键差别是 **`open` 是 free-text（不套 `\boxed{}`）**——因为唯一用它的 SocialMind Q4 走 `rubric` 长答案（≤1000 字自由作答，套 `\boxed{}` 反而违背 rubric 约束）。
+自带 `You are a careful reader` 前言；与来源 A 的关键差别是 **`open` 是 free-text（不套 `\boxed{}`）**——因为唯一用它的 SoMBench Q4 走 `rubric` 长答案（≤1000 字自由作答，套 `\boxed{}` 反而违背 rubric 约束）。
 
 **英文（en）**
 

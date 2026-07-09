@@ -1,4 +1,4 @@
-"""SocialMind 自定义 body prompt。
+"""SoMBench 自定义 body prompt。
 
 Q4 开放分析题走 open_judge=rubric 判分，rubric 的「额外校准规则」对答案的
 长度/单要点/反堆砌/不得复述参考答案有硬性约束（见 q4_judge_prompts.json 与
@@ -48,6 +48,6 @@ def build_prompt(
     # 故 include_instruction 在 open 分支下不影响 body。
     lang = get_sample_lang(sample.get("meta"))
     if lang != "zh":
-        # SocialMind 目前全为中文样本；非中文样本回退通用实现以防意外语言。
+        # SoMBench 目前全为中文样本；非中文样本回退通用实现以防意外语言。
         return _generic_build_prompt(sample, option_map, include_instruction)
     return OPEN_QA_TEMPLATE_ZH.format(story=sample["story"], question=sample["question"])

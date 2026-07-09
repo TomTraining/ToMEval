@@ -15,8 +15,8 @@ metrics 结构（见 src/evaluation/task_metrics.py）：
 自动行为：
 - 每个维度节点（含三级）-> 一张准确率柱状图（带样本数 n 标注）。
 - 某维度各 split 都带同名单一子维度 -> 额外透视成 行×列 热力图
-  （如 SocialMind dim1×dim2、EmoBench coarse×finegrained）。
-- 顶层"分组均分"字典（键含 `_by_`，如 SocialMind q4_mean_score_by_dim）-> 均分柱状图。
+  （如 SoMBench dim1×dim2、EmoBench coarse×finegrained）。
+- 顶层"分组均分"字典（键含 `_by_`，如 SoMBench q4_mean_score_by_dim）-> 均分柱状图。
 - per_sample_results 中若含 judge1_score/judge2_score -> 出 judge 一致性图
   （散点 + Bland-Altman）；否则跳过。
 - 多个 metrics.json -> 额外出多模型对比图。
@@ -40,7 +40,7 @@ try:
 except Exception:  # pragma: no cover
     _HAS_SNS = False
 
-# 尽量挑一个支持中文的字体（SocialMind 维度名等），挑不到就用默认，不报错。
+# 尽量挑一个支持中文的字体（SoMBench 维度名等），挑不到就用默认，不报错。
 for _font in ["PingFang SC", "Heiti SC", "Arial Unicode MS", "STHeiti", "SimHei"]:
     try:
         from matplotlib.font_manager import findfont, FontProperties
@@ -117,7 +117,7 @@ def heatmap_from_splits(splits: Dict[str, Any]) -> Optional[Tuple[str, Dict[str,
     """若某维度每个 split 都恰好挂同一个子维度，则可透视成 行×列 热力图。
 
     返回 (子维度名, {"row|col": acc})；不满足条件返回 None。
-    例：SocialMind dim1 各 split 下都有 dim2 -> dim1×dim2 热力图。
+    例：SoMBench dim1 各 split 下都有 dim2 -> dim1×dim2 热力图。
     """
     child_names = set()
     for split in splits.values():
@@ -138,7 +138,7 @@ def heatmap_from_splits(splits: Dict[str, Any]) -> Optional[Tuple[str, Dict[str,
 
 
 def score_group_keys(metrics: Dict[str, Any]) -> List[str]:
-    """非准确率的"分组均分"字典，如 SocialMind 的 q4_mean_score_by_dim(0-10 分)。
+    """非准确率的"分组均分"字典，如 SoMBench 的 q4_mean_score_by_dim(0-10 分)。
 
     约定：键里含 `_by_`（分组）但不以 `by_` 开头（那是历史准确率命名），值为非空 dict。"""
     return [
@@ -308,7 +308,7 @@ def render_single(payload: Dict[str, Any], out_dir: Path, prefix: str = "") -> L
             plot_heatmap(f"{path_name} × {child_name}", hm_rates, hm_path)
             written.append(hm_path)
 
-    # 分组平均分（如 SocialMind Q4 rubric：q4_mean_score_by_dim，0-10 分）。
+    # 分组平均分（如 SoMBench Q4 rubric：q4_mean_score_by_dim，0-10 分）。
     for sk in score_group_keys(metrics):
         scores = metrics[sk]
         overall_key = sk.split("_by_", 1)[0]  # q4_mean_score_by_dim -> q4_mean_score
