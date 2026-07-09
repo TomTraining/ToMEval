@@ -42,6 +42,9 @@ _DEFAULT_F1_THRESHOLD = 0.5
 _DEFAULT_RUBRIC_THRESHOLD = 7.0
 _DEFAULT_RUBRIC_MAX_SCORE = 10
 
+# open(Q4)答案长度上限:生成 prompt 约束 ≤2000 字符,rubric 判分时同步截断到前 2000 字符。
+_OPEN_ANSWER_MAX_CHARS = 2000
+
 
 def needs_judge_model(mode: str) -> bool:
     return mode in ("llm_simple", "rubric")
@@ -267,12 +270,12 @@ def _judge_llm_simple(records: List[Dict[str, Any]], judge_clients: List[Any]) -
 # 模式 3:rubric(数据集 rubric prompt + judge model,多 judge 取平均)          #
 # --------------------------------------------------------------------------- #
 # 跨维度通用的额外校准规则，优先级高于各 per-dim 细则；插在 rubric 正文与题面之间。
-# 与评测模型生成 prompt 的约束(≤1000字 / 单要点 / 不复制参考答案 / 反堆砌)一一对应，
+# 与评测模型生成 prompt 的约束(≤2000字符 / 单要点 / 不复制参考答案 / 反堆砌)一一对应，
 # 用判分侧惩罚兜住生成侧没遵守约束的情况(罗列碰答案、堆砌、复述参考答案)。
 _RUBRIC_EXTRA_CALIBRATION = """## 额外校准规则（优先级高于各维度细则）
 - 参考答案要点只用于判分校准，不是逐字匹配模板；不得因被测答案贴近参考答案措辞而自动给高分。
 - 若被测答案主要是在复述、改写或堆砌参考答案/题干信息，但缺少自主的情境证据链与机制解释，总分最高6分。
-- 若被测答案超过1000字或明显依靠罗列覆盖大量可能点来碰答案，总分最高7分；严重堆砌且缺乏取舍时最高6分。
+- 若被测答案明显依靠罗列覆盖大量可能点来碰答案，总分最高7分；严重堆砌且缺乏取舍时最高6分。
 - 若一句话同时塞入多个独立判断点，导致语义边界模糊或无法判断每个点是否成立，相关维度最高1分。
 - 给高分必须基于清晰、可核验、情境特异的单点论证；泛泛术语、概念堆叠、模糊归纳不能替代具体分析。"""
 
@@ -288,7 +291,9 @@ def _build_rubric_prompt(record: Dict[str, Any], rubric: Dict[str, Any]) -> str:
 
     max_score = rubric.get("max_score", _DEFAULT_RUBRIC_MAX_SCORE)
     reference = "\n".join(record.get("correct_answers") or [])
-    model_output = pred_content(record) or ""
+    # 生成 prompt 已约束答案 ≤2000 字符；判分侧同样把被测答案截断到前 2000 字符，
+    # 既与生成约束对齐，也避免个别超长输出撑爆 judge 上下文。
+    model_output = (pred_content(record) or "")[:_OPEN_ANSWER_MAX_CHARS]
     return (
         f"{head}\n\n"
         f"{_RUBRIC_EXTRA_CALIBRATION}\n\n"

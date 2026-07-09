@@ -18,7 +18,7 @@ from src.evaluation.prompts import prompt_type
 from src.evaluation.types import StandardizedSample
 
 # open(Q4)生成 prompt：约束与 rubric「额外校准规则」一一对应
-# （≤1000字 / 单要点 / 不复述参考答案 / 反堆砌），让被测模型在生成阶段就知情。
+# （≤2000字符 / 单要点 / 不复述参考答案 / 反堆砌），让被测模型在生成阶段就知情。
 OPEN_QA_TEMPLATE_ZH = """请根据下面的故事回答问题。
 
 故事：
@@ -27,7 +27,8 @@ OPEN_QA_TEMPLATE_ZH = """请根据下面的故事回答问题。
 问题：
 {question}
 
-请直接回答问题，答案不超过1000字。
+请直接回答问题，答案最多不超过 2000 个字符。
+超过 2000 个字符的内容不会参与模型评分。
 不要复制或改写参考答案；只能依据故事本身推理。
 使用简洁、基于证据的句子。
 每句话最多表达一个独立要点。
