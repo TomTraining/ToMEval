@@ -96,7 +96,7 @@ user prompt 只留故事/问题/选项。system prompt 按「风格 × 题型 ×
 
 ### 来源 B：`_SYSTEM_PROMPTS`（协议默认，仅 SocialMind 兜底）
 
-自带 `You are a careful reader` 前言；与来源 A 的关键差别是 **`open` 是 free-text（不套 `\boxed{}`）**——因为唯一用它的 SocialMind Q4 走 `rubric` 长答案（≤300 字自由作答，套 `\boxed{}` 反而违背 rubric 约束）。
+自带 `You are a careful reader` 前言；与来源 A 的关键差别是 **`open` 是 free-text（不套 `\boxed{}`）**——因为唯一用它的 SocialMind Q4 走 `rubric` 长答案（≤1000 字自由作答，套 `\boxed{}` 反而违背 rubric 约束）。
 
 **英文（en）**
 
