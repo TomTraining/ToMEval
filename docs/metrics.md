@@ -90,7 +90,7 @@ avg_metrics
 
 任意 split 内部还能再切，子维度挂在该 split 的 `dimensions` 下，**层数不限**。目前最深到四级：
 
-- **SocialMind**（四级）：`dim1`（能力大类）→ `dim2`（二级标签如 1.1）→ `dim3`（三级标签如 1.1.2）
+- **SoMBench**（四级）：`dim1`（能力大类）→ `dim2`（二级标签如 1.1）→ `dim3`（三级标签如 1.1.2）
 - **EmoBench**（三级）：`coarse_category`（情绪粗类）→ `finegrained_category`（情绪细类）
 
 > 注：ToMato 旧版曾按 `dimension_1→dimension_2→dimension_3` 展开四级，但标准化数据的 `meta.dimension` 实为单槽（仅心智状态一项），后两级恒为占位空桶，已删除，改用 `mental_state` / `order` / `false_belief`。
@@ -101,7 +101,7 @@ avg_metrics
 
 个别维度的 `acc` 字段放的不是 0–1 准确率，而是其它标量：
 
-- **SocialMind `q4_score`**：Q4 开放分析题的 rubric 平均分，量程 **0–`max_score`**（默认 10）。`overall` = 全部 Q4 均分，其余 split 按三级维度 `meta.dim` 分组。
+- **SoMBench `q4_score`**：Q4 开放分析题的 rubric 平均分，量程 **0–`max_score`**（默认 10）。`overall` = 全部 Q4 均分，其余 split 按三级维度 `meta.dim` 分组。
 - **FictionalQA `grading.blind`**：无上下文盲评的均分。
 
 > **0–10 与 0–1 的约定**：rubric **只在评测/judge 阶段按 10 分制计算**（满分 `max_score`=10，`open_threshold`=7 判过），`judge_score`、`q4_score` 都按原始 0–10 分存进 `metrics.json`。下游凡需要 0–1 口径的场合（与其它准确率同图、跨数据集汇总、归一对比），**统一除以 `max_score` 归一**即可：`q4_norm = q4_score / 10`。换言之，存储保留满分制以免精度损失与语义丢失，归一是消费侧的一步显式换算。
@@ -118,7 +118,7 @@ MCQ 走 `\boxed{}` 规则提取判分；open 题没有干扰项，按数据集 `
 |------|:---:|------|------|------|
 | `f1` | 否 | token / 字符级 F1 对比参考答案，过阈值算对 | `f1_threshold`，默认 **0.5** | ExploreToM · FictionalQA · SocialBench · ToMChallenges |
 | `llm_simple` | 是（judge1） | 二元 LLM judge，参照式输出 is_correct | — | （当前无） |
-| `rubric` | 是（judge1[+2]） | 数据集 rubric prompt 打总分，多 judge 取平均，过阈值算对 | `open_threshold`，默认 **7.0** | SocialMind（满分 10） |
+| `rubric` | 是（judge1[+2]） | 数据集 rubric prompt 打总分，多 judge 取平均，过阈值算对 | `open_threshold`，默认 **7.0** | SoMBench（满分 10） |
 
 判分模式是**数据集答案格式的内在属性**（短答案→f1、社会认知长答案→rubric），所以配置放在数据集侧而非全局。
 
@@ -126,9 +126,9 @@ MCQ 走 `\boxed{}` 规则提取判分；open 题没有干扰项，按数据集 `
 
 ---
 
-## 5. SocialMind 专属：qualified 镜像
+## 5. SoMBench 专属：qualified 镜像
 
-SocialMind 在常规指标之外，额外产出一份 **`qualified` 镜像**：仅在「人工审核合格」（`meta.review_pass=True`）的样本上**重算同一套**一级 / 二级 / 三级 / 四级指标，结构与全量完全一致。
+SoMBench 在常规指标之外，额外产出一份 **`qualified` 镜像**：仅在「人工审核合格」（`meta.review_pass=True`）的样本上**重算同一套**一级 / 二级 / 三级 / 四级指标，结构与全量完全一致。
 
 | 字段 | 含义 |
 |------|------|
@@ -164,7 +164,7 @@ SocialMind 在常规指标之外，额外产出一份 **`qualified` 镜像**：�
 | **ToMQA** | `dimension`（belief / memory / reality / search）；`task`（fb / tb / sofb） |
 | **ToMato** | `mental_state`（belief/desire/emotion/intention/knowledge）；`order`（1 / 2）；`false_belief`（True / False） |
 | **ToMi** | `story_type`（true/false/second_order false belief）；`question_type`（一/二阶 × 是否需 ToM、memory、reality） |
-| **SocialMind** | `dim1` → `dim2` → `dim3`（能力维度三级体系）；`qtype`（Q1–Q4）；`perspective`（first/third person）；`variant`（base/hardest/varA/varB）；`length`（long/short）；`q4_score` *(汇总：Q4 rubric 0–10 均分)*；另含 `qualified` 镜像（见 §5） |
+| **SoMBench** | `dim1` → `dim2` → `dim3`（能力维度三级体系）；`qtype`（Q1–Q4）；`perspective`（first/third person）；`variant`（base/hardest/varA/varB）；`length`（long/short）；`q4_score` *(汇总：Q4 rubric 0–10 均分)*；另含 `qualified` 镜像（见 §5） |
 
 > 上表的「维度名」即 `metrics.json` 里 `dimensions` 的键，与各 `tasks/<DS>/metrics.py` 声明一致。每个数据集的完整逐值释义（含中文副本）见 [tasks/](tasks/README.md) 下的 `<DS>_table.md` / `<DS>_table_zh.md`。各 split 的具体取值随实验而变，不在本文件固化；要看某次实验的实际数字，直接读对应的 `metrics.json`，或用可视化（[visualization.md](visualization.md)）出图。
 

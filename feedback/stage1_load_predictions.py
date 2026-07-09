@@ -204,10 +204,10 @@ def load_bad_cases_from_predictions(
         correct_letters = ref_rec.get("correct_letters", [])
         gold = correct_letters[0] if correct_letters else ""
 
-        # SocialMind Q4 是开放题（无 correct_letters）：gold 取 q4_reference 拼接，
+        # SoMBench Q4 是开放题（无 correct_letters）：gold 取 q4_reference 拼接，
         # 供诊断 prompt 呈现参考要点;_wrong_answer 改用模型原文（见下方组装处）。
         ref_meta = ref_rec.get("meta", {}) or {}
-        is_sm_q4 = dataset_name == "SocialMind" and str(ref_meta.get("qtype")) == "Q4"
+        is_sm_q4 = dataset_name == "SoMBench" and str(ref_meta.get("qtype")) == "Q4"
         if is_sm_q4:
             gold = "\n".join(str(p) for p in (ref_meta.get("q4_reference") or []) if str(p).strip())
 
@@ -456,12 +456,12 @@ def get_dimension_key(meta: Any, dataset_name: str) -> str:
         parts = meta_id.split("__")
         return parts[1] if len(parts) > 1 else "unknown"
 
-    elif dataset_name == "SocialMind":
-        # SocialMind 题型异构（Q1-Q4），把 qtype 编进维度键 → 每份诊断报告 qtype 同质，
+    elif dataset_name == "SoMBench":
+        # SoMBench 题型异构（Q1-Q4），把 qtype 编进维度键 → 每份诊断报告 qtype 同质，
         # 合成时据此选 qtype 专属 format/schema。dim 形如 "1.1.1"（含点不含下划线）。
         dim, qtype = meta.get("dim", ""), meta.get("qtype", "")
         base = f"{dim}__{qtype}" if dim and qtype else (str(dim) or "unknown")
-        return base + suffix   # SocialMind 恒为 zh → suffix == "__zh"
+        return base + suffix   # SoMBench 恒为 zh → suffix == "__zh"
 
     else:
         dim = meta.get("dimension", meta.get("Dimension", ["unknown"]))

@@ -14,7 +14,7 @@
 - [SimpleToM](SimpleToM_table_zh.md)
 - [SocialBench](SocialBench_table_zh.md)
 - [SocialIQA](SocialIQA_table_zh.md)
-- [SocialMind](SocialMind_table_zh.md)
+- [SoMBench](SoMBench_table_zh.md)
 - [TactfulToM](TactfulToM_table_zh.md)
 - [ToMBench](ToMBench_table_zh.md)
 - [ToMChallenges](ToMChallenges_table_zh.md)
